@@ -532,3 +532,9 @@ Role-based approval. Require specific approval from specific users/roles, for sp
 ### MCP server
 
 CLI syntax has already been adjusted somewhat with this in mind, considering advice from https://engineering.block.xyz/blog/blocks-playbook-for-designing-mcp-servers and https://www.reillywood.com/blog/apis-dont-make-good-mcp-tools/
+
+### Auto-generate agent instructions
+
+Rather than having a fixed text file living in the codebase for an agent to read, the tool could auto-generate the dense, efficient instructions for an agent to load into its context window. It could be extended to provide tailored instructions for sub-agents that only have access to a subset of functionality.
+
+The benfit of this approach is that the instructions would also match the requirements configured in ghoo.yaml, which would be the single source of truth. If the agent works better with real files for instructions, perhaps a git-commit hook could have it update the text file on each run, or similar automatic process. 
