@@ -81,9 +81,26 @@ The tool will be configured via a `ghoo.yaml` file located in the root of the us
   - `status_method`: (Optional) How to track issue states. Defaults based on project_url:
     - `labels`: Uses GitHub labels (default for repository URLs)
     - `status_field`: Uses Projects V2 Status field (default for project board URLs)
-  - `required_sections`: (Optional) Sections that must exist in issue bodies before work can begin.
-    - Can be specified per issue type
-    - If not specified, no sections are required
+  - `required_sections`: (Optional) A mapping of issue types to a list of section titles that must exist in the issue's body before its plan can be submitted for approval.
+    - If this field is omitted, `ghoo` will enforce a default set of required sections.
+    - To disable required sections for a specific issue type, you can provide an empty list (e.g., `task: []`).
+
+<details>
+<summary>Default Required Sections</summary>
+
+- **epic**:
+  - "Summary"
+  - "Acceptance Criteria"
+  - "Milestone Plan"
+- **task**:
+  - "Summary"
+  - "Acceptance Criteria"
+  - "Implementation Plan"
+- **sub-task**:
+  - "Summary"
+  - "Acceptance Criteria"
+
+</details>
 
 ### Example ghoo.yaml
 
@@ -124,6 +141,47 @@ All Markdown output must be generated using the Jinja2 templating engine. This s
 
 - Templates will be stored in the `src/ghoo/templates/` directory.
 - The core application logic will fetch data from the GitHub API, populate the data models (`models.py`), and pass these objects to the appropriate Jinja2 template for rendering.
+
+### Example epic.md template
+```jinja2
+# {{ epic.title }} (#{{ epic.id }})
+
+**Status**: `{{ epic.status }}` | **Repository**: `{{ epic.repository }}`
+
+---
+
+## Description
+
+{{ epic.pre_section_description }}
+
+---
+
+## Sections
+{% for section in epic.sections %}
+### {{ section.title }} ({{ section.completed_todos }}/{{ section.total_todos }} todos)
+{{ section.body }}
+{% else %}
+*No sections defined.*
+{% endfor %}
+
+---
+
+## Open Tasks ({{ epic.open_tasks | length }})
+{% for task in epic.open_tasks %}
+- `{{ task.repository }}`#{{ task.id }}: {{ task.title }}
+{% else %}
+*No open tasks.*
+{% endfor %}
+
+---
+
+## Available Milestones
+{% for milestone in available_milestones %}
+- **{{ milestone.title }}** (ID: {{ milestone.id }}, Due: {{ milestone.due_date or 'N/A' }})
+{% else %}
+*No open milestones found.*
+{% endfor %}
+```
 
 ### Example task.md template
 
@@ -197,9 +255,9 @@ This command is optional; all configuration can be done manually via the GitHub 
 ### `get` Commands
 
 ```bash
-ghoo get epic --id <number>
-ghoo get task --id <number>
-ghoo get sub-task --id <number>
+`ghoo get epic --id <number>`
+
+Fetches and displays the details for a single Epic. To facilitate planning, the output is augmented with a list of all open milestones in the project, making it easy to reference milestone IDs when creating a "Milestone Plan" section.
 ghoo get milestone --id <number>
 ghoo get section --issue-id <number> --title "<section_title>"
 ghoo get todo --issue-id <number> --section "<section_title>" --match "<todo_text>"
