@@ -430,7 +430,7 @@ def check_todo(
         typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
         typer.echo(f"   Section: {result['section_name']}")
         typer.echo(f"   Todo: {result['todo_text']}")
-        typer.echo(f"   State: {'☐' if result['old_state'] else '☑'} → {'☑' if result['new_state'] else '☐'}")
+        typer.echo(f"   State: {'☑' if result['old_state'] else '☐'} → {'☑' if result['new_state'] else '☐'}")
         typer.echo(f"   URL: {result['url']}")
         
     except ValueError as e:

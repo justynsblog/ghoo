@@ -69,12 +69,51 @@ src/ghoo/
 - **Get Command**: GetCommand class (✅ IMPLEMENTED) with full issue fetching and display capabilities
 
 ## Testing
+
+### Live Testing Environment (CRITICAL)
+- **⚠️ MANDATORY**: All new work must be validated with E2E tests against live GitHub
+- **Configuration**: Live testing environment is configured in `.env` file with:
+  - `TESTING_GITHUB_TOKEN`: Personal access token with repo permissions
+  - `TESTING_GH_REPO`: Target repository URL for testing (e.g., `https://github.com/user/test-repo`)
+- **Usage**: `source .env` before running tests to load credentials
+- **Repository Requirements**: 
+  - Must have write access for creating/updating issues
+  - Should be a dedicated testing repository to avoid contaminating production data
+  - Issues created during testing are automatically cleaned up (closed)
+
+### Test Coverage
 - **E2E Tests**: Against live GitHub using TESTING_* env vars
   - Comprehensive hierarchy tests in `test_creation_and_get_e2e.py` (8 test methods)
+  - Todo command tests in `test_todo_commands_e2e.py` (15 test methods)  
+  - Set-body command tests in `test_set_body_e2e.py` (10 test methods)
   - Full Epic → Task → Sub-task workflow validation with cleanup
+- **Integration Tests**: Mocked GitHub API testing (35+ test methods)
+- **Unit Tests**: Isolated logic testing (55+ test methods)
 - **Framework**: pytest with subprocess for CLI invocation
 - **Location**: `tests/e2e/`, `tests/integration/`, `tests/unit/`
-- **Environment**: Load `.env` file for testing credentials (`source .env` or use python-dotenv)
+
+### Testing Protocol (MANDATORY)
+1. **Before any commit**: Run relevant E2E tests to validate functionality
+2. **New commands**: Must have comprehensive E2E test coverage
+3. **Bug fixes**: Must include regression tests  
+4. **All Phase completions**: Run full E2E test suite
+5. **Environment setup**: Always `source .env` before testing
+6. **Cleanup verification**: Ensure test issues are properly closed
+
+### Example Testing Commands
+```bash
+# Load testing environment
+source .env
+
+# Run specific E2E tests for new work
+uv run pytest tests/e2e/test_todo_commands_e2e.py -v
+
+# Run all E2E tests
+uv run pytest tests/e2e/ -v
+
+# Run full test suite
+uv run pytest tests/ -v
+```
 
 ## Commands & Validation
 - Always validate before proceeding (run linters, type checkers when available)

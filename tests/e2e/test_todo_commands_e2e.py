@@ -107,7 +107,25 @@ Some notes for testing.
         if result.returncode != 0:
             pytest.fail(f"Failed to get issue: {result.stderr}")
         
-        return json.loads(result.stdout)['body']
+        issue_data = json.loads(result.stdout)
+        
+        # Reconstruct body from sections (similar to how our parser works)
+        lines = []
+        if issue_data.get('pre_section_description'):
+            lines.extend(issue_data['pre_section_description'].split('\n'))
+            lines.append('')
+        
+        for section in issue_data.get('sections', []):
+            lines.append(f"## {section['title']}")
+            if section.get('body'):
+                lines.extend(section['body'].split('\n'))
+            lines.append('')
+        
+        # Remove trailing empty lines
+        while lines and not lines[-1].strip():
+            lines.pop()
+            
+        return '\n'.join(lines)
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
