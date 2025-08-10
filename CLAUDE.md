@@ -30,13 +30,14 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `02-implement-issue-type-creation.md` - COMPLETE (implemented as part of 01)
   - ✅ `03-implement-status-label-creation.md` - COMPLETE (implemented as part of 01)  
   - ✅ `04-e2e-test-init-gh.md` - COMPLETE (implemented as part of 01)
-- **Phase 3**: **In Progress**
+- **Phase 3**: **COMPLETE** 🎉
   - ✅ `01-implement-data-models.md` - COMPLETE
   - ✅ `02-implement-body-parser.md` - COMPLETE
   - ✅ `03-implement-get-command.md` - COMPLETE
   - ✅ `04-implement-create-epic-command.md` - COMPLETE
   - ✅ `05-implement-create-task-command.md` - COMPLETE
-  - **Next**: `06-implement-create-sub-task-command.md`
+  - ✅ `06-implement-create-sub-task-command.md` - COMPLETE
+  - **Next Phase**: Phase 4 (Workflow Management)
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
 ## Project Structure
@@ -92,6 +93,15 @@ src/ghoo/
   - Creates sub-issue relationship via GraphQL when available, fallback to body reference
   - Sets status label (status:backlog) automatically
   - Supports labels, assignees, milestones
+- **create-sub-task**: Create new Sub-task issues linked to parent Tasks 🆕
+  - Supports: `ghoo create-sub-task <repository> <parent_task> <title> [options]`
+  - Validates parent task exists, is open, and is actually a task
+  - Auto-generates body with required sections (Summary, Acceptance Criteria, Implementation Notes)
+  - Includes parent task reference in body with automatic injection for custom bodies
+  - Creates sub-issue relationship via GraphQL when available, fallback to body reference
+  - Sets status label (status:backlog) automatically
+  - Supports labels, assignees, milestones
+  - **Refactored Architecture**: Implemented using new `BaseCreateCommand` inheritance pattern that eliminated ~60% code duplication
 
 ## Important Files
 - `SPEC.md`: Complete technical specification

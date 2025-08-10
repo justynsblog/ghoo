@@ -5,7 +5,7 @@ from typing import Optional
 from pathlib import Path
 import sys
 
-from .core import InitCommand, GetCommand, CreateEpicCommand, CreateTaskCommand, GitHubClient, ConfigLoader
+from .core import InitCommand, GetCommand, CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand, GitHubClient, ConfigLoader
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -433,6 +433,99 @@ def create_task(
         typer.echo(f"   🏷️  Type: {result['type']}")
         typer.echo(f"   📈 Parent Epic: #{result['parent_epic']}")
         typer.echo(f"   🔖 Labels: {', '.join(result['labels'])}")
+        
+        if result['assignees']:
+            typer.echo(f"   👥 Assignees: {', '.join(result['assignees'])}")
+        
+        if result['milestone']:
+            typer.echo(f"   🎯 Milestone: {result['milestone']['title']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="create-sub-task")
+def create_sub_task(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    parent_task: int = typer.Argument(..., help="Issue number of the parent task"),
+    title: str = typer.Argument(..., help="Sub-task title"),
+    body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom sub-task body (uses template if not provided)"),
+    labels: Optional[str] = typer.Option(None, "--labels", "-l", help="Comma-separated list of additional labels"),
+    assignees: Optional[str] = typer.Option(None, "--assignees", "-a", help="Comma-separated list of GitHub usernames to assign"),
+    milestone: Optional[str] = typer.Option(None, "--milestone", "-m", help="Milestone title to assign"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Create a new Sub-task issue linked to a parent Task."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+                typer.echo(f"📋 Using configuration from {config_path}")
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
+        
+        # Parse additional labels
+        labels_list = None
+        if labels:
+            labels_list = [label.strip() for label in labels.split(',')]
+        
+        # Parse assignees
+        assignees_list = None
+        if assignees:
+            assignees_list = [assignee.strip() for assignee in assignees.split(',')]
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Create sub-task command
+        create_sub_task_cmd = CreateSubTaskCommand(github_client, config)
+        
+        typer.echo(f"🔨 Creating sub-task '{title}' for task #{parent_task} in {repo}...")
+        
+        # Execute sub-task creation
+        result = create_sub_task_cmd.execute(
+            repo=repo,
+            parent_task=parent_task,
+            title=title,
+            body=body,
+            labels=labels_list,
+            assignees=assignees_list,
+            milestone=milestone
+        )
+        
+        # Display success message
+        typer.echo(f"✅ Sub-task created successfully!")
+        typer.echo(f"   📋 Issue #{result['number']}: {result['title']}")
+        typer.echo(f"   🔗 URL: {result['url']}")
+        typer.echo(f"   🏷️  Labels: {', '.join(result['labels'])}")
+        typer.echo(f"   📈 Parent Task: #{parent_task}")
         
         if result['assignees']:
             typer.echo(f"   👥 Assignees: {', '.join(result['assignees'])}")
