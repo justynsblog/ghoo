@@ -25,8 +25,10 @@ Follow this **subagent-based workflow** for all development:
 
 ## Current State
 - **Phase 1**: ✅ COMPLETE (all 4 tasks done)
-- **Next**: Phase 2 - `issues/phase2/00-implement-graphql-client.md`
-- **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid
+- **Phase 2**: 
+  - ✅ `00-implement-graphql-client.md` - COMPLETE
+  - **Next**: `01-implement-init-gh-command.md`
+- **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
 ## Project Structure
 ```
@@ -39,9 +41,11 @@ src/ghoo/
 ```
 
 ## Key Implementation Details
-- **API Strategy**: Hybrid PyGithub (REST) + direct GraphQL for sub-issues/types
-- **Issue Types**: Custom GitHub issue types (Epic/Task/Sub-task), NOT labels
-- **Relationships**: Native GitHub sub-issues feature via GraphQL
+- **API Strategy**: Hybrid PyGithub (REST) + GraphQL client (✅ IMPLEMENTED)
+  - GraphQLClient class handles sub-issues, Projects V2, and feature detection
+  - Automatic fallback to labels when GraphQL features unavailable
+- **Issue Types**: Custom GitHub issue types (Epic/Task/Sub-task), fallback to labels
+- **Relationships**: Native GitHub sub-issues via GraphQL, fallback to body references
 - **Status**: Either labels (`status:*`) or Projects V2 field
 - **Config**: `ghoo.yaml` with project_url, status_method, required_sections
 

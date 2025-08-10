@@ -502,31 +502,29 @@ Error messages must be clear, actionable, and use a structured format rendered b
 
 ## Technical Implementation Notes
 
-### Hybrid API Approach
+### Hybrid API Approach (Implemented)
 
-The implementation uses a hybrid approach combining PyGithub (REST API) and direct GraphQL calls:
+The implementation uses a hybrid approach combining PyGithub (REST API) and a dedicated GraphQL client:
 
-#### Use PyGithub (REST API) for:
+#### PyGithub (REST API) is used for:
 - **Standard CRUD operations**: Issue creation, updates, comments, labels
 - **Repository management**: Milestones, labels, assignees
 - **Pagination handling**: Automatic pagination for large result sets
 - **Error handling**: Built-in exception types and retry logic
 
-#### Use GraphQL API for:
-- **Sub-issue relationships**: `addSubIssue` and `removeSubIssue` mutations (not available in REST)
+#### GraphQL Client is used for:
+- **Sub-issue relationships**: `addSubIssue`, `removeSubIssue`, and `reprioritizeSubIssue` mutations (not available in REST)
 - **Issue types**: Setting and updating custom issue types (not available in REST)
 - **Hierarchical queries**: Fetching epics with all tasks and sub-tasks in one request
-- **Projects V2 operations**: Advanced project field manipulation
+- **Projects V2 operations**: Advanced project field manipulation including status field updates
+- **Feature detection**: Checking availability of beta features like sub-issues
 
-#### Implementation Pattern:
+#### Implemented Architecture:
 ```python
 class GitHubClient:
     def __init__(self, token):
         self.github = Github(token)  # PyGithub for REST
-        self.graphql_headers = {
-            'Authorization': f'Bearer {token}',
-            'GraphQL-Features': 'sub_issues,issue_types'
-        }
+        self.graphql = GraphQLClient(token)  # Dedicated GraphQL client
     
     def create_issue_with_type(self, repo, title, body, issue_type):
         # REST: Create issue via PyGithub
@@ -534,25 +532,35 @@ class GitHubClient:
         
         # GraphQL: Set issue type if available
         if issue_type:
-            self._set_issue_type_graphql(issue.node_id, issue_type)
+            try:
+                self.graphql.set_issue_type(issue.node_id, issue_type)
+            except FeatureUnavailableError:
+                # Fallback to labels
+                issue.add_to_labels(f"type:{issue_type.lower()}")
         
         return issue
 ```
 
-### Issue Type Setup
+The GraphQL client includes:
+- **Comprehensive error handling**: Rate limiting, authentication errors, and feature availability detection
+- **Automatic retries**: Exponential backoff for transient failures
+- **Feature caching**: Avoids repeated feature detection checks
+- **Detailed error parsing**: Provides actionable error messages for common GraphQL issues
+
+### Issue Type Setup (Implemented)
 
 Since GitHub doesn't provide built-in Epic/Task/Sub-task types, repositories must be configured:
 
-1. **Primary Approach**: Use GraphQL to create/set issue types programmatically
-2. **Fallback Strategy**: When GraphQL operations fail (permissions, API limitations):
-   - Use labels (`type:epic`, `type:task`, `type:sub-task`) to categorize issues
-   - Track parent-child relationships in issue body with references (e.g., `Parent: #123`)
-   - Provide clear error messages guiding users to manual setup
+1. **Primary Approach**: The GraphQL client attempts to create/set issue types programmatically using the implemented mutations
+2. **Automatic Fallback**: The implementation includes automatic fallback strategies:
+   - When `FeatureUnavailableError` is raised, automatically falls back to labels (`type:epic`, `type:task`, `type:sub-task`)
+   - Parent-child relationships tracked in issue body with references (e.g., `Parent: #123`) when sub-issues API unavailable
+   - Clear, actionable error messages guide users through manual setup when needed
 3. **Setup Options**:
-   - Run `ghoo init-gh` to attempt automatic setup via GraphQL
-   - If GraphQL fails, fall back to creating labels via REST API
-   - Manual setup via GitHub UI remains an option
-4. **Type Caching**: Cache issue type IDs and available features after successful operations
+   - Run `ghoo init-gh` to attempt automatic setup via GraphQL client
+   - Automatic fallback to label creation via REST API if GraphQL fails
+   - Manual setup via GitHub UI remains an option with clear documentation
+4. **Feature Detection & Caching**: The GraphQL client includes built-in feature detection with caching to minimize API calls
 
 ### Status Tracking Implementation
 
