@@ -3,16 +3,25 @@
 ## Project Overview
 `ghoo` is a CLI tool for GitHub issue management using a strict workflow (Epic → Task → Sub-task). Currently in MVP development phase.
 
-## Critical Development Process
-Follow the **bootstrap-mvp-workflow.md** for all development:
+## Critical Development Process - Subagent Workflow
+Follow this **subagent-based workflow** for all development:
+
+### Core Workflow Steps:
 1. Work through issues in `issues/phaseX/` directories sequentially
 2. Move issue to `in-progress/` before starting
-3. Fill in Implementation Plan & Acceptance Criteria sections
+3. **PLANNING PHASE**: Use `issue-planner` agent to fill in Implementation Plan & Acceptance Criteria sections
 4. Get approval before implementing
-5. Create Sub-tasks checklist and check off as completed
-6. Move to `completed/` when done
-7. **IMMEDIATELY commit all changes** with format: `feat(phaseX): [description]`
-8. Verify clean git status before proceeding to next issue
+5. **EXECUTION PHASE**: Use `issue-executor` agent to execute the issue to completion
+6. **PROBLEM SOLVING**: If executor fails or needs help, use `deep-problem-solver` agent, then retry with executor
+7. **DOCUMENTATION**: Once executor completes all acceptance criteria, use `docs-maintainer` agent to update docs
+8. **FINALIZATION**: Move to `completed/`, commit all changes with format: `feat(phaseX): [description]`
+9. Verify clean git status before proceeding to next issue
+
+### Subagent Responsibilities:
+- **issue-planner**: Analyzes requirements, creates detailed implementation plans with sub-tasks and acceptance criteria
+- **issue-executor**: Methodically implements planned issues, ensuring all requirements are met without skipping steps
+- **deep-problem-solver**: Handles complex technical challenges when standard approaches fail
+- **docs-maintainer**: Ensures documentation reflects code changes and maintains high-quality accessible docs
 
 ## Current State
 - **Phase 1**: ✅ COMPLETE (all 4 tasks done)
@@ -61,11 +70,14 @@ src/ghoo/
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-When starting work:
+When starting work with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
 2. Check current phase status in `issues/`
-3. Pick next numbered issue
-4. Follow bootstrap workflow exactly
-5. Test against live GitHub repo using TESTING_* credentials
-6. Commit all changes immediately after completion
-7. Verify clean git status before moving to next issue
+3. Pick next numbered issue and move to `in-progress/`
+4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
+5. Get approval for the plan before proceeding
+6. **EXECUTE**: Call `issue-executor` agent to implement the planned solution
+7. **RESOLVE ISSUES**: If executor encounters problems, call `deep-problem-solver`, then retry executor
+8. **UPDATE DOCS**: Call `docs-maintainer` agent to ensure documentation is current
+9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
+10. Test against live GitHub repo using TESTING_* credentials throughout process
