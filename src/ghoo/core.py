@@ -22,7 +22,12 @@ from .models import Config
 
 
 class GitHubClient:
-    """Client for interacting with GitHub API."""
+    """Client for interacting with GitHub API using hybrid REST/GraphQL approach.
+    
+    This client combines:
+    - PyGithub for REST API operations (issues, labels, milestones, etc.)
+    - Direct GraphQL calls for advanced features (sub-issues, issue types)
+    """
     
     def __init__(self, token: Optional[str] = None, use_testing_token: bool = False):
         """Initialize GitHub client with authentication token.

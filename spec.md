@@ -502,25 +502,57 @@ Error messages must be clear, actionable, and use a structured format rendered b
 
 ## Technical Implementation Notes
 
-### API Usage
+### Hybrid API Approach
 
-- **GraphQL API**: Primary interface for Projects V2 operations and complex sub-issue queries
-  - Requires `GraphQL-Features: sub_issues` header for sub-issue operations
-  - Used for batch operations and hierarchical data fetching
-- **REST API**: Used for simple CRUD operations where available
-  - Issue creation and basic updates
-  - Fallback when GraphQL operations are not available
+The implementation uses a hybrid approach combining PyGithub (REST API) and direct GraphQL calls:
+
+#### Use PyGithub (REST API) for:
+- **Standard CRUD operations**: Issue creation, updates, comments, labels
+- **Repository management**: Milestones, labels, assignees
+- **Pagination handling**: Automatic pagination for large result sets
+- **Error handling**: Built-in exception types and retry logic
+
+#### Use GraphQL API for:
+- **Sub-issue relationships**: `addSubIssue` and `removeSubIssue` mutations (not available in REST)
+- **Issue types**: Setting and updating custom issue types (not available in REST)
+- **Hierarchical queries**: Fetching epics with all tasks and sub-tasks in one request
+- **Projects V2 operations**: Advanced project field manipulation
+
+#### Implementation Pattern:
+```python
+class GitHubClient:
+    def __init__(self, token):
+        self.github = Github(token)  # PyGithub for REST
+        self.graphql_headers = {
+            'Authorization': f'Bearer {token}',
+            'GraphQL-Features': 'sub_issues,issue_types'
+        }
+    
+    def create_issue_with_type(self, repo, title, body, issue_type):
+        # REST: Create issue via PyGithub
+        issue = repo.create_issue(title=title, body=body)
+        
+        # GraphQL: Set issue type if available
+        if issue_type:
+            self._set_issue_type_graphql(issue.node_id, issue_type)
+        
+        return issue
+```
 
 ### Issue Type Setup
 
 Since GitHub doesn't provide built-in Epic/Task/Sub-task types, repositories must be configured:
 
-1. **Error Detection**: When creating issues, if the specified type doesn't exist, the API will return an error
-2. **Setup Options**:
-   - Run `ghoo init-gh` to automatically create missing types (convenience)
-   - Or manually create Epic, Task, Sub-task types via GitHub UI
-3. **Error Guidance**: When issue creation fails due to missing types, provide clear instructions for both setup options
-4. **Type Caching**: Cache issue type IDs after successful operations to improve performance
+1. **Primary Approach**: Use GraphQL to create/set issue types programmatically
+2. **Fallback Strategy**: When GraphQL operations fail (permissions, API limitations):
+   - Use labels (`type:epic`, `type:task`, `type:sub-task`) to categorize issues
+   - Track parent-child relationships in issue body with references (e.g., `Parent: #123`)
+   - Provide clear error messages guiding users to manual setup
+3. **Setup Options**:
+   - Run `ghoo init-gh` to attempt automatic setup via GraphQL
+   - If GraphQL fails, fall back to creating labels via REST API
+   - Manual setup via GitHub UI remains an option
+4. **Type Caching**: Cache issue type IDs and available features after successful operations
 
 ### Status Tracking Implementation
 
