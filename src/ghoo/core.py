@@ -731,6 +731,293 @@ class GraphQLClient:
         # Cache the result
         self._feature_cache[cache_key] = available
         return available
+    
+    def create_issue_type(self, repo_owner: str, repo_name: str, name: str, description: str) -> Dict[str, Any]:
+        """Create a custom issue type in a repository.
+        
+        Args:
+            repo_owner: Repository owner (user or organization)
+            repo_name: Repository name
+            name: Name of the issue type (e.g., "Epic", "Task", "Sub-task")
+            description: Description of the issue type
+            
+        Returns:
+            Dictionary containing the created issue type information
+            
+        Raises:
+            GraphQLError: If the mutation fails
+            FeatureUnavailableError: If custom issue types are not available
+            
+        Note:
+            Custom issue types are a newer GitHub feature and may not be available
+            for all repositories/organizations. This method will raise 
+            FeatureUnavailableError if the feature is not available.
+        """
+        # Get repository ID first
+        repo_id = self._get_repository_id(repo_owner, repo_name)
+        
+        mutation = """
+        mutation CreateIssueType($repositoryId: ID!, $name: String!, $description: String!) {
+            createIssueType(input: {
+                repositoryId: $repositoryId,
+                name: $name,
+                description: $description
+            }) {
+                issueType {
+                    id
+                    name
+                    description
+                    repository {
+                        name
+                        owner {
+                            login
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        variables = {
+            'repositoryId': repo_id,
+            'name': name,
+            'description': description
+        }
+        
+        try:
+            return self._execute(mutation, variables)
+        except GraphQLError as e:
+            error_message = str(e).lower()
+            if ("issue type" in error_message and "not available" in error_message) or \
+               ("feature" in error_message and "not enabled" in error_message) or \
+               ("field" in error_message and "issuetype" in error_message):
+                raise FeatureUnavailableError(
+                    "custom_issue_types",
+                    "Use type labels as a fallback."
+                )
+            raise
+    
+    def _get_repository_id(self, repo_owner: str, repo_name: str) -> str:
+        """Get the GraphQL node ID for a repository.
+        
+        Args:
+            repo_owner: Repository owner (user or organization)
+            repo_name: Repository name
+            
+        Returns:
+            GraphQL node ID for the repository
+            
+        Raises:
+            GraphQLError: If the repository is not found or accessible
+        """
+        query = """
+        query GetRepositoryId($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+                id
+                name
+                owner {
+                    login
+                }
+            }
+        }
+        """
+        
+        variables = {
+            'owner': repo_owner,
+            'name': repo_name
+        }
+        
+        result = self._execute(query, variables)
+        
+        if result and 'repository' in result and result['repository']:
+            return result['repository']['id']
+        
+        raise GraphQLError(f"Repository {repo_owner}/{repo_name} not found or not accessible")
+    
+    def check_custom_issue_types_available(self, repo_owner: str, repo_name: str) -> bool:
+        """Check if custom issue types are available for a repository.
+        
+        Args:
+            repo_owner: Repository owner (user or organization)
+            repo_name: Repository name
+            
+        Returns:
+            True if custom issue types are available, False otherwise
+        """
+        cache_key = f"issue_types_{repo_owner}/{repo_name}"
+        
+        # Check cache first
+        if cache_key in self._feature_cache:
+            return self._feature_cache[cache_key]
+        
+        # Try to query existing issue types to test feature availability
+        query = """
+        query CheckIssueTypesFeature($owner: String!, $repo: String!) {
+            repository(owner: $owner, name: $repo) {
+                issueTypes(first: 1) {
+                    totalCount
+                }
+            }
+        }
+        """
+        
+        variables = {
+            'owner': repo_owner,
+            'repo': repo_name
+        }
+        
+        try:
+            result = self._execute(query, variables)
+            # If we get here without an error, issue types are available
+            available = True
+        except GraphQLError as e:
+            error_message = str(e).lower()
+            if 'issue type' in error_message or 'issuetype' in error_message:
+                available = False
+            elif 'field' in error_message and 'issuetypes' in error_message:
+                available = False
+            else:
+                # Other errors might not be related to feature availability
+                # Let's be conservative and assume it's not available
+                available = False
+        
+        # Cache the result
+        self._feature_cache[cache_key] = available
+        return available
+    
+    def create_project_status_field_options(self, project_id: str, field_name: str, options: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Create or update status field options in a GitHub Project V2.
+        
+        Args:
+            project_id: GraphQL node ID of the project
+            field_name: Name of the status field (e.g., "Status")
+            options: List of option dictionaries with 'name' and 'color' keys
+            
+        Returns:
+            Dictionary containing the field update result
+            
+        Raises:
+            GraphQLError: If the mutation fails
+        """
+        # First, get the current project fields
+        project_fields = self.get_project_fields(project_id)
+        
+        # Check if the status field exists
+        if field_name in project_fields['fields']:
+            field_id = project_fields['fields'][field_name]['id']
+            # Update existing field options
+            return self._update_project_field_options(project_id, field_id, options)
+        else:
+            # Create new status field with options
+            return self._create_project_status_field(project_id, field_name, options)
+    
+    def _create_project_status_field(self, project_id: str, field_name: str, options: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Create a new status field in a GitHub Project V2.
+        
+        Args:
+            project_id: GraphQL node ID of the project
+            field_name: Name of the status field
+            options: List of option dictionaries with 'name' and 'color' keys
+            
+        Returns:
+            Dictionary containing the mutation result
+            
+        Raises:
+            GraphQLError: If the mutation fails
+        """
+        mutation = """
+        mutation CreateProjectField($projectId: ID!, $input: CreateProjectV2FieldInput!) {
+            createProjectV2Field(input: $input) {
+                projectV2Field {
+                    ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        dataType
+                        options {
+                            id
+                            name
+                            color
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        # Format options for GraphQL
+        formatted_options = [
+            {
+                'name': option['name'],
+                'color': option['color']
+            } for option in options
+        ]
+        
+        variables = {
+            'projectId': project_id,
+            'input': {
+                'projectId': project_id,
+                'name': field_name,
+                'dataType': 'SINGLE_SELECT',
+                'singleSelectOptions': formatted_options
+            }
+        }
+        
+        return self._execute(mutation, variables)
+    
+    def _update_project_field_options(self, project_id: str, field_id: str, options: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Update options for an existing project field.
+        
+        Args:
+            project_id: GraphQL node ID of the project
+            field_id: GraphQL node ID of the field
+            options: List of option dictionaries with 'name' and 'color' keys
+            
+        Returns:
+            Dictionary containing the mutation result
+            
+        Raises:
+            GraphQLError: If the mutation fails
+        """
+        # This is a complex operation that might require multiple mutations
+        # For MVP, we'll implement a simplified version
+        # In practice, you might need to create new options and delete old ones
+        
+        mutation = """
+        mutation UpdateProjectField($input: UpdateProjectV2FieldInput!) {
+            updateProjectV2Field(input: $input) {
+                projectV2Field {
+                    ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        dataType
+                        options {
+                            id
+                            name
+                            color
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        # Format options for GraphQL (simplified - in practice needs more logic)
+        formatted_options = [
+            {
+                'name': option['name'],
+                'color': option['color']
+            } for option in options
+        ]
+        
+        variables = {
+            'input': {
+                'fieldId': field_id,
+                'name': 'Status',  # Keep existing name
+                'singleSelectOptions': formatted_options
+            }
+        }
+        
+        return self._execute(mutation, variables)
 
 
 class GitHubClient:
@@ -915,11 +1202,11 @@ class GitHubClient:
         return self.graphql.remove_sub_issue(parent_node_id, child_node_id)
     
     def get_issue_with_sub_issues(self, repo: str, issue_number: int) -> Dict[str, Any]:
-        """Get an issue with all its sub-issues using GraphQL.
+        r"""Get an issue with all its sub-issues using GraphQL.
         
         **Fallback Strategy**: If sub-issues are not available, applications should
         parse the issue body to extract task references. Look for patterns like:
-        - `- [ ] #123` or `- [x] #123` (same repo)
+        - `- [ ] #123` or `- [x] #123` (same repo)  
         - `- [ ] owner/repo#123` (cross-repo)
         - Parse checkbox state to determine completion
         
@@ -1163,6 +1450,384 @@ class ConfigLoader:
         
         # Invalid URL
         raise InvalidGitHubURLError(url)
+
+
+class InitCommand:
+    """Command for initializing GitHub repositories with ghoo workflow assets.
+    
+    This class handles the complete initialization process including:
+    - Creating custom issue types via GraphQL (with fallback to labels)
+    - Setting up workflow status labels or Projects V2 fields
+    - Providing detailed feedback about what was created vs what existed
+    """
+    
+    # Workflow status labels with colors
+    STATUS_LABELS = [
+        ("status:backlog", "ededed"),      # Light gray
+        ("status:planning", "d4c5f9"),     # Light purple  
+        ("status:in-progress", "0052cc"),  # Blue
+        ("status:review", "f9d0c4"),       # Light orange
+        ("status:done", "0e8a16"),         # Green
+        ("status:blocked", "d93f0b"),      # Red
+    ]
+    
+    # Issue type labels with colors (fallback when GraphQL types unavailable)
+    TYPE_LABELS = [
+        ("type:epic", "7057ff"),     # Purple
+        ("type:task", "0052cc"),     # Blue  
+        ("type:sub-task", "0e8a16"), # Green
+    ]
+    
+    def __init__(self, github_client: GitHubClient, config: Config):
+        """Initialize the command with GitHub client and configuration.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+            config: Loaded ghoo configuration
+        """
+        self.github = github_client
+        self.config = config
+        self.results = {
+            'created': [],
+            'existed': [],
+            'failed': [],
+            'fallbacks_used': []
+        }
+    
+    def execute(self) -> Dict[str, Any]:
+        """Execute the initialization process.
+        
+        Returns:
+            Dictionary containing detailed results of the initialization process
+            
+        Raises:
+            InvalidGitHubURLError: If the project URL is invalid
+            GraphQLError: If GitHub API calls fail
+        """
+        # Parse the project URL to get repository information
+        repo_owner, repo_name, project_info = self._parse_project_url()
+        
+        # Initialize the repository with required assets
+        self._init_repository_assets(repo_owner, repo_name, project_info)
+        
+        return self.results
+    
+    def _parse_project_url(self) -> tuple[str, str, Optional[Dict[str, Any]]]:
+        """Parse the project URL from config to extract repository and project info.
+        
+        Returns:
+            Tuple of (repo_owner, repo_name, project_info)
+            project_info is None for repository URLs, contains project details for project URLs
+            
+        Raises:
+            InvalidGitHubURLError: If the URL format is invalid
+            GraphQLError: If project information cannot be retrieved
+        """
+        url = self.config.project_url
+        
+        # Try repository URL pattern
+        repo_match = ConfigLoader.REPO_URL_PATTERN.match(url)
+        if repo_match:
+            return repo_match.group(1), repo_match.group(2), None
+        
+        # Try project URL pattern  
+        project_match = ConfigLoader.PROJECT_URL_PATTERN.match(url)
+        if project_match:
+            # Extract project info from URL
+            org_type = project_match.group(1)  # 'orgs' or 'users'
+            owner = project_match.group(2)
+            project_number = int(project_match.group(3))
+            
+            # Get project information via GraphQL to find associated repositories
+            project_info = self._get_project_info(org_type, owner, project_number)
+            
+            # For simplicity in the MVP, we'll require the user to provide a repository URL
+            # or we'll use the first repository associated with the project
+            # In a real implementation, we might need to handle multiple repositories
+            if 'repository' in project_info and project_info['repository']:
+                repo_info = project_info['repository']
+                return repo_info['owner'], repo_info['name'], project_info
+            else:
+                raise InvalidGitHubURLError(
+                    f"Cannot determine repository from project URL {url}. "
+                    "Please use a repository URL instead."
+                )
+        
+        raise InvalidGitHubURLError(url)
+    
+    def _get_project_info(self, org_type: str, owner: str, project_number: int) -> Dict[str, Any]:
+        """Get project information from GitHub GraphQL API.
+        
+        Args:
+            org_type: 'orgs' or 'users' 
+            owner: Organization or user name
+            project_number: Project number
+            
+        Returns:
+            Dictionary containing project information
+            
+        Raises:
+            GraphQLError: If the project cannot be retrieved
+        """
+        if org_type == "orgs":
+            query = """
+            query GetOrgProject($owner: String!, $number: Int!) {
+                organization(login: $owner) {
+                    projectV2(number: $number) {
+                        id
+                        title
+                        number
+                        owner {
+                            ... on Organization {
+                                login
+                            }
+                            ... on User {
+                                login
+                            }
+                        }
+                        repositories(first: 1) {
+                            nodes {
+                                name
+                                owner {
+                                    login
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        else:  # users
+            query = """
+            query GetUserProject($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                    projectV2(number: $number) {
+                        id
+                        title
+                        number
+                        owner {
+                            ... on Organization {
+                                login
+                            }
+                            ... on User {
+                                login
+                            }
+                        }
+                        repositories(first: 1) {
+                            nodes {
+                                name
+                                owner {
+                                    login
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        
+        variables = {
+            'owner': owner,
+            'number': project_number
+        }
+        
+        try:
+            result = self.github.graphql._execute(query, variables)
+            
+            # Extract project data
+            container_key = "organization" if org_type == "orgs" else "user"
+            if container_key in result and result[container_key]:
+                project_data = result[container_key]['projectV2']
+                if project_data:
+                    project_info = {
+                        'id': project_data['id'],
+                        'title': project_data['title'],
+                        'number': project_data['number'],
+                        'owner': project_data['owner']['login']
+                    }
+                    
+                    # Add repository info if available
+                    if project_data['repositories']['nodes']:
+                        repo = project_data['repositories']['nodes'][0]
+                        project_info['repository'] = {
+                            'name': repo['name'],
+                            'owner': repo['owner']['login']
+                        }
+                    
+                    return project_info
+            
+            raise GraphQLError(f"Project {project_number} not found for {org_type[:-1]} '{owner}'")
+            
+        except GraphQLError as e:
+            # Re-raise with more context
+            raise GraphQLError(f"Failed to retrieve project information: {str(e)}")
+    
+    def _init_repository_assets(self, repo_owner: str, repo_name: str, project_info: Optional[Dict[str, Any]]):
+        """Initialize all required assets for the repository.
+        
+        Args:
+            repo_owner: Repository owner (user or organization)
+            repo_name: Repository name
+            project_info: Project information (None if not using Projects V2)
+        """
+        # Try to create issue types via GraphQL first
+        try:
+            self._create_issue_types(repo_owner, repo_name)
+        except (GraphQLError, FeatureUnavailableError):
+            # Fall back to type labels
+            self.results['fallbacks_used'].append("Using type labels instead of custom issue types")
+            self._create_type_labels(repo_owner, repo_name)
+        
+        # Create workflow status labels or configure project status field
+        if self.config.status_method == "labels":
+            self._create_status_labels(repo_owner, repo_name)
+        elif self.config.status_method == "status_field" and project_info:
+            self._configure_project_status_field(project_info)
+        else:
+            # Default to labels if project info is missing
+            self._create_status_labels(repo_owner, repo_name)
+            if self.config.status_method == "status_field":
+                self.results['fallbacks_used'].append("Using status labels instead of Projects V2 status field")
+    
+    def _create_issue_types(self, repo_owner: str, repo_name: str):
+        """Create custom issue types via GraphQL.
+        
+        Args:
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            GraphQLError: If GraphQL operations fail
+            FeatureUnavailableError: If custom issue types are not available
+        """
+        # Check if custom issue types are available first
+        if not self.github.graphql.check_custom_issue_types_available(repo_owner, repo_name):
+            raise FeatureUnavailableError(
+                "custom_issue_types",
+                "Use type labels as a fallback."
+            )
+        
+        # Define issue types to create
+        issue_types = [
+            ("Epic", "Large work item that can be broken down into multiple tasks"),
+            ("Task", "Standard work item that implements specific functionality"),
+            ("Sub-task", "Small work item that is part of a larger task or epic")
+        ]
+        
+        for type_name, description in issue_types:
+            try:
+                result = self.github.graphql.create_issue_type(repo_owner, repo_name, type_name, description)
+                self.results['created'].append(f"Issue type '{type_name}'")
+            except GraphQLError as e:
+                error_msg = str(e).lower()
+                if "already exists" in error_msg or "duplicate" in error_msg:
+                    self.results['existed'].append(f"Issue type '{type_name}'")
+                else:
+                    self.results['failed'].append(f"Issue type '{type_name}': {str(e)}")
+    
+    def _create_type_labels(self, repo_owner: str, repo_name: str):
+        """Create issue type labels as fallback.
+        
+        Args:
+            repo_owner: Repository owner
+            repo_name: Repository name
+        """
+        try:
+            repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+            
+            # Get existing labels
+            existing_labels = {label.name: label for label in repo.get_labels()}
+            
+            for label_name, color in self.TYPE_LABELS:
+                if label_name in existing_labels:
+                    self.results['existed'].append(f"Type label '{label_name}'")
+                else:
+                    try:
+                        repo.create_label(name=label_name, color=color)
+                        self.results['created'].append(f"Type label '{label_name}'")
+                    except GithubException as e:
+                        self.results['failed'].append(f"Type label '{label_name}': {str(e)}")
+                        
+        except GithubException as e:
+            self.results['failed'].append(f"Failed to access repository: {str(e)}")
+    
+    def _create_status_labels(self, repo_owner: str, repo_name: str):
+        """Create workflow status labels.
+        
+        Args:
+            repo_owner: Repository owner
+            repo_name: Repository name
+        """
+        try:
+            repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+            
+            # Get existing labels
+            existing_labels = {label.name: label for label in repo.get_labels()}
+            
+            for label_name, color in self.STATUS_LABELS:
+                if label_name in existing_labels:
+                    self.results['existed'].append(f"Status label '{label_name}'")
+                else:
+                    try:
+                        repo.create_label(name=label_name, color=color)
+                        self.results['created'].append(f"Status label '{label_name}'")
+                    except GithubException as e:
+                        self.results['failed'].append(f"Status label '{label_name}': {str(e)}")
+                        
+        except GithubException as e:
+            self.results['failed'].append(f"Failed to access repository: {str(e)}")
+    
+    def _configure_project_status_field(self, project_info: Dict[str, Any]):
+        """Configure Projects V2 status field with workflow states.
+        
+        Args:
+            project_info: Project information dictionary
+        """
+        project_id = project_info['id']
+        field_name = "Status"
+        
+        # Define status options based on our workflow labels
+        status_options = [
+            {"name": "Backlog", "color": "ededed"},      # Light gray
+            {"name": "Planning", "color": "d4c5f9"},     # Light purple
+            {"name": "In Progress", "color": "0052cc"},  # Blue
+            {"name": "Review", "color": "f9d0c4"},       # Light orange
+            {"name": "Done", "color": "0e8a16"},         # Green
+            {"name": "Blocked", "color": "d93f0b"},      # Red
+        ]
+        
+        try:
+            result = self.github.graphql.create_project_status_field_options(
+                project_id, field_name, status_options
+            )
+            self.results['created'].append(f"Projects V2 status field '{field_name}' with workflow options")
+        except GraphQLError as e:
+            error_msg = str(e).lower()
+            if "already exists" in error_msg or "field" in error_msg and "exists" in error_msg:
+                self.results['existed'].append(f"Projects V2 status field '{field_name}'")
+            else:
+                self.results['failed'].append(f"Projects V2 status field configuration: {str(e)}")
+                # Fall back to labels
+                self.results['fallbacks_used'].append("Falling back to status labels due to Projects V2 field configuration failure")
+                repo_owner, repo_name = self._extract_repo_from_project_info(project_info)
+                self._create_status_labels(repo_owner, repo_name)
+    
+    def _extract_repo_from_project_info(self, project_info: Dict[str, Any]) -> tuple[str, str]:
+        """Extract repository owner and name from project info.
+        
+        Args:
+            project_info: Project information dictionary
+            
+        Returns:
+            Tuple of (repo_owner, repo_name)
+        """
+        if 'repository' in project_info and project_info['repository']:
+            repo = project_info['repository']
+            return repo['owner'], repo['name']
+        else:
+            # Fallback: use the project owner and assume a default repo name
+            # This is not ideal but works for the MVP
+            return project_info['owner'], 'repository'  # This might need adjustment
 
 
 class IssueParser:
