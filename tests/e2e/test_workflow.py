@@ -1,36 +1,26 @@
-"""End-to-end tests for the complete ghoo workflow."""
+"""End-to-end workflow tests for ghoo CLI (placeholder for future tests)."""
 
 import pytest
-import subprocess
-import os
-from pathlib import Path
+from tests.helpers.cli import assert_command_success, assert_command_error
+from tests.helpers.github import create_test_issue, verify_issue_exists
 
 
+@pytest.mark.e2e
 class TestE2EWorkflow:
-    """Test the complete workflow from epic creation to closure."""
+    """End-to-end tests for complete ghoo workflows."""
     
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        """Set up test environment."""
-        # Ensure GITHUB_TOKEN is available
-        assert os.getenv("TESTING_GITHUB_TOKEN"), "TESTING_GITHUB_TOKEN must be set for E2E tests"
-        
-    def test_init_gh_command(self):
-        """Test that init-gh creates required issue types and labels."""
-        # Placeholder test
-        pytest.skip("E2E test not yet implemented")
+    def test_init_gh_command(self, cli_runner, temp_project_dir):
+        """Test init-gh command (placeholder)."""
+        pytest.skip("init-gh command not yet implemented")
     
-    def test_epic_lifecycle(self):
-        """Test creating, planning, and closing an epic."""
-        # Placeholder test
-        pytest.skip("E2E test not yet implemented")
+    def test_epic_lifecycle(self, cli_runner, test_repo):
+        """Test creating and managing an epic (placeholder)."""
+        pytest.skip("Epic creation commands not yet implemented")
     
-    def test_task_hierarchy(self):
-        """Test creating tasks under epics and sub-tasks under tasks."""
-        # Placeholder test
-        pytest.skip("E2E test not yet implemented")
+    def test_task_hierarchy(self, cli_runner, test_repo):
+        """Test epic -> task -> sub-task hierarchy (placeholder)."""
+        pytest.skip("Issue hierarchy commands not yet implemented")
     
-    def test_workflow_validation(self):
-        """Test that workflow rules are enforced."""
-        # Placeholder test
-        pytest.skip("E2E test not yet implemented")
+    def test_workflow_validation(self, cli_runner, test_repo):
+        """Test workflow state validation (placeholder)."""
+        pytest.skip("Workflow validation not yet implemented")
