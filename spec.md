@@ -164,11 +164,31 @@ Authentication with the GitHub API will be handled exclusively via a Fine-graine
 - The tool will read the token from the `GITHUB_TOKEN` environment variable.
 - The tool must not store the token itself in any configuration files.
 - If the environment variable is not set, the tool should fail with a clear error message.
-- Required permissions for the Fine-grained PAT:
-  - `issues`: read/write
-  - `projects`: read/write (for Projects V2 operations)
-  - `metadata`: read
-  - `organization_projects`: read/write (if using organization projects)
+- **Required Permissions**: The PAT must be granted the following permissions for the target repository or organization.
+
+### Repository Permissions
+
+These permissions are required for `ghoo` to operate on a repository's issues and metadata.
+
+-   **Issues**: `Read & write`
+    -   *Allows creating, reading, updating, and commenting on issues (Epics, Tasks, Sub-tasks).*
+-   **Metadata**: `Read-only`
+    -   *Allows fetching repository details like available labels and assignees.*
+
+### Project Permissions (Conditional)
+
+You only need **one** of the following permissions, and only if you use the `status_field` tracking method with GitHub Projects.
+
+-   **Projects (Repository-level)**: `Read & write`
+    -   *Required if your `project_url` points to a project board scoped to a single repository.*
+-   **OR**
+-   **Projects (Organization-level)**: `Read & write`
+    -   *Required if your `project_url` points to an organization-wide project. This permission must be granted at the organization level.*
+
+### Convenience Permissions (Optional)
+
+-   **Repository Administration**: `Read & write`
+    -   *This permission is **only** required for the `ghoo init-gh` command to automatically create custom issue types (`Epic`, `Task`, `Sub-task`). If you prefer to create these manually via the GitHub UI, this permission is not needed.*
 
 ## Output Templating
 
