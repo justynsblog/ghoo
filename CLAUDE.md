@@ -63,6 +63,7 @@ src/ghoo/
 - **E2E Tests**: Against live GitHub using TESTING_* env vars
 - **Framework**: pytest with subprocess for CLI invocation
 - **Location**: `tests/e2e/`, `tests/integration/`, `tests/unit/`
+- **Environment**: Load `.env` file for testing credentials (`source .env` or use python-dotenv)
 
 ## Commands & Validation
 - Always validate before proceeding (run linters, type checkers when available)

@@ -2698,13 +2698,17 @@ class CreateEpicCommand:
         
         try:
             # Create the issue
-            issue = github_repo.create_issue(
-                title=title,
-                body=body,
-                labels=final_labels,
-                assignees=assignees or [],
-                milestone=milestone
-            )
+            kwargs = {
+                'title': title,
+                'body': body,
+                'labels': final_labels,
+                'assignees': assignees or []
+            }
+            # Only add milestone if it's not None
+            if milestone is not None:
+                kwargs['milestone'] = milestone
+                
+            issue = github_repo.create_issue(**kwargs)
             
             return {
                 'number': issue.number,
