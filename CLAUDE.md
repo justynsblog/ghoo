@@ -11,15 +11,14 @@ Follow this **subagent-based workflow** for all development:
 2. Move issue to `in-progress/` before starting
 3. **PLANNING PHASE**: Use `issue-planner` agent to fill in Implementation Plan & Acceptance Criteria sections
 4. Get approval before implementing
-5. **EXECUTION PHASE**: Use `issue-executor` agent to execute the issue to completion
-6. **PROBLEM SOLVING**: If executor fails or needs help, use `deep-problem-solver` agent, then retry with executor
-7. **DOCUMENTATION**: Once executor completes all acceptance criteria, use `docs-maintainer` agent to update docs
+5. **EXECUTION PHASE**: Execute the issue implementation directly in main thread, working through all sub-tasks methodically
+6. **PROBLEM SOLVING**: If encountering complex challenges, use `deep-problem-solver` agent for guidance, then continue execution
+7. **DOCUMENTATION**: Once all acceptance criteria are met, use `docs-maintainer` agent to update docs
 8. **FINALIZATION**: Move to `completed/`, commit all changes with format: `feat(phaseX): [description]`
 9. Verify clean git status before proceeding to next issue
 
 ### Subagent Responsibilities:
 - **issue-planner**: Analyzes requirements, creates detailed implementation plans with sub-tasks and acceptance criteria
-- **issue-executor**: Methodically implements planned issues, ensuring all requirements are met without skipping steps
 - **deep-problem-solver**: Handles complex technical challenges when standard approaches fail
 - **docs-maintainer**: Ensures documentation reflects code changes and maintains high-quality accessible docs
 
@@ -80,8 +79,8 @@ When starting work with subagent workflow:
 3. Pick next numbered issue and move to `in-progress/`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
-6. **EXECUTE**: Call `issue-executor` agent to implement the planned solution
-7. **RESOLVE ISSUES**: If executor encounters problems, call `deep-problem-solver`, then retry executor
+6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically
+7. **RESOLVE ISSUES**: If encountering complex problems, call `deep-problem-solver` for guidance, then continue
 8. **UPDATE DOCS**: Call `docs-maintainer` agent to ensure documentation is current
 9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
 10. Test against live GitHub repo using TESTING_* credentials throughout process
