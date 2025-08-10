@@ -15,6 +15,7 @@ class MissingTokenError(AuthenticationError):
     """Raised when GitHub token is not found."""
     
     def __init__(self, is_testing=False):
+        self.is_testing = is_testing
         token_var = "TESTING_GITHUB_TOKEN" if is_testing else "GITHUB_TOKEN"
         super().__init__(
             f"GitHub authentication token not found.\n"

@@ -19,6 +19,13 @@ class TestCreateEpicIntegration:
             'TESTING_REPO': os.getenv('TESTING_REPO', 'owner/repo')  # Fallback for tests
         }
     
+    def _get_test_env(self, **additional_vars):
+        """Get environment with uv path and additional variables."""
+        env = os.environ.copy()
+        env['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{env.get('PATH', '')}"
+        env.update(additional_vars)
+        return env
+    
     @pytest.fixture
     def temp_config(self):
         """Create a temporary configuration file for testing."""
@@ -41,7 +48,7 @@ required_sections:
     def test_create_epic_command_help(self):
         """Test create-epic command help output."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', '--help'
+            'uv', 'run', 'ghoo', 'create-epic', '--help'
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -57,8 +64,8 @@ required_sections:
     def test_create_epic_invalid_repo_format(self):
         """Test create-epic command with invalid repository format."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'invalid-repo', 'Test Epic'
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'dummy'})
+            'uv', 'run', 'ghoo', 'create-epic', 'invalid-repo', 'Test Epic'
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='dummy'))
         
         assert result.returncode == 1
         assert "Invalid repository format" in result.stderr
@@ -66,12 +73,12 @@ required_sections:
     
     def test_create_epic_missing_token(self):
         """Test create-epic command without GitHub token."""
-        env = os.environ.copy()
+        env = self._get_test_env()
         env.pop('GITHUB_TOKEN', None)
         env.pop('TESTING_GITHUB_TOKEN', None)
         
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic'
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic'
         ], capture_output=True, text=True, env=env)
         
         assert result.returncode == 1
@@ -81,8 +88,8 @@ required_sections:
     def test_create_epic_invalid_token(self):
         """Test create-epic command with invalid GitHub token."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic'
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid_token'})
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic'
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='invalid_token'))
         
         assert result.returncode == 1
         assert "GitHub authentication failed" in result.stderr
@@ -90,9 +97,9 @@ required_sections:
     def test_create_epic_with_config_file_not_found(self):
         """Test create-epic command with non-existent config file."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic', 
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic', 
             '--config', 'nonexistent.yaml'
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'dummy'})
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='dummy'))
         
         # Should proceed with warning, not exit with error
         assert "Configuration error" in result.stderr
@@ -102,9 +109,9 @@ required_sections:
         """Test create-epic command with valid config file."""
         # This test will fail due to invalid token, but should parse config correctly
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic',
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic',
             '--config', temp_config
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid_token'})
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='invalid_token'))
         
         # Should show config usage before failing on token
         assert f"Using configuration from {temp_config}" in result.stderr
@@ -114,11 +121,11 @@ required_sections:
         """Test create-epic command argument parsing."""
         # Test with multiple optional arguments
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic Title',
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic Title',
             '--labels', 'priority:high,team:backend',
             '--assignees', 'user1,user2',
             '--milestone', 'v1.0'
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid_token'})
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='invalid_token'))
         
         # Should parse arguments correctly before failing on token
         assert result.returncode == 1
@@ -129,9 +136,9 @@ required_sections:
         custom_body = "This is a custom epic body with\nmultiple lines\nand sections."
         
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Custom Body Epic',
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Custom Body Epic',
             '--body', custom_body
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid_token'})
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='invalid_token'))
         
         # Should parse body correctly before failing on token
         assert result.returncode == 1
@@ -140,9 +147,9 @@ required_sections:
     def test_create_epic_label_parsing(self):
         """Test parsing of comma-separated labels."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic',
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic',
             '--labels', 'label1, label2 ,label3,  label4  '
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid_token'})
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='invalid_token'))
         
         # Command should parse labels correctly (whitespace trimmed)
         assert result.returncode == 1  # Will fail on invalid token
@@ -151,9 +158,9 @@ required_sections:
     def test_create_epic_assignee_parsing(self):
         """Test parsing of comma-separated assignees."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo', 'Test Epic',
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo', 'Test Epic',
             '--assignees', 'user1, user2 ,user3,  user4  '
-        ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid_token'})
+        ], capture_output=True, text=True, env=self._get_test_env(GITHUB_TOKEN='invalid_token'))
         
         # Command should parse assignees correctly (whitespace trimmed)
         assert result.returncode == 1  # Will fail on invalid token
@@ -165,7 +172,7 @@ required_sections:
         """Test the full validation flow with real token but potentially invalid repo."""
         # Use a repository that likely doesn't exist to test validation
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'nonexistent/repo', 'Test Epic'
+            'uv', 'run', 'ghoo', 'create-epic', 'nonexistent/repo', 'Test Epic'
         ], capture_output=True, text=True, env={'GITHUB_TOKEN': repo_env['GITHUB_TOKEN']})
         
         # Should get past token validation but fail on repository access
@@ -179,7 +186,7 @@ required_sections:
         """Test create-epic command with missing required arguments."""
         # Missing title
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic', 'owner/repo'
+            'uv', 'run', 'ghoo', 'create-epic', 'owner/repo'
         ], capture_output=True, text=True)
         
         assert result.returncode != 0
@@ -190,7 +197,7 @@ required_sections:
         """Test that create-epic shows proper usage when called incorrectly."""
         # No arguments at all
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'create-epic'
+            'uv', 'run', 'ghoo', 'create-epic'
         ], capture_output=True, text=True)
         
         assert result.returncode != 0
