@@ -546,6 +546,36 @@ State changed from `backlog` to `planning` by @username
 
 This creates a complete audit trail of the issue's workflow progression visible in the issue's comment history.
 
+## MVP Development Plan
+
+The development of `ghoo` will be bootstrapped. A minimal set of features, defined as the Minimum Viable Product (MVP), will be developed first using a temporary, file-based workflow. Once the MVP is complete and functional, development will transition to "dogfooding," where `ghoo` itself is used to manage its own ongoing development.
+
+### MVP Scope
+
+The MVP will focus on delivering the core, end-to-end workflow. The goal is to make `ghoo` self-hosting as quickly as possible.
+
+**Features included in the MVP:**
+-   **Project Foundation:** Python project setup with `uv`, configuration loading (`ghoo.yaml`), and authentication (`GITHUB_TOKEN`).
+-   **Core Commands:**
+    -   `ghoo init-gh`: To prepare a repository for use.
+    -   `ghoo get epic|task|sub-task`: To view existing work items.
+    -   `ghoo create epic|task|sub-task`: To create the hierarchy of work.
+    -   `ghoo set-body`: To add implementation plans to issues.
+    -   `ghoo create todo` and `ghoo check-todo`: To manage granular tasks.
+-   **Workflow Commands:** The full set of state transition commands (`start-plan`, `submit-plan`, `approve-plan`, `start-work`, `submit-work`, `approve-work`).
+-   **Core Validation:** Enforcement of workflow rules, such as blocking issue closure if sub-tasks are open.
+-   **E2E Testing:** A functional end-to-end testing framework to validate commands against the live GitHub API.
+
+### Post-MVP Scope (To be developed using `ghoo`)
+
+After the MVP is delivered, the following features will be built using `ghoo` to manage the development process:
+-   All `list`, `rename`, and `delete` commands.
+-   The remaining `set`, `add`, and `remove` commands.
+-   `--json` output for all commands.
+-   Creation of items using the `--from-file` flag.
+-   Advanced, structured error reporting using templates.
+-   All items listed in the "Future Improvements" section.
+
 ## Future Improvements
 
 This section outlines potential enhancements that could be implemented in future versions of ghoo. These features are not part of the initial implementation but represent valuable additions to consider as the tool matures.
