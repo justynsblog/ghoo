@@ -113,13 +113,76 @@ Custom epic description here.
 - Repository write permissions
 - Optional: ghoo.yaml for section validation
 
+### ghoo create-task
+
+Create a new Task issue linked to a parent Epic.
+
+```bash
+ghoo create-task <repository> <parent_epic> <title> [options]
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `parent_epic`: Issue number of the parent epic
+- `title`: Task title
+
+**Options:**
+- `--body, -b`: Custom task body (uses template if not provided)
+- `--labels, -l`: Comma-separated list of additional labels
+- `--assignees, -a`: Comma-separated list of GitHub usernames to assign
+- `--milestone, -m`: Milestone title to assign
+- `--config, -c`: Path to ghoo.yaml configuration file
+
+**Examples:**
+```bash
+# Create basic task linked to epic #15
+ghoo create-task my-org/my-repo 15 "Implement user login endpoint"
+
+# Create task with additional labels and assignees
+ghoo create-task my-org/my-repo 15 "Add password validation" \
+  --labels "priority:medium,team:backend" \
+  --assignees "alice" \
+  --milestone "Sprint 1"
+
+# Create task with custom body
+ghoo create-task my-org/my-repo 15 "Setup database connection" \
+  --body "**Parent Epic:** #15
+
+## Summary
+Configure database connection with proper error handling.
+
+## Acceptance Criteria
+- [ ] Connection pooling implemented
+- [ ] Retry logic for failed connections
+
+## Implementation Plan
+1. Install database driver
+2. Configure connection pool
+3. Add error handling"
+```
+
+**Features:**
+- **Parent Validation**: Validates parent epic exists and is accessible
+- **Hybrid API Support**: Uses GraphQL for custom issue types and sub-issue relationships, falls back to REST API with labels
+- **Template Generation**: Creates body with required sections (Summary, Acceptance Criteria, Implementation Plan) if no custom body provided
+- **Parent Reference**: Automatically includes parent epic reference in body
+- **Sub-issue Linking**: Attempts to create GraphQL sub-issue relationship when available
+- **Validation**: Validates required sections if configuration is available
+- **Status Assignment**: Automatically assigns `status:backlog` label
+- **Error Handling**: Clear error messages for invalid parent epic, missing repository access, etc.
+
+**Requirements:**
+- GITHUB_TOKEN environment variable
+- Repository write permissions
+- Parent epic must exist and be accessible
+- Optional: ghoo.yaml for section validation
+
 ## Upcoming Commands (Phase 3-4)
 
 ### Create Commands
 
 ```bash
-ghoo create task --title "<title>" --parent-epic-id <id> [options]
-ghoo create sub-task --title "<title>" --parent-task-id <id> [options]
+ghoo create-sub-task <repository> <parent_task> <title> [options]
 ```
 
 ### Update Commands

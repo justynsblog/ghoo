@@ -1018,6 +1018,51 @@ class GraphQLClient:
         }
         
         return self._execute(mutation, variables)
+    
+    def get_issue_node_id(self, repo_owner: str, repo_name: str, issue_number: int) -> Optional[str]:
+        """Get the GraphQL node ID for an issue by its number.
+        
+        Args:
+            repo_owner: Repository owner (user or organization)
+            repo_name: Repository name
+            issue_number: Issue number
+            
+        Returns:
+            GraphQL node ID of the issue, or None if not found
+            
+        Raises:
+            GraphQLError: If the query fails
+        """
+        query = """
+        query GetIssueNodeId($owner: String!, $repo: String!, $number: Int!) {
+            repository(owner: $owner, name: $repo) {
+                issue(number: $number) {
+                    id
+                    title
+                }
+            }
+        }
+        """
+        
+        variables = {
+            'owner': repo_owner,
+            'repo': repo_name,
+            'number': issue_number
+        }
+        
+        try:
+            result = self._execute(query, variables)
+            
+            if result and 'repository' in result and result['repository']:
+                issue = result['repository']['issue']
+                if issue:
+                    return issue['id']
+            
+            return None
+            
+        except GraphQLError:
+            # If GraphQL fails, we can't get the node ID
+            return None
 
 
 class GitHubClient:
@@ -2725,3 +2770,394 @@ class CreateEpicCommand:
             
         except GithubException as e:
             raise GithubException(f"Failed to create epic issue: {str(e)}")
+
+
+class CreateTaskCommand:
+    """Command for creating Task issues linked to parent Epics.
+    
+    This class handles:
+    - Task body template processing with required sections
+    - Parent epic validation and linking
+    - Sub-issue relationship creation (GraphQL with REST fallback)
+    - Hybrid GitHub issue creation (GraphQL types with REST fallback)
+    - Status label assignment (status:backlog by default)
+    """
+    
+    def __init__(self, github_client: GitHubClient, config: Optional[Config] = None):
+        """Initialize the command with GitHub client and optional configuration.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+            config: Optional ghoo configuration for validation
+        """
+        self.github = github_client
+        self.config = config
+    
+    def execute(
+        self, 
+        repo: str,
+        parent_epic: int,
+        title: str,
+        body: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        assignees: Optional[List[str]] = None,
+        milestone: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute task creation.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            parent_epic: Issue number of the parent epic
+            title: Task title
+            body: Optional custom body (uses template if not provided)
+            labels: Optional additional labels beyond type:task and status:backlog
+            assignees: Optional list of GitHub usernames to assign
+            milestone: Optional milestone title to assign
+            
+        Returns:
+            Dictionary containing created issue information
+            
+        Raises:
+            ValueError: If validation fails
+            GraphQLError: If GitHub API errors occur
+            GithubException: If PyGithub REST API errors occur
+        """
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+        
+        # Get repository object
+        github_repo = self.github.github.get_repo(repo)
+        
+        # Validate parent epic
+        parent_issue = self._validate_parent_epic(github_repo, parent_epic)
+        
+        # Generate body if not provided
+        if body is None:
+            body = self._generate_task_body(parent_epic)
+        else:
+            # Add parent epic reference to custom body if not present
+            body = self._ensure_parent_reference(body, parent_epic)
+        
+        # Validate required sections if config is available
+        if self.config:
+            self._validate_required_sections(body)
+        
+        # Prepare labels
+        issue_labels = self._prepare_labels(labels)
+        
+        # Find milestone if specified
+        milestone_obj = None
+        if milestone:
+            milestone_obj = self._find_milestone(github_repo, milestone)
+        
+        # Try to create task and establish sub-issue relationship
+        try:
+            issue_data = self._create_with_graphql(
+                repo, title, body, issue_labels, assignees, milestone_obj, parent_epic
+            )
+        except (GraphQLError, FeatureUnavailableError):
+            # Fallback to REST API with type:task label
+            issue_data = self._create_with_rest(
+                github_repo, title, body, issue_labels, assignees, milestone_obj
+            )
+        
+        return {
+            'number': issue_data['number'],
+            'title': issue_data['title'],
+            'url': issue_data['url'],
+            'state': issue_data['state'],
+            'type': 'task',
+            'parent_epic': parent_epic,
+            'labels': issue_data['labels'],
+            'assignees': issue_data['assignees'],
+            'milestone': issue_data['milestone']
+        }
+    
+    def _validate_parent_epic(self, github_repo, parent_epic: int):
+        """Validate that the parent epic exists and is appropriate for task creation.
+        
+        Args:
+            github_repo: PyGithub repository object
+            parent_epic: Issue number of the parent epic
+            
+        Returns:
+            PyGithub Issue object for the parent epic
+            
+        Raises:
+            ValueError: If parent epic is invalid
+        """
+        try:
+            parent_issue = github_repo.get_issue(parent_epic)
+            
+            # Check if the issue exists and is accessible
+            if not parent_issue:
+                raise ValueError(f"Parent epic #{parent_epic} not found")
+            
+            # Check if the issue is closed
+            if parent_issue.state.lower() == 'closed':
+                raise ValueError(f"Cannot create task under closed epic #{parent_epic}")
+            
+            # Check if it's actually an epic (has type:epic label or epic issue type)
+            epic_labels = [label.name.lower() for label in parent_issue.labels]
+            if 'type:epic' not in epic_labels:
+                # For now, we'll warn but not block - the issue might be using custom issue types
+                # In a more strict implementation, we could check GraphQL issue type here
+                pass
+            
+            return parent_issue
+            
+        except GithubException as e:
+            if e.status == 404:
+                raise ValueError(f"Parent epic #{parent_epic} not found")
+            else:
+                raise ValueError(f"Error accessing parent epic #{parent_epic}: {str(e)}")
+    
+    def _generate_task_body(self, parent_epic: int) -> str:
+        """Generate task body using the template.
+        
+        Args:
+            parent_epic: Issue number of the parent epic
+            
+        Returns:
+            Formatted task body string with required sections
+        """
+        sections = []
+        
+        # Add parent epic reference at the top
+        sections.append(f"**Parent Epic:** #{parent_epic}\n")
+        
+        if self.config and 'task' in self.config.required_sections:
+            required_sections = self.config.required_sections['task']
+        else:
+            required_sections = ["Summary", "Acceptance Criteria", "Implementation Plan"]
+        
+        for section_name in required_sections:
+            sections.append(f"## {section_name}\n\n*TODO: Fill in this section*\n")
+        
+        return "\n".join(sections)
+    
+    def _ensure_parent_reference(self, body: str, parent_epic: int) -> str:
+        """Ensure parent epic reference exists in custom body.
+        
+        Args:
+            body: The custom body text
+            parent_epic: Issue number of the parent epic
+            
+        Returns:
+            Body text with parent epic reference
+        """
+        parent_ref = f"#{parent_epic}"
+        epic_ref_patterns = [
+            rf"parent\s+epic:?\s*{re.escape(parent_ref)}",
+            rf"epic:?\s*{re.escape(parent_ref)}",
+            rf"parent:?\s*{re.escape(parent_ref)}"
+        ]
+        
+        # Check if any parent reference pattern exists
+        has_reference = any(
+            re.search(pattern, body, re.IGNORECASE) for pattern in epic_ref_patterns
+        )
+        
+        if not has_reference:
+            # Add parent reference at the top
+            body = f"**Parent Epic:** #{parent_epic}\n\n{body}"
+        
+        return body
+    
+    def _validate_required_sections(self, body: str) -> None:
+        """Validate that required sections exist in the body.
+        
+        Args:
+            body: The issue body to validate
+            
+        Raises:
+            ValueError: If required sections are missing
+        """
+        if not self.config or 'task' not in self.config.required_sections:
+            return
+        
+        required_sections = self.config.required_sections['task']
+        missing_sections = []
+        
+        for section in required_sections:
+            # Look for section headers (case-insensitive)
+            if not re.search(rf'^##\s+{re.escape(section)}\s*$', body, re.MULTILINE | re.IGNORECASE):
+                missing_sections.append(section)
+        
+        if missing_sections:
+            missing_list = ', '.join(missing_sections)
+            raise ValueError(f"Missing required sections: {missing_list}")
+    
+    def _prepare_labels(self, additional_labels: Optional[List[str]] = None) -> List[str]:
+        """Prepare labels for the task issue.
+        
+        Args:
+            additional_labels: Optional additional labels to add
+            
+        Returns:
+            List of label names for the issue
+        """
+        labels = ['status:backlog']  # Default status for new tasks
+        
+        if additional_labels:
+            labels.extend(additional_labels)
+        
+        return labels
+    
+    def _find_milestone(self, github_repo, milestone_title: str):
+        """Find milestone by title.
+        
+        Args:
+            github_repo: PyGithub repository object
+            milestone_title: Title of the milestone to find
+            
+        Returns:
+            Milestone object or None if not found
+            
+        Raises:
+            ValueError: If milestone is not found
+        """
+        try:
+            milestones = github_repo.get_milestones(state='all')
+            for milestone in milestones:
+                if milestone.title.lower() == milestone_title.lower():
+                    return milestone
+            
+            raise ValueError(f"Milestone '{milestone_title}' not found in repository")
+            
+        except GithubException as e:
+            raise ValueError(f"Error finding milestone: {str(e)}")
+    
+    def _create_with_graphql(
+        self, 
+        repo: str, 
+        title: str, 
+        body: str, 
+        labels: List[str], 
+        assignees: Optional[List[str]], 
+        milestone,
+        parent_epic: int
+    ) -> Dict[str, Any]:
+        """Create task using GraphQL with custom issue type and sub-issue relationship.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            title: Issue title
+            body: Issue body
+            labels: List of label names
+            assignees: Optional list of assignees
+            milestone: Optional milestone object
+            parent_epic: Parent epic issue number
+            
+        Returns:
+            Issue data dictionary
+            
+        Raises:
+            GraphQLError: If GraphQL operations fail
+            FeatureUnavailableError: If GraphQL features are unavailable
+        """
+        repo_owner, repo_name = repo.split('/')
+        
+        # Check if custom issue types are available
+        if not self.github.supports_custom_issue_types(repo):
+            raise FeatureUnavailableError("Custom issue types not available")
+        
+        # Create issue with task type
+        issue_data = self.github.create_issue_with_type(
+            repo=repo,
+            title=title,
+            body=body,
+            issue_type='task',
+            labels=labels,
+            assignees=assignees,
+            milestone=milestone.title if milestone else None
+        )
+        
+        # Try to establish sub-issue relationship
+        try:
+            self._create_sub_issue_relationship(repo, issue_data['id'], parent_epic)
+        except GraphQLError:
+            # Sub-issue relationship creation failed, but issue was created successfully
+            # This is acceptable as the parent reference is in the body
+            pass
+        
+        return issue_data
+    
+    def _create_sub_issue_relationship(self, repo: str, task_id: str, parent_epic: int):
+        """Create sub-issue relationship using GraphQL.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            task_id: GraphQL node ID of the created task
+            parent_epic: Issue number of the parent epic
+            
+        Raises:
+            GraphQLError: If relationship creation fails
+        """
+        repo_owner, repo_name = repo.split('/')
+        
+        # First, get the parent epic's GraphQL node ID
+        parent_id = self.github.graphql.get_issue_node_id(repo_owner, repo_name, parent_epic)
+        
+        if parent_id:
+            # Create the sub-issue relationship
+            self.github.graphql.add_sub_issue(parent_id, task_id)
+    
+    def _create_with_rest(
+        self, 
+        github_repo, 
+        title: str, 
+        body: str, 
+        labels: List[str], 
+        assignees: Optional[List[str]], 
+        milestone
+    ) -> Dict[str, Any]:
+        """Create task using REST API with type:task label fallback.
+        
+        Args:
+            github_repo: PyGithub repository object
+            title: Issue title
+            body: Issue body
+            labels: List of label names
+            assignees: Optional list of assignees
+            milestone: Optional milestone object
+            
+        Returns:
+            Issue data dictionary
+            
+        Raises:
+            GithubException: If REST API operations fail
+        """
+        # Add type:task label for fallback
+        final_labels = labels + ['type:task']
+        
+        try:
+            # Create the issue
+            kwargs = {
+                'title': title,
+                'body': body,
+                'labels': final_labels,
+                'assignees': assignees or []
+            }
+            # Only add milestone if it's not None
+            if milestone is not None:
+                kwargs['milestone'] = milestone
+                
+            issue = github_repo.create_issue(**kwargs)
+            
+            return {
+                'number': issue.number,
+                'title': issue.title,
+                'url': issue.html_url,
+                'state': issue.state,
+                'labels': [label.name for label in issue.labels],
+                'assignees': [assignee.login for assignee in issue.assignees],
+                'milestone': {
+                    'title': issue.milestone.title,
+                    'number': issue.milestone.number
+                } if issue.milestone else None
+            }
+            
+        except GithubException as e:
+            raise GithubException(f"Failed to create task issue: {str(e)}")

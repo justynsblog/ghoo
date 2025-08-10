@@ -35,7 +35,8 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `02-implement-body-parser.md` - COMPLETE
   - ✅ `03-implement-get-command.md` - COMPLETE
   - ✅ `04-implement-create-epic-command.md` - COMPLETE
-  - **Next**: `05-implement-create-task-command.md`
+  - ✅ `05-implement-create-task-command.md` - COMPLETE
+  - **Next**: `06-implement-create-sub-task-command.md`
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
 ## Project Structure
@@ -81,6 +82,14 @@ src/ghoo/
 - **create-epic**: Create new Epic issues with proper structure
   - Supports: `ghoo create-epic <repository> <title> [options]`
   - Auto-generates body with required sections from templates
+  - Sets status label (status:backlog) automatically
+  - Supports labels, assignees, milestones
+- **create-task**: Create new Task issues linked to parent Epics
+  - Supports: `ghoo create-task <repository> <parent_epic> <title> [options]`
+  - Validates parent epic exists and is accessible
+  - Auto-generates body with required sections (Summary, Acceptance Criteria, Implementation Plan)
+  - Includes parent epic reference in body
+  - Creates sub-issue relationship via GraphQL when available, fallback to body reference
   - Sets status label (status:backlog) automatically
   - Supports labels, assignees, milestones
 
