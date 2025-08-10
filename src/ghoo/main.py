@@ -5,7 +5,7 @@ from typing import Optional
 from pathlib import Path
 import sys
 
-from .core import InitCommand, GetCommand, SetBodyCommand, CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand, GitHubClient, ConfigLoader
+from .core import InitCommand, GetCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand, GitHubClient, ConfigLoader
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -319,6 +319,118 @@ def set_body(
         typer.echo(f"✅ Issue body updated successfully!")
         typer.echo(f"   Issue: #{result['number']}: {result['title']}")
         typer.echo(f"   Body length: {result['body_length']} characters")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+        elif "permission denied" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            typer.echo("   Make sure you have write access to the repository", err=True)
+        else:
+            typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="create-todo")
+def create_todo(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to add todo to"),
+    section: str = typer.Argument(..., help="Section name to add todo to"),
+    todo_text: str = typer.Argument(..., help="Text of the todo item"),
+    create_section: bool = typer.Option(False, "--create-section", "-c", help="Create section if it doesn't exist")
+):
+    """Add a new todo item to a section in a GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute create-todo command
+        create_todo_command = CreateTodoCommand(github_client)
+        result = create_todo_command.execute(repo, issue_number, section, todo_text, create_section)
+        
+        # Display success message
+        typer.echo(f"✅ Todo added successfully!")
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Section: {result['section_name']}")
+        if result['section_created']:
+            typer.echo(f"   📝 Section created")
+        typer.echo(f"   Todo: {result['todo_text']}")
+        typer.echo(f"   Total todos in section: {result['total_todos_in_section']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+        elif "permission denied" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            typer.echo("   Make sure you have write access to the repository", err=True)
+        else:
+            typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="check-todo")
+def check_todo(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number containing the todo"),
+    section: str = typer.Argument(..., help="Section name containing the todo"),
+    match: str = typer.Option(..., "--match", "-m", help="Text to match against todo items")
+):
+    """Check or uncheck a todo item in a GitHub issue section."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute check-todo command
+        check_todo_command = CheckTodoCommand(github_client)
+        result = check_todo_command.execute(repo, issue_number, section, match)
+        
+        # Display success message
+        action_emoji = "✅" if result['new_state'] else "⭕"
+        typer.echo(f"{action_emoji} Todo {result['action']} successfully!")
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Section: {result['section_name']}")
+        typer.echo(f"   Todo: {result['todo_text']}")
+        typer.echo(f"   State: {'☐' if result['old_state'] else '☑'} → {'☑' if result['new_state'] else '☐'}")
         typer.echo(f"   URL: {result['url']}")
         
     except ValueError as e:

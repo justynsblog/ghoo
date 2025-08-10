@@ -128,8 +128,8 @@ ghoo start-plan sub-task --id 201
 ghoo start-work sub-task --id 201
 
 # Add and complete granular todos
-ghoo create todo --parent-issue-id 201 --section "Implementation" --text "Register GitHub OAuth app"
-ghoo check-todo --issue-id 201 --section "Implementation" --match "Register GitHub OAuth app"
+ghoo create-todo owner/repo 201 "Implementation" "Register GitHub OAuth app"
+ghoo check-todo owner/repo 201 "Implementation" --match "Register GitHub OAuth app"
 
 # Submit the sub-task for completion approval
 ghoo submit-work sub-task --id 201 --message "GitHub OAuth flow is complete."
@@ -166,6 +166,60 @@ ghoo create task --title "Change primary button color to new brand blue" --paren
 These Tasks then follow the standard workflow (`plan` -> `approve` -> `implement`), ensuring they are properly prioritized and tracked alongside feature work.
 
 ---
+
+## Managing Todos Within Issues
+
+Todos are the finest level of granularity in the workflow. They represent individual checkable items within sections of any issue (Epic, Task, or Sub-task). Todos help track progress and ensure nothing is missed during implementation.
+
+### Adding Todos
+
+You can add todos to any section in an issue:
+
+```bash
+# Add a todo to an existing section
+ghoo create-todo owner/repo 123 "Acceptance Criteria" "Implement OAuth2 flow"
+
+# Create a new section with a todo
+ghoo create-todo owner/repo 456 "Testing" "Write integration tests" --create-section
+```
+
+**Features:**
+- Todos are added as unchecked items `- [ ] <text>`
+- Duplicate detection prevents adding the same todo twice
+- Section names are matched case-insensitively
+- Full Unicode and emoji support
+
+### Checking/Unchecking Todos
+
+Toggle todo completion state as work progresses:
+
+```bash
+# Mark a todo as complete
+ghoo check-todo owner/repo 123 "Acceptance Criteria" --match "OAuth2"
+
+# Uncheck a todo (running the same command again toggles it back)
+ghoo check-todo owner/repo 123 "Acceptance Criteria" --match "OAuth2"
+```
+
+**Features:**
+- Partial text matching for flexibility
+- Automatic toggle between `[ ]` and `[x]` states
+- Clear feedback for ambiguous matches
+- Preserves todo text exactly as written
+
+### Todo Validation in Workflow
+
+Todos play a critical role in the workflow validation:
+- Issues cannot be closed if they contain unchecked todos
+- This ensures all planned work is complete before closure
+- Helps maintain accountability and thoroughness
+
+### Best Practices
+
+1. **Use todos for granular tracking**: Break down implementation into specific, actionable items
+2. **Add todos during planning**: Include initial todos when creating issues
+3. **Update todos as you work**: Check off completed items to track progress
+4. **Review todos before closure**: Ensure all items are checked before submitting for approval
 
 ## Validation Rules
 

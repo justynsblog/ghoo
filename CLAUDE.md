@@ -40,7 +40,7 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `07-e2e-test-creation-and-get.md` - COMPLETE (comprehensive E2E tests with 8 test methods)
 - **Phase 4**: **IN PROGRESS** (Workflow Management)
   - ✅ `01-implement-set-body-command.md` - COMPLETE
-  - ⏳ `02-implement-todo-commands.md` - Next
+  - ✅ `02-implement-todo-commands.md` - COMPLETE
   - `03-implement-workflow-state-commands.md`
   - `04-implement-workflow-validation.md`
   - `05-e2e-test-full-workflow.md`
@@ -118,6 +118,18 @@ src/ghoo/
   - Enforces GitHub's 65536 character body limit
   - Preserves all other issue properties (title, labels, assignees, etc.)
   - Full markdown and Unicode support
+- **create-todo**: Add new todo items to issue sections
+  - Supports: `ghoo create-todo <repository> <issue_number> <section> <todo_text> [options]`
+  - Case-insensitive section finding with optional creation
+  - Duplicate detection within sections
+  - Full Unicode/emoji support
+  - Preserves body structure while appending todos
+- **check-todo**: Toggle todo item completion states
+  - Supports: `ghoo check-todo <repository> <issue_number> <section> --match <text>`
+  - Partial text matching with fuzzy search
+  - Automatic toggle between checked `[x]` and unchecked `[ ]`
+  - Ambiguous match handling with clarification
+  - Preserves todo text and formatting
 
 ## Important Files
 - `SPEC.md`: Complete technical specification
@@ -140,8 +152,8 @@ src/ghoo/
 
 When starting work on next issue with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
-2. Check current phase status in `issues/` - **Phase 4 issue 1 complete, issue 2 ready**
-3. Pick next numbered issue from `issues/phase4/` - next should be `02-implement-todo-commands.md`
+2. Check current phase status in `issues/` - **Phase 4 issues 1-2 complete, issue 3 ready**
+3. Pick next numbered issue from `issues/phase4/` - next should be `03-implement-workflow-state-commands.md`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
 6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically
@@ -150,4 +162,4 @@ When starting work on next issue with subagent workflow:
 9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
 10. Test against live GitHub repo using TESTING_* credentials throughout process
 
-**Current State**: All core issue creation commands + set-body command implemented with comprehensive test coverage (34 test methods for set-body alone)
+**Current State**: All core issue creation commands + set-body + todo commands implemented with comprehensive test coverage (47+ test methods for todo commands alone)

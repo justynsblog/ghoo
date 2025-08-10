@@ -1,6 +1,6 @@
 # ghoo
 
-A CLI tool for structured GitHub issue management using a strict workflow (Epic ’ Task ’ Sub-task).
+A CLI tool for structured GitHub issue management using a strict workflow (Epic ï¿½ Task ï¿½ Sub-task).
 
 ## Features
 
@@ -47,6 +47,8 @@ ghoo create-epic owner/repo "Build User Authentication"
 ### Issue Management
 - `ghoo get` - Display detailed issue information
 - `ghoo set-body` - Update issue body content
+- `ghoo create-todo` - Add todo items to issue sections
+- `ghoo check-todo` - Toggle todo item completion state
 
 ### Repository Setup
 - `ghoo init-gh` - Initialize repository with required configuration

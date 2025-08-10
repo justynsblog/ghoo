@@ -596,6 +596,168 @@ Returns a dictionary containing:
 - `labels`: List of label names
 - `assignees`: List of assignee usernames
 
+## TodoCommand
+
+Base class for todo operations on GitHub issues. Provides shared functionality for creating and checking todos while preserving body structure.
+
+### Initialization
+
+```python
+from ghoo.core import TodoCommand, GitHubClient
+
+client = GitHubClient(token)
+# TodoCommand is abstract - use CreateTodoCommand or CheckTodoCommand
+```
+
+### Common Methods
+
+**`_get_issue_and_parsed_body(repo: str, issue_number: int) -> Dict[str, Any]`**
+- Fetches issue from GitHub and parses its body
+- Returns dictionary with issue data and parsed sections
+- Raises ValueError for invalid repository format
+- Raises appropriate error for missing issues or permissions
+
+**`_find_section(sections: Dict[str, str], section_name: str) -> Optional[Tuple[str, str]]`**
+- Finds section by name (case-insensitive)
+- Returns tuple of (actual_name, content) or None
+- Handles variations in section naming
+
+**`_reconstruct_body(parsed_body: ParsedIssue, updated_section: str, updated_content: str) -> str`**
+- Reconstructs issue body with updated section content
+- Preserves all non-section content (headers, paragraphs, etc.)
+- Maintains original formatting and structure
+- Updates existing todos in place, appends new todos
+
+### Body Reconstruction Algorithm
+
+The todo commands use a sophisticated algorithm to preserve body structure:
+1. Tracks all todos in sections being modified
+2. Updates existing todos in their original positions
+3. Appends new todos to the end of sections
+4. Preserves all other content exactly as-is
+
+## CreateTodoCommand
+
+Implements the `ghoo create-todo` command for adding new todo items to issue sections.
+
+### Initialization
+
+```python
+from ghoo.core import CreateTodoCommand, GitHubClient
+
+client = GitHubClient(token)
+create_todo_cmd = CreateTodoCommand(client)
+```
+
+### Methods
+
+**`execute(repo: str, issue_number: int, section_name: str, todo_text: str, create_section: bool = False) -> Dict[str, Any]`**
+- Adds a new todo item to the specified section
+- Creates section if it doesn't exist (when create_section=True)
+- Prevents duplicate todos within the same section
+- Returns updated issue data with success message
+
+### Features
+
+**Section Management:**
+- Case-insensitive section finding
+- Optional section creation with proper formatting
+- Lists available sections in error messages
+
+**Duplicate Detection:**
+- Checks for existing todos with same text (case-insensitive)
+- Returns informative message when duplicate found
+- Prevents cluttering sections with repeated todos
+
+**Unicode Support:**
+- Full support for international characters
+- Handles emojis and special symbols
+- Preserves formatting in todo text
+
+### Usage Example
+
+```python
+# CLI usage
+$ ghoo create-todo my-org/my-repo 123 "Acceptance Criteria" "Add user authentication"
+$ ghoo create-todo my-org/my-repo 123 "Testing" "Write unit tests" --create-section
+
+# Programmatic usage
+create_todo = CreateTodoCommand(client)
+result = create_todo.execute(
+    repo="my-org/my-repo",
+    issue_number=123,
+    section_name="Implementation Plan",
+    todo_text="Setup database schema",
+    create_section=False
+)
+print(result['message'])  # "✅ Added todo to 'Implementation Plan' section"
+```
+
+## CheckTodoCommand
+
+Implements the `ghoo check-todo` command for toggling todo item completion states.
+
+### Initialization
+
+```python
+from ghoo.core import CheckTodoCommand, GitHubClient
+
+client = GitHubClient(token)
+check_todo_cmd = CheckTodoCommand(client)
+```
+
+### Methods
+
+**`execute(repo: str, issue_number: int, section_name: str, match_text: str) -> Dict[str, Any]`**
+- Toggles the checked state of a matching todo item
+- Uses partial text matching (case-insensitive)
+- Handles ambiguous matches with clear feedback
+- Returns updated issue data with operation result
+
+### Features
+
+**Fuzzy Matching:**
+- Partial text matching for flexibility
+- Case-insensitive comparison
+- Works with any substring of the todo text
+
+**Toggle Behavior:**
+- Automatically switches between `[ ]` and `[x]` states
+- Preserves todo text exactly as written
+- Works with todos containing special characters
+
+**Ambiguous Match Handling:**
+- Detects when multiple todos match the search text
+- Provides list of matching todos for clarification
+- Suggests using more specific match text
+
+### Usage Example
+
+```python
+# CLI usage
+$ ghoo check-todo my-org/my-repo 123 "Acceptance Criteria" --match "authentication"
+$ ghoo check-todo my-org/my-repo 123 "Tasks" --match "dark mode"
+
+# Programmatic usage
+check_todo = CheckTodoCommand(client)
+result = check_todo.execute(
+    repo="my-org/my-repo",
+    issue_number=123,
+    section_name="Implementation Plan",
+    match_text="database"
+)
+print(result['message'])  # "✅ Checked todo: 'Setup database schema'"
+```
+
+### Error Handling
+
+Both todo commands handle various error scenarios:
+- **Section not found**: Lists available sections for guidance
+- **No matching todos**: Clear message about what was searched
+- **Ambiguous matches**: Lists all matching todos
+- **Repository errors**: 404, 403, and other GitHub API errors
+- **Invalid input**: Repository format validation
+
 ## Common Patterns
 
 ### Initialize Once, Use Everywhere
@@ -702,11 +864,117 @@ ghoo create-epic my-org/my-repo "Epic: OAuth Integration" \
   --milestone "Q1 2024"
 ```
 
-### Upcoming Commands (Phase 3-4)
+#### create-task
 
-- `create-task/sub-task`: Create new Task and Sub-task issues with hierarchy
-- `set-body`: Update issue body content
-- `create/check todo`: Manage todos within issues
+Creates a new Task issue linked to a parent Epic.
+
+```bash
+ghoo create-task <repository> <parent_epic> <title> [OPTIONS]
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `parent_epic`: Issue number of the parent epic
+- `title`: Title for the task
+- `--body`: Custom body content
+- `--labels`: Comma-separated list of labels
+- `--assignees`: Comma-separated list of assignees
+- `--milestone`: Milestone title
+
+**Features:**
+- Validates parent epic exists and is accessible
+- Auto-generates body with parent reference and required sections
+- Creates sub-issue relationship via GraphQL when available
+- Sets status label (status:backlog) automatically
+
+#### create-sub-task
+
+Creates a new Sub-task issue linked to a parent Task.
+
+```bash
+ghoo create-sub-task <repository> <parent_task> <title> [OPTIONS]
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `parent_task`: Issue number of the parent task
+- `title`: Title for the sub-task
+- `--body`: Custom body content
+- `--labels`: Comma-separated list of labels
+- `--assignees`: Comma-separated list of assignees
+- `--milestone`: Milestone title
+
+**Features:**
+- Validates parent task exists, is open, and is actually a task
+- Auto-generates body with parent reference and required sections
+- Creates sub-issue relationship via GraphQL when available
+- Sets status label (status:backlog) automatically
+
+#### set-body
+
+Replaces the entire body of an existing GitHub issue.
+
+```bash
+ghoo set-body <repository> <issue_number> [OPTIONS]
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number to update
+- `--body`: New body content directly as text
+- `--body-file`: Path to file containing new body content
+- STDIN: Pipe content via stdin when no options provided
+
+**Features:**
+- Complete body replacement (no partial updates)
+- Multiple input methods for flexibility
+- Enforces GitHub's 65536 character limit
+- Preserves all other issue properties
+
+#### create-todo
+
+Adds a new todo item to a section in a GitHub issue.
+
+```bash
+ghoo create-todo <repository> <issue_number> <section> <todo_text> [OPTIONS]
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number to add todo to
+- `section`: Section name to add todo to (case-insensitive)
+- `todo_text`: Text of the todo item
+- `--create-section`: Create the section if it doesn't exist
+
+**Features:**
+- Case-insensitive section finding
+- Optional section creation
+- Duplicate detection within sections
+- Full Unicode/emoji support
+- Body structure preservation
+
+#### check-todo
+
+Toggles the checked state of a todo item in a GitHub issue section.
+
+```bash
+ghoo check-todo <repository> <issue_number> <section> --match <text>
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number containing the todo
+- `section`: Section name containing the todo (case-insensitive)
+- `--match`: Text to match against todo items (partial matching)
+
+**Features:**
+- Automatic toggle between checked/unchecked states
+- Partial text matching with fuzzy search
+- Ambiguous match handling
+- Preserves todo text and formatting
+
+### Upcoming Commands (Phase 4)
+
 - Workflow commands: `start-plan`, `submit-plan`, `approve-plan`, etc.
 
 ## See Also

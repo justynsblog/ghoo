@@ -294,6 +294,102 @@ System status: OK" | ghoo set-body my-org/my-repo 456
 - Sync issue content from external sources
 - Bulk update issue bodies via scripts
 
+### ghoo create-todo
+
+Add a new todo item to a section in a GitHub issue.
+
+```bash
+ghoo create-todo <repository> <issue_number> <section> <todo_text> [options]
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number to add todo to
+- `section`: Section name to add todo to (case-insensitive)
+- `todo_text`: Text of the todo item
+
+**Options:**
+- `--create-section, -c`: Create the section if it doesn't exist
+
+**Examples:**
+```bash
+# Add todo to existing section
+ghoo create-todo my-org/my-repo 123 "Acceptance Criteria" "Add user authentication"
+
+# Create section if needed and add todo
+ghoo create-todo my-org/my-repo 123 "Testing" "Write unit tests" --create-section
+
+# Add todo with special characters
+ghoo create-todo my-org/my-repo 456 "Implementation Plan" "Setup OAuth 2.0 integration"
+
+# Add todo with Unicode/emoji
+ghoo create-todo my-org/my-repo 789 "Tasks" "✨ Add dark mode support"
+```
+
+**Features:**
+- **Section Management**: Finds sections case-insensitively, optionally creates new sections
+- **Duplicate Detection**: Prevents adding duplicate todos within the same section
+- **Body Preservation**: Maintains all existing content, formatting, and structure
+- **Unicode Support**: Full support for international characters and emojis
+- **Todo Format**: Adds todos as unchecked items `- [ ] <text>`
+- **Error Handling**: Clear messages with available section listings when section not found
+
+**Requirements:**
+- GITHUB_TOKEN environment variable
+- Repository write permissions
+- Issue must exist and be accessible
+
+### ghoo check-todo
+
+Toggle the checked state of a todo item in a GitHub issue section.
+
+```bash
+ghoo check-todo <repository> <issue_number> <section> --match <text>
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number containing the todo
+- `section`: Section name containing the todo (case-insensitive)
+
+**Options:**
+- `--match, -m`: Text to match against todo items (required, partial matching supported)
+
+**Examples:**
+```bash
+# Check a todo item (mark as complete)
+ghoo check-todo my-org/my-repo 123 "Acceptance Criteria" --match "authentication"
+
+# Uncheck a todo item (mark as incomplete)
+ghoo check-todo my-org/my-repo 123 "Implementation Plan" --match "database setup"
+
+# Match with partial text
+ghoo check-todo my-org/my-repo 456 "Tasks" --match "dark mode"
+
+# Case-insensitive matching
+ghoo check-todo my-org/my-repo 789 "testing" --match "unit tests"
+```
+
+**Features:**
+- **Toggle Behavior**: Automatically toggles between `[ ]` and `[x]` states
+- **Partial Matching**: Match todos using partial text (case-insensitive)
+- **Ambiguous Match Handling**: Provides clear feedback when multiple todos match
+- **Body Preservation**: Maintains all existing content and formatting
+- **Todo Text Preservation**: Only changes checkbox state, preserves todo text
+- **Error Handling**: Clear messages for missing sections, no matches, or ambiguous matches
+
+**Requirements:**
+- GITHUB_TOKEN environment variable
+- Repository write permissions
+- Issue must exist and be accessible
+- Todo item must exist in the specified section
+
+**Use Cases:**
+- Track completion of acceptance criteria during implementation
+- Update implementation plan progress
+- Mark testing tasks as complete
+- Manage todo lists in issue descriptions
+
 ## Upcoming Commands (Phase 4)
 
 ### Update Commands
@@ -303,12 +399,11 @@ System status: OK" | ghoo set-body my-org/my-repo 456
 ghoo update-section <repository> <issue_number> --section "<name>" --content "<content>"
 ```
 
-### Todo Management
+### Update Commands
 
 ```bash
-ghoo create-todo --issue-id <number> --section "<section>" --text "<text>"
-ghoo check-todo --issue-id <number> --section "<section>" --match "<text>"
-ghoo uncheck-todo --issue-id <number> --section "<section>" --match "<text>"
+# Additional update commands planned
+ghoo update-section <repository> <issue_number> --section "<name>" --content "<content>"
 ```
 
 ### Workflow Commands

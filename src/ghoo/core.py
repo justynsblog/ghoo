@@ -3525,6 +3525,321 @@ class CreateSubTaskCommand(BaseCreateCommand):
             
         except GithubException as e:
             raise GithubException(f"Failed to create {self.get_issue_type()} issue: {str(e)}")
+
+
+class TodoCommand:
+    """Base command class for todo operations on GitHub issues.
+    
+    This class provides shared functionality for creating and checking todos
+    in GitHub issue bodies while preserving body structure and formatting.
+    """
+    
+    def __init__(self, github_client: GitHubClient):
+        """Initialize the command with GitHub client.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+        self.set_body_command = SetBodyCommand(github_client)
+    
+    def _get_issue_and_parsed_body(self, repo: str, issue_number: int) -> Dict[str, Any]:
+        """Get issue and parse its body content.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to retrieve
+            
+        Returns:
+            Dictionary containing issue object and parsed body data
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If repository format is invalid
+        """
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+        
+        # Get repository and issue
+        github_repo = self.github.github.get_repo(repo)
+        issue = github_repo.get_issue(issue_number)
+        
+        # Parse issue body
+        parsed_body = IssueParser.parse_body(issue.body or "")
+        
+        return {
+            'issue': issue,
+            'parsed_body': parsed_body
+        }
+    
+    def _find_section(self, parsed_body: Dict[str, Any], section_name: str) -> Optional[Any]:
+        """Find a section by name (case-insensitive).
+        
+        Args:
+            parsed_body: Parsed body data from IssueParser
+            section_name: Name of section to find
+            
+        Returns:
+            Section object if found, None otherwise
+        """
+        from .models import Section
+        
+        for section in parsed_body.get('sections', []):
+            if section.title.lower().strip() == section_name.lower().strip():
+                return section
+        return None
+    
+    def _reconstruct_body(self, parsed_body: Dict[str, Any]) -> str:
+        """Reconstruct the full issue body from parsed data.
+        
+        This method reconstructs the markdown body while preserving structure and
+        updating todo states. It handles both existing todos (by updating their
+        checkbox state in place) and new todos (by appending them).
+        
+        Args:
+            parsed_body: Parsed body data from IssueParser
+            
+        Returns:
+            Reconstructed markdown body string
+        """
+        import re
+        
+        lines = []
+        
+        # Add pre-section description
+        pre_section = parsed_body.get('pre_section_description', '').strip()
+        if pre_section:
+            lines.extend(pre_section.split('\n'))
+            if parsed_body.get('sections'):  # Only add blank line if we have sections
+                lines.append('')
+        
+        # Add each section
+        for section_idx, section in enumerate(parsed_body.get('sections', [])):
+            lines.append(f'## {section.title}')
+            
+            if section.body.strip():
+                # Process section body line by line, updating todos in place
+                section_lines = section.body.split('\n')
+                todo_pattern = re.compile(r'^- \[([x\s])\] (.+)$', re.IGNORECASE)
+                
+                # Create a mapping of todo text to updated state
+                todo_updates = {todo.text: todo.checked for todo in section.todos}
+                
+                for line in section_lines:
+                    todo_match = todo_pattern.match(line.strip())
+                    if todo_match:
+                        todo_text = todo_match.group(2).strip()
+                        if todo_text in todo_updates:
+                            # Update the checkbox state
+                            new_checkbox = '[x]' if todo_updates[todo_text] else '[ ]'
+                            updated_line = f'- {new_checkbox} {todo_text}'
+                            lines.append(updated_line)
+                        else:
+                            # Keep original todo line unchanged
+                            lines.append(line)
+                    else:
+                        # Non-todo line, keep as is
+                        lines.append(line)
+            
+            # Add new todos (those without line numbers)
+            new_todos = [todo for todo in section.todos if todo.line_number is None]
+            for todo in new_todos:
+                checkbox = '[x]' if todo.checked else '[ ]'
+                lines.append(f'- {checkbox} {todo.text}')
+            
+            # Add blank line after section (except for the last one)
+            if section_idx < len(parsed_body.get('sections', [])) - 1:
+                lines.append('')
+        
+        return '\n'.join(lines)
+
+
+class CreateTodoCommand(TodoCommand):
+    """Command for adding new todo items to GitHub issue sections."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        section_name: str, 
+        todo_text: str, 
+        create_section: bool = False
+    ) -> Dict[str, Any]:
+        """Execute the create-todo command to add a new todo item.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            section_name: Name of the section to add todo to
+            todo_text: Text of the new todo item
+            create_section: Whether to create the section if it doesn't exist
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails
+        """
+        from .models import Section, Todo
+        
+        # Validate todo text
+        if not todo_text or not todo_text.strip():
+            raise ValueError("Todo text cannot be empty")
+        
+        todo_text = todo_text.strip()
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Find target section
+        section = self._find_section(parsed_body, section_name)
+        
+        if section is None:
+            if create_section:
+                # Create new section
+                section = Section(title=section_name, body='', todos=[])
+                parsed_body['sections'].append(section)
+            else:
+                # List available sections for user
+                available_sections = [s.title for s in parsed_body.get('sections', [])]
+                if available_sections:
+                    sections_list = ', '.join(f'"{s}"' for s in available_sections)
+                    raise ValueError(
+                        f'Section "{section_name}" not found. Available sections: {sections_list}. '
+                        f'Use --create-section to create a new section.'
+                    )
+                else:
+                    raise ValueError(
+                        f'No sections found in issue. Use --create-section to create "{section_name}" section.'
+                    )
+        
+        # Check for duplicate todos in the section
+        existing_todo_texts = [todo.text.lower().strip() for todo in section.todos]
+        if todo_text.lower().strip() in existing_todo_texts:
+            raise ValueError(f'Todo "{todo_text}" already exists in section "{section_name}"')
+        
+        # Add new todo to section
+        new_todo = Todo(text=todo_text, checked=False)
+        section.todos.append(new_todo)
+        
+        # Reconstruct and update body
+        new_body = self._reconstruct_body(parsed_body)
+        update_result = self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'section_name': section_name,
+            'todo_text': todo_text,
+            'section_created': section not in parsed_body['sections'][:-1] if create_section else False,
+            'total_todos_in_section': len(section.todos),
+            'url': issue.html_url
+        }
+
+
+class CheckTodoCommand(TodoCommand):
+    """Command for checking/unchecking todo items in GitHub issue sections."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        section_name: str, 
+        match_text: str
+    ) -> Dict[str, Any]:
+        """Execute the check-todo command to toggle a todo item's state.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            section_name: Name of the section containing the todo
+            match_text: Text to match against todo items
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails or match is ambiguous
+        """
+        # Validate match text
+        if not match_text or not match_text.strip():
+            raise ValueError("Match text cannot be empty")
+        
+        match_text = match_text.strip().lower()
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Find target section
+        section = self._find_section(parsed_body, section_name)
+        
+        if section is None:
+            available_sections = [s.title for s in parsed_body.get('sections', [])]
+            if available_sections:
+                sections_list = ', '.join(f'"{s}"' for s in available_sections)
+                raise ValueError(f'Section "{section_name}" not found. Available sections: {sections_list}')
+            else:
+                raise ValueError('No sections found in issue')
+        
+        if not section.todos:
+            raise ValueError(f'No todos found in section "{section_name}"')
+        
+        # Find matching todos
+        matching_todos = []
+        for i, todo in enumerate(section.todos):
+            if match_text in todo.text.lower():
+                matching_todos.append((i, todo))
+        
+        if not matching_todos:
+            # Show available todos to help user
+            available_todos = [f'"{todo.text}"' for todo in section.todos]
+            todos_list = ', '.join(available_todos)
+            raise ValueError(
+                f'No todos matching "{match_text}" found in section "{section_name}". '
+                f'Available todos: {todos_list}'
+            )
+        
+        if len(matching_todos) > 1:
+            # Multiple matches - show all and ask for clarification
+            matches_list = []
+            for i, todo in matching_todos:
+                status = "✓" if todo.checked else "○"
+                matches_list.append(f'{status} "{todo.text}"')
+            matches_str = ', '.join(matches_list)
+            raise ValueError(
+                f'Multiple todos match "{match_text}" in section "{section_name}": {matches_str}. '
+                f'Please use more specific text to match exactly one todo.'
+            )
+        
+        # Toggle the matched todo
+        todo_index, matched_todo = matching_todos[0]
+        old_state = matched_todo.checked
+        matched_todo.checked = not matched_todo.checked
+        new_state = matched_todo.checked
+        
+        # Reconstruct and update body
+        new_body = self._reconstruct_body(parsed_body)
+        update_result = self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'section_name': section_name,
+            'todo_text': matched_todo.text,
+            'old_state': old_state,
+            'new_state': new_state,
+            'action': 'checked' if new_state else 'unchecked',
+            'url': issue.html_url
+        }
+
+
 class SetBodyCommand:
     """Command for updating the body of an existing GitHub issue.
     

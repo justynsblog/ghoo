@@ -342,6 +342,7 @@ tests/
 │   ├── test_create_sub_task_command.py
 │   ├── test_get_command.py
 │   ├── test_set_body_command.py  # 13 test methods
+│   ├── test_todo_commands.py  # 20+ test methods
 │   └── test_github_client.py
 ├── integration/         # Integration tests
 │   ├── test_commands.py
@@ -350,6 +351,7 @@ tests/
 │   ├── test_create_task_integration.py
 │   ├── test_get_command_integration.py
 │   ├── test_set_body_integration.py  # 11 test methods
+│   ├── test_todo_commands_integration.py  # 12+ test methods
 │   └── test_init_gh_command.py
 ├── e2e/                 # End-to-end tests
 │   ├── test_smoke.py
@@ -358,7 +360,8 @@ tests/
 │   ├── test_create_task_e2e.py
 │   ├── test_creation_and_get_e2e.py  # Comprehensive hierarchy tests
 │   ├── test_get_command_e2e.py
-│   └── test_set_body_e2e.py  # 10 test methods
+│   ├── test_set_body_e2e.py  # 10 test methods
+│   └── test_todo_commands_e2e.py  # 15+ test methods
 └── helpers/             # Test utilities
     ├── cli.py           # CLI testing helpers
     └── github.py        # GitHub API helpers
@@ -567,12 +570,22 @@ Based on comprehensive testing completed during Phase 3 and Phase 4 development:
 - **Performance**: Average test execution < 0.2s
 - **Key Validations**: Model validation, command logic, error handling
 - **set-body Command**: 13 unit test methods covering all input methods and error scenarios
+- **todo Commands**: 20+ unit test methods covering:
+  - Todo creation with duplicate detection
+  - Todo checking/unchecking with fuzzy matching
+  - Section management and creation
+  - Unicode and special character support
 
 #### Integration Test Results
 - **CLI Interface**: All command structures validated
 - **Configuration**: Config file loading and validation working
 - **Error Messages**: User-friendly error reporting confirmed
 - **set-body Command**: 11 integration test methods validating CLI integration
+- **todo Commands**: 12+ integration test methods validating:
+  - CLI argument parsing and validation
+  - Section finding and creation logic
+  - Partial text matching behavior
+  - Error message formatting
 
 #### E2E Test Results
 - **Authentication**: Token-based auth working correctly
@@ -593,6 +606,13 @@ Based on comprehensive testing completed during Phase 3 and Phase 4 development:
   - Error scenarios (404, 403, invalid inputs)
   - Content types (markdown, Unicode, emojis, empty)
   - Property preservation (title, labels remain unchanged)
+- **todo Commands**: 15+ E2E test methods validating:
+  - Todo creation with real GitHub issues
+  - Todo state toggling with live API
+  - Section management and body preservation
+  - Duplicate detection and ambiguous match handling
+  - Unicode/emoji support in real environment
+  - Error scenarios (missing sections, invalid repos)
 
 ### Key Findings from Test Reports
 
@@ -601,6 +621,7 @@ Based on comprehensive testing completed during Phase 3 and Phase 4 development:
 3. **Error Handling**: Comprehensive error messages for all failure scenarios
 4. **Performance**: Commands execute within acceptable time limits (< 2s for most operations)
 5. **set-body Command Testing**: Achieved comprehensive coverage with 34 total test methods across all test levels, ensuring robust body replacement functionality
+6. **todo Commands Testing**: Achieved comprehensive coverage with 47+ total test methods across all test levels, ensuring reliable todo management functionality with proper body preservation
 
 ### Generating Test Reports
 
