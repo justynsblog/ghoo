@@ -30,7 +30,14 @@ Your task is to implement the `ghoo` tool by completing the issues defined in th
 Follow good Git hygiene throughout the development process.
 
 -   **Commit per Sub-task:** When appropriate, create a commit for each completed sub-task. This is especially useful for larger changes and makes the history easier to follow.
--   **Commit per Issue:** At a minimum, each completed issue **must** correspond to a final Git commit. This commit should include the final code changes and the movement of the issue file to the `completed` directory.
+-   **Commit per Issue:** At a minimum, each completed issue should correspond to a final Git commit. This commit should include the final code changes.
 -   **Commit Messages:** Write clear and concise commit messages. Reference the issue being worked on, for example: `feat(phase1): Initialize project structure`.
 -   **Clean Working Directory:** Before starting a new issue, ensure your working directory is clean. Run `git status` to confirm there are no uncommitted changes or untracked files. This prevents unrelated changes from being accidentally included in the next issue's commit.
 
+## Testing repository and project
+
+A testing repository and project are configured in the .env file, with the following variables:
+
+TESTING_GH_REPO
+TESTING_GH_PROJECT
+TESTING_GITHUB_TOKEN
