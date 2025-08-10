@@ -11,6 +11,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "pygithub>=2.7.0",
     "pyyaml>=6.0.2",
+    "requests>=2.31.0",
     "typer>=0.16.0",
 ]
 

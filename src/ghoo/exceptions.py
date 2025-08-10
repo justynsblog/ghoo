@@ -104,3 +104,18 @@ class InvalidFieldValueError(ConfigValidationError):
         if valid_options:
             message += f"\nValid options are: {', '.join(valid_options)}"
         super().__init__(message)
+
+
+class GraphQLError(GhooError):
+    """Base exception for GraphQL-related errors."""
+    pass
+
+
+class FeatureUnavailableError(GraphQLError):
+    """Raised when a GraphQL feature is not available for the repository."""
+    
+    def __init__(self, feature_name, fallback_message=None):
+        message = f"GraphQL feature '{feature_name}' is not available for this repository."
+        if fallback_message:
+            message += f" {fallback_message}"
+        super().__init__(message)
