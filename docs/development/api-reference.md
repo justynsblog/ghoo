@@ -515,6 +515,87 @@ The command handles various error scenarios:
 - Missing status labels (suggests running init-gh)
 - GitHub API errors
 
+## SetBodyCommand
+
+Implements the `ghoo set-body` command for replacing entire issue body content.
+
+### Initialization
+
+```python
+from ghoo.core import SetBodyCommand, GitHubClient
+
+client = GitHubClient(token)
+set_body_cmd = SetBodyCommand(client)
+```
+
+### Methods
+
+**`execute(repository: str, issue_number: int, body: str) -> Dict[str, Any]`**
+- Replaces the entire body of an existing issue
+- Validates repository format and issue existence
+- Enforces GitHub's 65536 character limit
+- Preserves all other issue properties
+- Returns updated issue data
+
+### Implementation Details
+
+**Repository Validation:**
+- Validates format is 'owner/repo'
+- Raises ValueError for invalid formats
+
+**Issue Validation:**
+- Checks issue exists and is accessible
+- Returns appropriate error for 404 (not found) or 403 (permission denied)
+
+**Body Size Validation:**
+- Enforces GitHub's maximum body size of 65536 characters
+- Raises ValueError if body exceeds limit
+
+### Usage Example
+
+```python
+# CLI usage
+$ ghoo set-body my-org/my-repo 123 --body "## Updated Content"
+$ ghoo set-body my-org/my-repo 123 --body-file updated-body.md
+$ cat new-body.md | ghoo set-body my-org/my-repo 123
+
+# Programmatic usage
+set_body = SetBodyCommand(client)
+result = set_body.execute(
+    repository="my-org/my-repo",
+    issue_number=123,
+    body="## New Issue Description\n\nUpdated content here."
+)
+print(f"Updated issue #{result['number']}: {result['html_url']}")
+```
+
+### Input Methods
+
+The command supports three input methods:
+1. **Direct text**: Via `--body` option
+2. **File input**: Via `--body-file` option
+3. **Standard input**: Via piping/redirection
+
+### Error Handling
+
+The command handles various error scenarios:
+- **Invalid repository format**: Clear error message about format requirements
+- **Issue not found (404)**: Specific message that issue doesn't exist
+- **Permission denied (403)**: Message about insufficient permissions
+- **Body too large**: Error if body exceeds 65536 characters
+- **GitHub API errors**: Propagates error messages from API
+
+### Return Value
+
+Returns a dictionary containing:
+- `number`: Issue number
+- `title`: Issue title
+- `body`: Updated body content
+- `html_url`: Web URL to the issue
+- `state`: Issue state (open/closed)
+- `labels`: List of label names
+- `assignees`: List of assignee usernames
+
 ## Common Patterns
 
 ### Initialize Once, Use Everywhere

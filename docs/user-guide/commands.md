@@ -240,20 +240,67 @@ Handle edge case where empty strings bypass validation.
 - Parent task must exist, be open, and be a task type
 - Optional: ghoo.yaml for section validation
 
+### ghoo set-body
+
+Replace the entire body of an existing GitHub issue.
+
+```bash
+ghoo set-body <repository> <issue_number> [options]
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number to update
+
+**Options (one required):**
+- `--body, -b`: New body content directly as text
+- `--body-file, -f`: Path to file containing new body content
+- STDIN: Pipe content via stdin (when no options provided)
+
+**Examples:**
+```bash
+# Set body directly via command line
+ghoo set-body my-org/my-repo 123 --body "## New Content
+This is the new issue body."
+
+# Set body from a file
+ghoo set-body my-org/my-repo 123 --body-file updated-body.md
+
+# Pipe body from another command or file
+cat new-body.md | ghoo set-body my-org/my-repo 123
+
+# Use with templates or generated content
+echo "## Generated Report
+$(date)
+System status: OK" | ghoo set-body my-org/my-repo 456
+```
+
+**Features:**
+- **Complete Replacement**: Replaces entire issue body (no partial updates)
+- **Multiple Input Methods**: Direct text, file, or stdin for flexibility
+- **Size Validation**: Enforces GitHub's 65536 character limit
+- **Content Support**: Full markdown, Unicode, emojis, and special characters
+- **Property Preservation**: Only body changes; title, labels, assignees remain unchanged
+- **Error Handling**: Clear messages for missing issues, permission errors, invalid inputs
+
+**Requirements:**
+- GITHUB_TOKEN environment variable
+- Repository write permissions
+- Issue must exist and be accessible
+
+**Use Cases:**
+- Update issue descriptions after planning phase
+- Replace templates with actual implementation details
+- Sync issue content from external sources
+- Bulk update issue bodies via scripts
+
 ## Upcoming Commands (Phase 4)
 
 ### Update Commands
 
 ```bash
-ghoo set-body <type> --id <number> --value "<content>"
-ghoo set-body <type> --id <number> --from-file <path>
-```
-
-### Update Commands
-
-```bash
-ghoo set-body <type> --id <number> --value "<content>"
-ghoo set-body <type> --id <number> --from-file <path>
+# Additional update commands planned
+ghoo update-section <repository> <issue_number> --section "<name>" --content "<content>"
 ```
 
 ### Todo Management

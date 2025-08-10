@@ -38,7 +38,13 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `05-implement-create-task-command.md` - COMPLETE
   - ✅ `06-implement-create-sub-task-command.md` - COMPLETE
   - ✅ `07-e2e-test-creation-and-get.md` - COMPLETE (comprehensive E2E tests with 8 test methods)
-  - **Next Phase**: Phase 4 (Workflow Management)
+- **Phase 4**: **IN PROGRESS** (Workflow Management)
+  - ✅ `01-implement-set-body-command.md` - COMPLETE
+  - ⏳ `02-implement-todo-commands.md` - Next
+  - `03-implement-workflow-state-commands.md`
+  - `04-implement-workflow-validation.md`
+  - `05-e2e-test-full-workflow.md`
+  - `06-dogfooding-setup.md`
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
 ## Project Structure
@@ -105,6 +111,13 @@ src/ghoo/
   - Sets status label (status:backlog) automatically
   - Supports labels, assignees, milestones
   - **Refactored Architecture**: Implemented using new `BaseCreateCommand` inheritance pattern that eliminated ~60% code duplication
+- **set-body**: Replace entire issue body content
+  - Supports: `ghoo set-body <repository> <issue_number> [options]`
+  - Three input methods: --body for direct text, --body-file for file input, or stdin for piping
+  - Validates issue existence and permissions
+  - Enforces GitHub's 65536 character body limit
+  - Preserves all other issue properties (title, labels, assignees, etc.)
+  - Full markdown and Unicode support
 
 ## Important Files
 - `SPEC.md`: Complete technical specification
@@ -121,14 +134,14 @@ src/ghoo/
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-**Phase 3 COMPLETE! 🎉 All 7 issues completed.**
+**Phase 4 IN PROGRESS! First issue completed.**
 
-**Next Phase**: Phase 4 (Workflow Management)
+**Current Phase**: Phase 4 (Workflow Management)
 
-When starting work on next phase with subagent workflow:
+When starting work on next issue with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
-2. Check current phase status in `issues/` - **Phase 3 complete, Phase 4 ready**
-3. Pick next numbered issue from `issues/phase4/` - next should be `01-implement-set-body-command.md`
+2. Check current phase status in `issues/` - **Phase 4 issue 1 complete, issue 2 ready**
+3. Pick next numbered issue from `issues/phase4/` - next should be `02-implement-todo-commands.md`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
 6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically
@@ -137,4 +150,4 @@ When starting work on next phase with subagent workflow:
 9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
 10. Test against live GitHub repo using TESTING_* credentials throughout process
 
-**Current State**: All core issue creation commands implemented with clean inheritance architecture + comprehensive E2E test coverage
+**Current State**: All core issue creation commands + set-body command implemented with comprehensive test coverage (34 test methods for set-body alone)

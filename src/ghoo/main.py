@@ -5,7 +5,7 @@ from typing import Optional
 from pathlib import Path
 import sys
 
-from .core import InitCommand, GetCommand, CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand, GitHubClient, ConfigLoader
+from .core import InitCommand, GetCommand, SetBodyCommand, CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand, GitHubClient, ConfigLoader
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -275,6 +275,75 @@ def _display_issue(issue_data: dict):
     if 'parent_issue' in issue_data and issue_data['parent_issue']:
         parent = issue_data['parent_issue']
         typer.echo(f"\n⬆️  Parent: #{parent['number']}: {parent['title']}")
+
+
+@app.command(name="set-body")
+def set_body(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to update"),
+    body: Optional[str] = typer.Option(None, "--body", "-b", help="New body content"),
+    body_file: Optional[Path] = typer.Option(None, "--body-file", "-f", help="Read body content from file")
+):
+    """Replace the body of an existing GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Determine body source
+        new_body = ""
+        
+        if body is not None:
+            new_body = body
+        elif body_file is not None:
+            if not body_file.exists():
+                typer.echo(f"❌ Body file not found: {body_file}", err=True)
+                sys.exit(1)
+            new_body = body_file.read_text(encoding='utf-8')
+        else:
+            # Read from STDIN
+            if sys.stdin.isatty():
+                typer.echo("❌ No body content provided. Use --body, --body-file, or pipe content to STDIN", err=True)
+                sys.exit(1)
+            new_body = sys.stdin.read()
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute set-body command
+        set_body_command = SetBodyCommand(github_client)
+        result = set_body_command.execute(repo, issue_number, new_body)
+        
+        # Display success message
+        typer.echo(f"✅ Issue body updated successfully!")
+        typer.echo(f"   Issue: #{result['number']}: {result['title']}")
+        typer.echo(f"   Body length: {result['body_length']} characters")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+        elif "permission denied" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            typer.echo("   Make sure you have write access to the repository", err=True)
+        else:
+            typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 @app.command()

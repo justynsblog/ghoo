@@ -3525,3 +3525,65 @@ class CreateSubTaskCommand(BaseCreateCommand):
             
         except GithubException as e:
             raise GithubException(f"Failed to create {self.get_issue_type()} issue: {str(e)}")
+class SetBodyCommand:
+    """Command for updating the body of an existing GitHub issue.
+    
+    This class handles fetching and updating issue body content while preserving
+    other issue properties like title, labels, assignees, and milestone.
+    """
+    
+    def __init__(self, github_client: GitHubClient):
+        """Initialize the command with GitHub client.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+    
+    def execute(self, repo: str, issue_number: int, new_body: str) -> Dict[str, Any]:
+        """Execute the set-body command to update an issue's body.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            new_body: New body content to set
+            
+        Returns:
+            Dictionary containing updated issue information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If repository format is invalid
+        """
+        try:
+            # Validate repository format
+            if '/' not in repo or len(repo.split('/')) != 2:
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Get repository and issue
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            
+            # Validate body size (GitHub's limit is 65536 characters)
+            if len(new_body) > 65536:
+                raise ValueError("Issue body exceeds GitHub's 65536 character limit")
+            
+            # Update the issue body
+            issue.edit(body=new_body)
+            
+            # Return success information
+            return {
+                'number': issue.number,
+                'title': issue.title,
+                'url': issue.html_url,
+                'updated': True,
+                'body_length': len(new_body)
+            }
+            
+        except GithubException as e:
+            if e.status == 404:
+                raise GithubException(f"Issue #{issue_number} not found in repository {repo}")
+            elif e.status == 403:
+                raise GithubException(f"Permission denied. You may not have write access to {repo} or your token may lack required scopes")
+            else:
+                raise GithubException(f"Failed to update issue #{issue_number}: {str(e)}")
