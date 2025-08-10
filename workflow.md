@@ -39,9 +39,12 @@ An Epic represents a major initiative. When you create it, it enters the `backlo
 
 **Example:**
 ```bash
-# Create an Epic with the default required sections.
+# Create an Epic with the default required sections (auto-generated from template).
 # It automatically enters the 'backlog' state.
-ghoo create epic --title "User Authentication System" --body "## Summary
+ghoo create-epic owner/repo "User Authentication System"
+
+# Or create with custom body:
+ghoo create-epic owner/repo "User Authentication System" --body "## Summary
 Implement secure user authentication with OAuth2 and MFA support.
 
 ## Acceptance Criteria

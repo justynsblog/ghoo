@@ -80,6 +80,27 @@ Features:
 - For epics: Lists sub-issues with progress tracking
 - Rich formatting with colors, emojis, and progress bars
 
+### Create Epic
+
+Create a new Epic issue with proper structure:
+
+```bash
+# Basic epic creation
+ghoo create-epic owner/repo "Epic: New Feature"
+
+# With additional options
+ghoo create-epic owner/repo "Epic: Authentication System" \
+  --labels "priority:high,area:backend" \
+  --assignees "username1,username2" \
+  --milestone "v2.0"
+```
+
+Features:
+- Auto-generates body with required sections from templates
+- Sets status label (status:backlog) automatically
+- Validates against repository configuration
+- Supports labels, assignees, and milestone assignment
+
 ## Issue Hierarchy
 
 ghoo enforces a strict three-level hierarchy:
@@ -107,7 +128,7 @@ Issues progress through these states:
 ## Next Steps
 
 - Run `ghoo init-gh` to set up your repository
-- Create your first Epic with upcoming `ghoo create epic` command
+- Create your first Epic with `ghoo create-epic` command
 - Use `ghoo get` to view issue details and track progress
 
-For detailed command documentation, see the [API Reference](../development/api-reference.md).
+For detailed command documentation, see the [Commands Reference](./commands.md) and [API Reference](../development/api-reference.md).

@@ -34,7 +34,8 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `01-implement-data-models.md` - COMPLETE
   - ✅ `02-implement-body-parser.md` - COMPLETE
   - ✅ `03-implement-get-command.md` - COMPLETE
-  - **Next**: `04-implement-create-epic-command.md`
+  - ✅ `04-implement-create-epic-command.md` - COMPLETE
+  - **Next**: `05-implement-create-task-command.md`
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
 ## Project Structure
@@ -76,6 +77,11 @@ src/ghoo/
   - Shows issue type, status, parent/child relationships
   - Epic display includes sub-issues (tasks) with progress tracking
   - Rich formatting with emojis, colors, and progress bars
+- **create-epic**: Create new Epic issues with proper structure
+  - Supports: `ghoo create-epic <repository> <title> [options]`
+  - Auto-generates body with required sections from templates
+  - Sets status label (status:backlog) automatically
+  - Supports labels, assignees, milestones
 
 ## Important Files
 - `SPEC.md`: Complete technical specification
@@ -91,12 +97,12 @@ src/ghoo/
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-**Phase 3 In Progress - Issue 03 Complete!**
+**Phase 3 In Progress - Issue 04 Complete!**
 
 When starting work with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
-2. Check current phase status in `issues/` - **Phase 3 issue 03 complete, issue 04 is next**
-3. Pick next numbered issue from `issues/phase3/` (04-implement-create-epic-command.md) and move to `in-progress/`
+2. Check current phase status in `issues/` - **Phase 3 issue 04 complete, issue 05 is next**
+3. Pick next numbered issue from `issues/phase3/` (05-implement-create-task-command.md) and move to `in-progress/`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
 6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically

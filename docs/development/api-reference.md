@@ -294,6 +294,64 @@ print(result["title"])
 print(result["sub_issues"])  # For epics
 ```
 
+## CreateEpicCommand
+
+Implements the `ghoo create-epic` command for creating Epic issues with proper structure.
+
+### Initialization
+
+```python
+from ghoo.core import CreateEpicCommand, GitHubClient
+
+client = GitHubClient(token)
+create_epic_cmd = CreateEpicCommand(client)
+```
+
+### Methods
+
+**`execute(repository: str, title: str, labels: List[str] = None, assignees: List[str] = None, milestone: str = None) -> Dict`**
+- Creates a new Epic issue in the specified repository
+- Generates body from template with required sections
+- Adds status label and type label automatically
+- Returns created issue data
+
+**`generate_epic_body() -> str`**
+- Creates Epic body from Jinja2 template
+- Includes required sections per configuration
+- Returns formatted markdown body
+
+**`validate_repository(repo: Repository) -> None`**
+- Checks if repository has required configuration
+- Verifies status labels exist
+- Raises exceptions for missing setup
+
+### Usage Example
+
+```python
+# CLI usage
+$ ghoo create-epic my-org/my-repo "Epic: New Feature"
+$ ghoo create-epic my-org/my-repo "Epic: API v2" --labels "priority:high"
+
+# Programmatic usage
+create_epic = CreateEpicCommand(client)
+result = create_epic.execute(
+    repository="my-org/my-repo",
+    title="Epic: Authentication System",
+    labels=["security", "backend"],
+    assignees=["alice"],
+    milestone="v2.0"
+)
+print(f"Created epic #{result['number']}: {result['html_url']}")
+```
+
+### Error Handling
+
+The command handles various error scenarios:
+- Missing repository configuration
+- Invalid repository format
+- Missing status labels (suggests running init-gh)
+- GitHub API errors
+
 ## Common Patterns
 
 ### Initialize Once, Use Everywhere
@@ -366,9 +424,43 @@ ghoo get my-org/my-repo 123
 ghoo get my-org/my-repo 456 --format json | jq '.sub_issues'
 ```
 
+#### create-epic
+
+Creates a new Epic issue with proper structure and configuration.
+
+```bash
+ghoo create-epic <repository> <title> [OPTIONS]
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `title`: Title for the epic
+- `--labels`: Comma-separated list of labels
+- `--assignees`: Comma-separated list of assignees
+- `--milestone`: Milestone title
+
+**Features:**
+- Auto-generates body from Jinja2 templates with required sections
+- Sets status label (status:backlog) automatically
+- Validates against repository configuration
+- Supports custom issue types with fallback to labels
+- Integrates with hybrid REST/GraphQL client
+
+**Examples:**
+```bash
+# Basic epic creation
+ghoo create-epic my-org/my-repo "Epic: New Feature"
+
+# With all options
+ghoo create-epic my-org/my-repo "Epic: OAuth Integration" \
+  --labels "priority:high,component:auth" \
+  --assignees "alice,bob" \
+  --milestone "Q1 2024"
+```
+
 ### Upcoming Commands (Phase 3-4)
 
-- `create epic/task/sub-task`: Create new issues with proper hierarchy
+- `create-task/sub-task`: Create new Task and Sub-task issues with hierarchy
 - `set-body`: Update issue body content
 - `create/check todo`: Manage todos within issues
 - Workflow commands: `start-plan`, `submit-plan`, `approve-plan`, etc.

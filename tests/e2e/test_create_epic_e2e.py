@@ -53,7 +53,7 @@ class TestCreateEpicE2E:
         
         # Create epic
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], unique_title
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
         
@@ -88,7 +88,7 @@ class TestCreateEpicE2E:
         
         # Create epic with additional labels
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], epic_title,
             '--labels', 'priority:high,team:backend'
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
@@ -135,7 +135,7 @@ Tasks will be added here as sub-issues are created.
         
         # Create epic with custom body
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], epic_title,
             '--body', custom_body
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
@@ -162,7 +162,7 @@ Tasks will be added here as sub-issues are created.
         
         # Create epic
         create_result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], epic_title
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
         
@@ -178,7 +178,7 @@ Tasks will be added here as sub-issues are created.
         
         # Get the created epic
         get_result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'get',
+            'uv', 'run', 'ghoo', 'get',
             github_env['repo'], issue_number
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
         
@@ -205,7 +205,7 @@ Tasks will be added here as sub-issues are created.
         
         # Try to create epic with non-existent milestone
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], epic_title,
             '--milestone', 'nonexistent-milestone-12345'
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
@@ -227,7 +227,7 @@ Tasks will be added here as sub-issues are created.
         
         # Create epic (should work with either GraphQL or REST fallback)
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], epic_title
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
         
@@ -249,7 +249,7 @@ Tasks will be added here as sub-issues are created.
         env['GITHUB_TOKEN'] = os.getenv('TESTING_GITHUB_TOKEN', 'dummy')
         
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             'invalid/nonexistent-repo-12345', 'Test Epic'
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
         
@@ -272,7 +272,7 @@ Tasks will be added here as sub-issues are created.
         
         # Try to assign to a GitHub user (this may fail if user doesn't exist or have access)
         result = subprocess.run([
-            sys.executable, '-m', 'ghoo.main', 'create-epic',
+            'uv', 'run', 'ghoo', 'create-epic',
             github_env['repo'], epic_title,
             '--assignees', 'nonexistentuser12345'
         ], capture_output=True, text=True, env=env, cwd=ghoo_path)
