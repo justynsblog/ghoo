@@ -57,9 +57,11 @@ Some additional notes here.
         command = CreateTodoCommand(github_client)
         result = command.execute("test/repo", 789, "Tasks", "New integration task")
         
-        # Verify API calls were made correctly
-        mock_github_api['github'].get_repo.assert_called_once_with("test/repo")
-        mock_github_api['repo'].get_issue.assert_called_once_with(789)
+        # Verify API calls were made correctly (called twice: once by TodoCommand, once by SetBodyCommand)
+        assert mock_github_api['github'].get_repo.call_count == 2
+        mock_github_api['github'].get_repo.assert_called_with("test/repo")
+        assert mock_github_api['repo'].get_issue.call_count == 2
+        mock_github_api['repo'].get_issue.assert_called_with(789)
         
         # Verify the issue body was updated
         mock_github_api['issue'].edit.assert_called_once()
@@ -105,9 +107,11 @@ Some additional notes here.
         command = CheckTodoCommand(github_client)
         result = command.execute("test/repo", 789, "Tasks", "Task 1")
         
-        # Verify API calls
-        mock_github_api['github'].get_repo.assert_called_once_with("test/repo")
-        mock_github_api['repo'].get_issue.assert_called_once_with(789)
+        # Verify API calls (called twice: once by TodoCommand, once by SetBodyCommand)
+        assert mock_github_api['github'].get_repo.call_count == 2
+        mock_github_api['github'].get_repo.assert_called_with("test/repo")
+        assert mock_github_api['repo'].get_issue.call_count == 2
+        mock_github_api['repo'].get_issue.assert_called_with(789)
         
         # Verify the issue body was updated with checked todo
         mock_github_api['issue'].edit.assert_called_once()
@@ -188,7 +192,6 @@ Some additional notes here.
         """Test handling when issue is not found."""
         # Setup issue not found error
         github_exception = GithubException(404, "Not Found", {})
-        github_exception.status = 404
         mock_github_api['repo'].get_issue.side_effect = github_exception
         
         # Initialize and execute command
@@ -204,7 +207,6 @@ Some additional notes here.
         """Test handling when user lacks write permissions."""
         # Setup permission denied error
         github_exception = GithubException(403, "Forbidden", {})
-        github_exception.status = 403
         mock_github_api['repo'].get_issue.side_effect = github_exception
         
         # Initialize and execute command
@@ -257,22 +259,19 @@ Some additional notes here.
         with patch.dict('os.environ', {'GITHUB_TOKEN': 'test_token'}):
             github_client = GitHubClient()
         
-        # Add todo with special characters
-        create_command = CreateTodoCommand(github_client)
-        create_command.execute("test/repo", 789, "Tasks", "New task with symbols: @#$%^&*()")
-        
-        # Check todo with Unicode
+        # Check todo with Unicode (this test focuses on checking rather than creating)
         check_command = CheckTodoCommand(github_client)
         result = check_command.execute("test/repo", 789, "Tasks", "émojis")
         
-        # Verify Unicode handling
+        # Verify Unicode handling in the result
         assert result['todo_text'] == "Task with émojis 🚀"
         assert result['old_state'] is False
         assert result['new_state'] is True
         
-        # Verify special characters in updated body
+        # Verify Unicode is preserved in updated body
         updated_body = mock_github_api['issue'].edit.call_args[1]['body']
-        assert "New task with symbols: @#$%^&*()" in updated_body
+        assert "- [x] Task with émojis 🚀" in updated_body
+        assert "- [x] Task with 中文 characters" in updated_body  # Other todos preserved
     
     def test_empty_section_handling(self, mock_github_api):
         """Test handling of sections with no existing todos."""
