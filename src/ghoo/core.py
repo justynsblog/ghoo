@@ -6,12 +6,17 @@ import re
 from pathlib import Path
 import yaml
 
+from github import Github, GithubException
+from github.Auth import Token
+
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
     InvalidGitHubURLError,
     MissingRequiredFieldError,
     InvalidFieldValueError,
+    MissingTokenError,
+    InvalidTokenError,
 )
 from .models import Config
 
@@ -19,15 +24,52 @@ from .models import Config
 class GitHubClient:
     """Client for interacting with GitHub API."""
     
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: Optional[str] = None, use_testing_token: bool = False):
         """Initialize GitHub client with authentication token.
         
         Args:
-            token: GitHub personal access token. If not provided, will look for GITHUB_TOKEN env var.
+            token: GitHub personal access token. If not provided, will look for 
+                   GITHUB_TOKEN or TESTING_GITHUB_TOKEN env var.
+            use_testing_token: If True, use TESTING_GITHUB_TOKEN instead of GITHUB_TOKEN
         """
-        self.token = token or os.getenv("GITHUB_TOKEN")
-        if not self.token:
-            raise ValueError("GitHub token not found. Set GITHUB_TOKEN environment variable.")
+        # Determine which token to use
+        if token:
+            self.token = token
+        elif use_testing_token:
+            self.token = os.getenv("TESTING_GITHUB_TOKEN")
+            if not self.token:
+                raise MissingTokenError(is_testing=True)
+        else:
+            self.token = os.getenv("GITHUB_TOKEN")
+            if not self.token:
+                raise MissingTokenError(is_testing=False)
+        
+        # Create authenticated GitHub client
+        try:
+            auth = Token(self.token)
+            self.github = Github(auth=auth)
+            # Validate token by making a simple API call
+            self._validate_token()
+        except GithubException as e:
+            raise InvalidTokenError(str(e))
+    
+    def _validate_token(self):
+        """Validate that the token works by making a simple API call.
+        
+        Raises:
+            InvalidTokenError: If the token is invalid or expired
+        """
+        try:
+            # Try to get the authenticated user - this will fail if token is invalid
+            user = self.github.get_user()
+            _ = user.login  # Force the API call
+        except GithubException as e:
+            if e.status == 401:
+                raise InvalidTokenError("Invalid or expired token")
+            elif e.status == 403:
+                raise InvalidTokenError("Token lacks required permissions")
+            else:
+                raise InvalidTokenError(str(e))
     
     def init_repository(self, repo_url: str) -> Dict[str, Any]:
         """Initialize a repository with required issue types and labels.

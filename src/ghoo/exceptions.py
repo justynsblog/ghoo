@@ -6,6 +6,43 @@ class GhooError(Exception):
     pass
 
 
+class AuthenticationError(GhooError):
+    """Base exception for authentication-related errors."""
+    pass
+
+
+class MissingTokenError(AuthenticationError):
+    """Raised when GitHub token is not found."""
+    
+    def __init__(self, is_testing=False):
+        token_var = "TESTING_GITHUB_TOKEN" if is_testing else "GITHUB_TOKEN"
+        super().__init__(
+            f"GitHub authentication token not found.\n"
+            f"Please set the {token_var} environment variable with your Personal Access Token.\n"
+            f"\n"
+            f"To create a token:\n"
+            f"1. Go to https://github.com/settings/tokens?type=beta\n"
+            f"2. Click 'Generate new token'\n"
+            f"3. Set expiration and add repository permissions:\n"
+            f"   - Issues: Read & Write\n"
+            f"   - Metadata: Read\n"
+            f"4. Copy the token and set it:\n"
+            f"   export {token_var}='your_token_here'"
+        )
+
+
+class InvalidTokenError(AuthenticationError):
+    """Raised when GitHub token is invalid or expired."""
+    
+    def __init__(self, error_message):
+        super().__init__(
+            f"GitHub authentication failed: {error_message}\n"
+            f"Please check that your token is valid and has not expired.\n"
+            f"You may need to generate a new token at:\n"
+            f"https://github.com/settings/tokens?type=beta"
+        )
+
+
 class ConfigError(GhooError):
     """Base exception for configuration-related errors."""
     pass
