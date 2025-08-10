@@ -11,11 +11,12 @@ Follow the **bootstrap-mvp-workflow.md** for all development:
 4. Get approval before implementing
 5. Create Sub-tasks checklist and check off as completed
 6. Move to `completed/` when done
-7. Commit with message format: `feat(phaseX): [description]`
+7. **IMMEDIATELY commit all changes** with format: `feat(phaseX): [description]`
+8. Verify clean git status before proceeding to next issue
 
 ## Current State
-- **Phase 1**: 3/4 complete (auth, config, project init done)
-- **Next**: `issues/phase1/04-setup-e2e-testing-framework.md`
+- **Phase 1**: ✅ COMPLETE (all 4 tasks done)
+- **Next**: Phase 2 - `issues/phase2/00-implement-graphql-client.md`
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid
 
 ## Project Structure
@@ -52,10 +53,19 @@ src/ghoo/
 - `.env`: Contains TESTING_* variables for E2E tests
 - `ghoo.yaml`: Project configuration (when created)
 
+## Git Hygiene Requirements
+- **ALWAYS** check `git status` before starting a new issue
+- **NEVER** leave uncommitted changes when completing an issue
+- **IMMEDIATELY** commit after moving issue to `completed/`
+- Update `.gitignore` if new file patterns appear (e.g., cache files)
+- Each issue should result in exactly ONE commit (unless explicitly fixing issues)
+
 ## Next Steps Checklist
 When starting work:
-1. Check current phase status in `issues/`
-2. Pick next numbered issue
-3. Follow bootstrap workflow exactly
-4. Test against live GitHub repo using TESTING_* credentials
-5. Ensure clean git status before new issue
+1. Verify clean git status (`git status` should show no changes)
+2. Check current phase status in `issues/`
+3. Pick next numbered issue
+4. Follow bootstrap workflow exactly
+5. Test against live GitHub repo using TESTING_* credentials
+6. Commit all changes immediately after completion
+7. Verify clean git status before moving to next issue
