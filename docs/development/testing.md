@@ -121,6 +121,9 @@ uv run pytest tests/e2e/ -v
 # Run specific E2E test
 uv run pytest tests/e2e/test_create_epic_e2e.py -v
 
+# Run comprehensive hierarchy tests
+uv run pytest tests/e2e/test_creation_and_get_e2e.py -v
+
 # Run smoke tests first to verify setup
 uv run pytest tests/e2e/test_smoke.py -v
 ```
@@ -175,6 +178,35 @@ The E2E suite validates:
 - **Error Handling**: Authentication failures, permission errors, invalid inputs
 - **Feature Detection**: GraphQL capabilities and fallback behavior
 - **Cross-Command Integration**: Commands working together (create → get → update)
+- **Full Hierarchy Validation**: Complete Epic → Task → Sub-task workflow with relationship verification
+
+### Comprehensive Hierarchy E2E Tests
+
+The `test_creation_and_get_e2e.py` file provides comprehensive end-to-end testing for the complete issue hierarchy workflow:
+
+```bash
+# Run comprehensive hierarchy tests
+uv run pytest tests/e2e/test_creation_and_get_e2e.py -v
+```
+
+These tests validate:
+1. **Full Hierarchy Creation**: Epic → Task → Sub-task with all relationships
+2. **Content Preservation**: Custom body content with automatic parent reference injection
+3. **Relationship Validation**: Parent-child links via GraphQL sub-issues or body references
+4. **Format Testing**: Both JSON and Rich format outputs
+5. **Error Scenarios**: Invalid parents, closed issues, type mismatches
+6. **Performance**: Ensures full workflow completes within 30 seconds
+7. **Automatic Cleanup**: All test issues are tracked and closed after tests
+
+The test suite includes 8 comprehensive test methods:
+- `test_create_full_hierarchy_and_verify`: Basic hierarchy creation and verification
+- `test_hierarchy_with_custom_content`: Custom body content preservation
+- `test_parent_child_relationships`: Relationship validation
+- `test_json_format_hierarchy`: JSON output verification
+- `test_rich_format_hierarchy`: Rich terminal output verification
+- `test_error_handling_invalid_parent`: Error case validation
+- `test_hierarchy_creation_performance`: Performance benchmarking
+- Additional test for full workflow validation
 
 ### Manual Cleanup
 
@@ -187,6 +219,8 @@ gh issue list --repo $TESTING_GITHUB_REPO --search "E2E Test"
 # Close test issues
 gh issue close <issue-number> --repo $TESTING_GITHUB_REPO
 ```
+
+Note: The comprehensive E2E tests include automatic cleanup fixtures that close all created issues, minimizing the need for manual cleanup.
 
 ## Test Writing Guidelines
 
@@ -311,7 +345,10 @@ tests/
 ├── e2e/                 # End-to-end tests
 │   ├── test_smoke.py
 │   ├── test_workflow.py
-│   └── test_create_epic_e2e.py
+│   ├── test_create_epic_e2e.py
+│   ├── test_create_task_e2e.py
+│   ├── test_creation_and_get_e2e.py  # Comprehensive hierarchy tests
+│   └── test_get_command_e2e.py
 └── helpers/             # Test utilities
     ├── cli.py           # CLI testing helpers
     └── github.py        # GitHub API helpers
@@ -530,6 +567,14 @@ Based on comprehensive testing completed during Phase 3 development:
 - **API Integration**: Both GraphQL and REST fallback paths validated
 - **Issue Creation**: Epic, Task, and Sub-task creation functional
 - **Cross-Command**: Create → Get → Update workflow validated
+- **Full Hierarchy Testing**: Comprehensive E2E tests implemented (8 test methods) covering:
+  - Basic hierarchy creation and verification
+  - Custom content preservation with parent reference injection
+  - Parent-child relationship validation
+  - JSON and Rich format output verification
+  - Error handling for invalid parent references
+  - Performance validation (< 30 second requirement)
+  - Automatic cleanup of test issues
 
 ### Key Findings from Test Reports
 
@@ -570,6 +615,12 @@ uv run pytest --junitxml=test-results.xml
 
 ## Additional Resources
 
+### Test Result Reports
+- [Comprehensive E2E Hierarchy Test Results](testing/e2e-comprehensive-hierarchy-results.md) - Full validation report for Epic→Task→Sub-task workflow
+- [E2E Create Epic Results](testing/e2e-results.md) - Specific results for create-epic command
+- [E2E Validation Report](testing/e2e-validation-report.md) - Initial E2E test validation
+
+### External Resources
 - [pytest Documentation](https://docs.pytest.org/)
 - [Python unittest.mock](https://docs.python.org/3/library/unittest.mock.html)
 - [GitHub API Testing Best Practices](https://docs.github.com/en/rest/guides/best-practices-for-integrators)

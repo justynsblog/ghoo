@@ -37,6 +37,7 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `04-implement-create-epic-command.md` - COMPLETE
   - ✅ `05-implement-create-task-command.md` - COMPLETE
   - ✅ `06-implement-create-sub-task-command.md` - COMPLETE
+  - ✅ `07-e2e-test-creation-and-get.md` - COMPLETE (comprehensive E2E tests with 8 test methods)
   - **Next Phase**: Phase 4 (Workflow Management)
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
@@ -63,6 +64,8 @@ src/ghoo/
 
 ## Testing
 - **E2E Tests**: Against live GitHub using TESTING_* env vars
+  - Comprehensive hierarchy tests in `test_creation_and_get_e2e.py` (8 test methods)
+  - Full Epic → Task → Sub-task workflow validation with cleanup
 - **Framework**: pytest with subprocess for CLI invocation
 - **Location**: `tests/e2e/`, `tests/integration/`, `tests/unit/`
 - **Environment**: Load `.env` file for testing credentials (`source .env` or use python-dotenv)
@@ -118,7 +121,7 @@ src/ghoo/
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-**Phase 3 COMPLETE! 🎉 All 6 issues completed.**
+**Phase 3 COMPLETE! 🎉 All 7 issues completed.**
 
 **Next Phase**: Phase 4 (Workflow Management)
 
@@ -134,4 +137,4 @@ When starting work on next phase with subagent workflow:
 9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
 10. Test against live GitHub repo using TESTING_* credentials throughout process
 
-**Current State**: All core issue creation commands implemented with clean inheritance architecture
+**Current State**: All core issue creation commands implemented with clean inheritance architecture + comprehensive E2E test coverage
