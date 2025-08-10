@@ -69,6 +69,41 @@ ghoo-project/
     └── ...
 ```
 
+## Testing Strategy
+
+To ensure high quality and prevent regressions while maintaining development velocity, `ghoo` will adopt a multi-layered testing strategy. This approach emphasizes starting with end-to-end tests to validate core functionality against the live GitHub API from the beginning of the development process.
+
+The test suite will be organized into a testing pyramid structure, located in the `tests/` directory.
+
+### Layer 1: End-to-End (E2E) Tests (`tests/e2e/`)
+
+E2E tests provide the highest level of confidence by testing the packaged CLI application against a real, live GitHub repository, simulating the exact user workflow.
+
+-   **Goal:** To verify critical user journeys and the tool's interaction with the live GitHub API.
+-   **Scope:**
+    -   The `ghoo init-gh` command and its effect on a repository.
+    -   The complete lifecycle of an issue (e.g., create epic -> plan -> create task -> approve -> implement -> close).
+    -   Validation rule enforcement (e.g., attempting to close an epic with open tasks).
+-   **Setup:**
+    -   **Test Repository:** A dedicated, private GitHub repository will be used for testing.
+    -   **Authentication:** A Fine-grained Personal Access Token (PAT) with the necessary permissions will be stored as a `GITHUB_TOKEN` environment variable, loaded from a `.env` file for local development or from CI/CD secrets.
+    -   **Execution:** Tests will use Python's `subprocess` module to invoke the `ghoo` CLI and assert on its output and exit codes. Each test will be responsible for its own data setup and teardown.
+
+### Layer 2: Integration Tests (`tests/integration/`)
+
+Integration tests will verify that the application's components work together correctly without depending on the live GitHub API, which will be mocked.
+
+-   **Goal:** To test the full flow of a command and how the application handles various API responses (both success and error cases).
+-   **Tools:** `pytest` and a library like `pytest-httpx` to intercept and mock HTTP requests to the GitHub API.
+
+### Layer 3: Unit Tests (`tests/unit/`)
+
+Unit tests will form the base of the pyramid, providing fast, isolated checks of individual functions and components.
+
+-   **Goal:** To verify the correctness of business logic, data models, and utility functions in isolation.
+-   **Scope:** Data validation in models, body parsing logic, and template rendering.
+-   **Tools:** `pytest` and `unittest.mock`.
+
 ## Configuration
 
 The tool will be configured via a `ghoo.yaml` file located in the root of the user's project directory.
