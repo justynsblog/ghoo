@@ -50,10 +50,18 @@ ghoo create-epic owner/repo "Build User Authentication"
 - `ghoo create-todo` - Add todo items to issue sections
 - `ghoo check-todo` - Toggle todo item completion state
 
+### Workflow State Management
+- `ghoo start-plan` - Begin planning phase for an issue
+- `ghoo submit-plan` - Submit plan for approval
+- `ghoo approve-plan` - Approve issue plan
+- `ghoo start-work` - Begin implementation work
+- `ghoo submit-work` - Submit work for completion approval
+- `ghoo approve-work` - Approve and close completed work
+
 ### Repository Setup
 - `ghoo init-gh` - Initialize repository with required configuration
 
-More commands coming in future releases. See [full documentation](docs/user-guide/commands.md).
+See [full documentation](docs/user-guide/commands.md) for detailed command usage.
 
 ## Documentation
 

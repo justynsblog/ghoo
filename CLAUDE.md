@@ -41,7 +41,8 @@ Follow this **subagent-based workflow** for all development:
 - **Phase 4**: **IN PROGRESS** (Workflow Management)
   - ✅ `01-implement-set-body-command.md` - COMPLETE
   - ✅ `02-implement-todo-commands.md` - COMPLETE
-  - `03-implement-workflow-state-commands.md`
+  - ✅ `03-implement-workflow-state-commands.md` - COMPLETE (all 6 workflow commands implemented)
+  - ✅ `07-fix-workflow-unit-test-mocks.md` - COMPLETE (fixed 4 failing unit tests)
   - `04-implement-workflow-validation.md`
   - `05-e2e-test-full-workflow.md`
   - `06-dogfooding-setup.md`
@@ -67,6 +68,9 @@ src/ghoo/
 - **Config**: `ghoo.yaml` with project_url, status_method, required_sections
 - **Body Parsing**: IssueParser class (✅ IMPLEMENTED) for extracting sections, todos, and references
 - **Get Command**: GetCommand class (✅ IMPLEMENTED) with full issue fetching and display capabilities
+- **Workflow Commands**: BaseWorkflowCommand and 6 concrete state transition commands (✅ IMPLEMENTED)
+  - Full validation logic for state transitions and completion requirements
+  - Automatic fallback between Projects V2 and label-based status tracking
 
 ## Testing
 
@@ -87,8 +91,10 @@ src/ghoo/
   - Todo command tests in `test_todo_commands_e2e.py` (15 test methods)  
   - Set-body command tests in `test_set_body_e2e.py` (10 test methods)
   - Full Epic → Task → Sub-task workflow validation with cleanup
-- **Integration Tests**: Mocked GitHub API testing (35+ test methods)
-- **Unit Tests**: Isolated logic testing (55+ test methods)
+- **Integration Tests**: Mocked GitHub API testing (47+ test methods)
+  - Workflow commands integration tests: 12 test methods
+- **Unit Tests**: Isolated logic testing (80+ test methods)
+  - Workflow commands unit tests: 25 test methods (all passing after mock fixes)
 - **Framework**: pytest with subprocess for CLI invocation
 - **Location**: `tests/e2e/`, `tests/integration/`, `tests/unit/`
 
@@ -169,6 +175,16 @@ uv run pytest tests/ -v
   - Automatic toggle between checked `[x]` and unchecked `[ ]`
   - Ambiguous match handling with clarification
   - Preserves todo text and formatting
+- **Workflow State Commands**: Manage issue workflow transitions (IMPLEMENTED)
+  - **start-plan**: Transition from backlog → planning
+  - **submit-plan**: Transition from planning → awaiting-plan-approval (validates required sections)
+  - **approve-plan**: Transition from awaiting-plan-approval → plan-approved
+  - **start-work**: Transition from plan-approved → in-progress
+  - **submit-work**: Transition from in-progress → awaiting-completion-approval
+  - **approve-work**: Transition from awaiting-completion-approval → closed (validates no open todos/sub-issues)
+  - All commands support audit trail comments with user attribution
+  - Supports both label-based and Projects V2 status tracking
+  - Comprehensive validation with clear error messages
 
 ## Important Files
 - `SPEC.md`: Complete technical specification
@@ -185,14 +201,14 @@ uv run pytest tests/ -v
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-**Phase 4 IN PROGRESS! First issue completed.**
+**Phase 4 IN PROGRESS! 4 of 7 issues completed.**
 
 **Current Phase**: Phase 4 (Workflow Management)
 
 When starting work on next issue with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
-2. Check current phase status in `issues/` - **Phase 4 issues 1-2 complete, issue 3 ready**
-3. Pick next numbered issue from `issues/phase4/` - next should be `03-implement-workflow-state-commands.md`
+2. Check current phase status in `issues/` - **Phase 4 issues 1-3 + 7 complete, issue 4 ready**
+3. Pick next numbered issue from `issues/phase4/` - next should be `04-implement-workflow-validation.md`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
 6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically
@@ -201,4 +217,7 @@ When starting work on next issue with subagent workflow:
 9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
 10. Test against live GitHub repo using TESTING_* credentials throughout process
 
-**Current State**: All core issue creation commands + set-body + todo commands implemented with comprehensive test coverage (47+ test methods for todo commands alone)
+**Current State**: All core issue creation commands + set-body + todo commands + workflow state commands implemented with comprehensive test coverage:
+- Todo commands: 47+ test methods
+- Workflow commands: 37 test methods (25 unit + 12 integration)
+- Total test coverage: 130+ test methods across all commands

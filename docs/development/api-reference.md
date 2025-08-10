@@ -973,9 +973,177 @@ ghoo check-todo <repository> <issue_number> <section> --match <text>
 - Ambiguous match handling
 - Preserves todo text and formatting
 
-### Upcoming Commands (Phase 4)
+#### Workflow State Commands
 
-- Workflow commands: `start-plan`, `submit-plan`, `approve-plan`, etc.
+The following commands manage issue state transitions through the defined workflow.
+
+##### start-plan
+
+Moves an issue from `backlog` to `planning` state.
+
+```bash
+ghoo start-plan <repository> <issue_number>
+```
+
+##### submit-plan
+
+Submits an issue's plan for approval (`planning` → `awaiting-plan-approval`).
+
+```bash
+ghoo submit-plan <repository> <issue_number> [--message "<message>"]
+```
+
+**Features:**
+- Validates required sections exist
+- Optional message for approval context
+
+##### approve-plan
+
+Approves an issue's plan (`awaiting-plan-approval` → `plan-approved`).
+
+```bash
+ghoo approve-plan <repository> <issue_number> [--message "<message>"]
+```
+
+##### start-work
+
+Begins implementation (`plan-approved` → `in-progress`).
+
+```bash
+ghoo start-work <repository> <issue_number>
+```
+
+##### submit-work
+
+Submits completed work for approval (`in-progress` → `awaiting-completion-approval`).
+
+```bash
+ghoo submit-work <repository> <issue_number> [--message "<message>"]
+```
+
+##### approve-work
+
+Approves completion and closes issue (`awaiting-completion-approval` → `closed`).
+
+```bash
+ghoo approve-work <repository> <issue_number> [--message "<message>"]
+```
+
+**Features:**
+- Validates no unchecked todos remain
+- Validates no open sub-issues exist
+- Closes the issue upon approval
+
+## BaseWorkflowCommand
+
+Abstract base class for all workflow state transition commands. Provides common functionality for status management, validation, and audit trail creation.
+
+### Methods
+
+**`execute(repository: str, issue_number: int, message: Optional[str] = None) -> None`**
+- Main execution method for workflow transitions
+- Validates current state and transitions
+- Updates status (labels or Projects V2)
+- Creates audit trail comment
+
+**`validate_transition(issue: Issue, current_state: str) -> None`**
+- Validates if the state transition is allowed
+- Raises `WorkflowValidationError` if invalid
+
+**`update_status(issue: Issue, new_state: str) -> None`**
+- Updates issue status via labels or Projects V2
+- Handles fallback when Projects V2 unavailable
+
+**`create_audit_comment(issue: Issue, from_state: str, to_state: str, user: str, message: Optional[str]) -> None`**
+- Creates comment documenting state change
+- Includes user attribution and optional message
+
+### Implemented Workflow Commands
+
+#### StartPlanCommand
+
+Transitions issue from `backlog` to `planning`.
+
+```python
+from ghoo.core import StartPlanCommand
+
+cmd = StartPlanCommand(github_client, config_loader)
+cmd.execute("owner/repo", 123)
+```
+
+#### SubmitPlanCommand
+
+Transitions issue from `planning` to `awaiting-plan-approval`.
+
+**Features:**
+- Validates required sections exist (from config)
+- Optional message explaining what needs approval
+
+```python
+from ghoo.core import SubmitPlanCommand
+
+cmd = SubmitPlanCommand(github_client, config_loader)
+cmd.execute("owner/repo", 123, message="OAuth approach ready for review")
+```
+
+#### ApprovePlanCommand
+
+Transitions issue from `awaiting-plan-approval` to `plan-approved`.
+
+```python
+from ghoo.core import ApprovePlanCommand
+
+cmd = ApprovePlanCommand(github_client, config_loader)
+cmd.execute("owner/repo", 123, message="Looks good, proceed")
+```
+
+#### StartWorkCommand
+
+Transitions issue from `plan-approved` to `in-progress`.
+
+```python
+from ghoo.core import StartWorkCommand
+
+cmd = StartWorkCommand(github_client, config_loader)
+cmd.execute("owner/repo", 123)
+```
+
+#### SubmitWorkCommand
+
+Transitions issue from `in-progress` to `awaiting-completion-approval`.
+
+```python
+from ghoo.core import SubmitWorkCommand
+
+cmd = SubmitWorkCommand(github_client, config_loader)
+cmd.execute("owner/repo", 123, message="All acceptance criteria met")
+```
+
+#### ApproveWorkCommand
+
+Transitions issue from `awaiting-completion-approval` to `closed`.
+
+**Features:**
+- Validates no unchecked todos remain
+- Validates no open sub-issues exist
+- Closes the issue upon approval
+
+```python
+from ghoo.core import ApproveWorkCommand
+
+cmd = ApproveWorkCommand(github_client, config_loader)
+cmd.execute("owner/repo", 123, message="Great work!")
+```
+
+### Workflow Validation
+
+All workflow commands include comprehensive validation:
+
+1. **State Transition Rules**: Each command validates the current state before transitioning
+2. **Required Sections**: `submit-plan` validates that all required sections exist
+3. **Completion Requirements**: `approve-work` validates no open todos or sub-issues
+4. **User Attribution**: Extracts GitHub user from token for audit trail
+5. **Error Handling**: Clear error messages for invalid transitions or missing requirements
 
 ## See Also
 

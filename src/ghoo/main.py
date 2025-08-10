@@ -5,7 +5,13 @@ from typing import Optional
 from pathlib import Path
 import sys
 
-from .core import InitCommand, GetCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand, GitHubClient, ConfigLoader
+from .core import (
+    InitCommand, GetCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, 
+    CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
+    StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
+    StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
+    GitHubClient, ConfigLoader
+)
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -730,6 +736,362 @@ def create_sub_task(
         sys.exit(1)
     except (GraphQLError, FeatureUnavailableError) as e:
         typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="start-plan")
+def start_plan(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to transition"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Transition an issue from backlog to planning state."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute start-plan command
+        start_plan_command = StartPlanCommand(github_client, config)
+        result = start_plan_command.execute_transition(repo, issue_number, message)
+        
+        # Display success message
+        typer.echo(f"✅ Issue transitioned to planning state!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Transition: {result['from_state']} → {result['to_state']}")
+        typer.echo(f"   Changed by: @{result['user']}")
+        if result['message']:
+            typer.echo(f"   Message: {result['message']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="submit-plan")
+def submit_plan(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to transition"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Transition an issue from planning to awaiting-plan-approval state."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute submit-plan command
+        submit_plan_command = SubmitPlanCommand(github_client, config)
+        result = submit_plan_command.execute_transition(repo, issue_number, message)
+        
+        # Display success message
+        typer.echo(f"✅ Plan submitted for approval!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Transition: {result['from_state']} → {result['to_state']}")
+        typer.echo(f"   Changed by: @{result['user']}")
+        if result['message']:
+            typer.echo(f"   Message: {result['message']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="approve-plan")
+def approve_plan(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to transition"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Transition an issue from awaiting-plan-approval to plan-approved state."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute approve-plan command
+        approve_plan_command = ApprovePlanCommand(github_client, config)
+        result = approve_plan_command.execute_transition(repo, issue_number, message)
+        
+        # Display success message
+        typer.echo(f"✅ Plan approved!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Transition: {result['from_state']} → {result['to_state']}")
+        typer.echo(f"   Changed by: @{result['user']}")
+        if result['message']:
+            typer.echo(f"   Message: {result['message']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="start-work")
+def start_work(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to transition"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Transition an issue from plan-approved to in-progress state."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute start-work command
+        start_work_command = StartWorkCommand(github_client, config)
+        result = start_work_command.execute_transition(repo, issue_number, message)
+        
+        # Display success message
+        typer.echo(f"✅ Work started!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Transition: {result['from_state']} → {result['to_state']}")
+        typer.echo(f"   Changed by: @{result['user']}")
+        if result['message']:
+            typer.echo(f"   Message: {result['message']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="submit-work")
+def submit_work(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to transition"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Transition an issue from in-progress to awaiting-completion-approval state."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute submit-work command
+        submit_work_command = SubmitWorkCommand(github_client, config)
+        result = submit_work_command.execute_transition(repo, issue_number, message)
+        
+        # Display success message
+        typer.echo(f"✅ Work submitted for approval!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Transition: {result['from_state']} → {result['to_state']}")
+        typer.echo(f"   Changed by: @{result['user']}")
+        if result['message']:
+            typer.echo(f"   Message: {result['message']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="approve-work")
+def approve_work(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to transition"),
+    message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Transition an issue from awaiting-completion-approval to closed state."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute approve-work command
+        approve_work_command = ApproveWorkCommand(github_client, config)
+        result = approve_work_command.execute_transition(repo, issue_number, message)
+        
+        # Display success message
+        typer.echo(f"✅ Work approved and issue closed!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Transition: {result['from_state']} → {result['to_state']}")
+        typer.echo(f"   Changed by: @{result['user']}")
+        if result['message']:
+            typer.echo(f"   Message: {result['message']}")
+        if result.get('issue_closed'):
+            typer.echo(f"   🔒 Issue has been closed")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
         sys.exit(1)
     except Exception as e:
         typer.echo(f"❌ Unexpected error: {str(e)}", err=True)

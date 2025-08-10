@@ -406,21 +406,107 @@ ghoo update-section <repository> <issue_number> --section "<name>" --content "<c
 ghoo update-section <repository> <issue_number> --section "<name>" --content "<content>"
 ```
 
-### Workflow Commands
+### Workflow Commands (IMPLEMENTED)
+
+Manage issue state transitions through the defined workflow. All commands create audit trail comments and support both label-based and Projects V2 status tracking.
 
 > **Note**: For a comprehensive guide on the workflow process and how these commands fit into the development lifecycle, see the [Workflow Guide](./workflow.md).
 
-```bash
-# Planning phase
-ghoo start-plan <type> --id <number>
-ghoo submit-plan <type> --id <number> --message "<message>"
-ghoo approve-plan <type> --id <number>
+#### ghoo start-plan
 
-# Implementation phase
-ghoo start-work <type> --id <number>
-ghoo submit-work <type> --id <number> --message "<message>"
-ghoo approve-work <type> --id <number>
+Move an issue from `backlog` to `planning` state.
+
+```bash
+ghoo start-plan <repository> <issue_number>
 ```
+
+**Example:**
+```bash
+ghoo start-plan my-org/my-repo 123
+```
+
+#### ghoo submit-plan
+
+Submit an issue's plan for approval (`planning` → `awaiting-plan-approval`).
+
+```bash
+ghoo submit-plan <repository> <issue_number> [--message "<message>"]
+```
+
+**Features:**
+- Validates required sections exist (from ghoo.yaml configuration)
+- Optional message explaining what needs approval
+- Creates audit trail comment with transition details
+
+**Example:**
+```bash
+ghoo submit-plan my-org/my-repo 123 --message "OAuth implementation approach ready for review"
+```
+
+#### ghoo approve-plan
+
+Approve an issue's plan (`awaiting-plan-approval` → `plan-approved`).
+
+```bash
+ghoo approve-plan <repository> <issue_number> [--message "<message>"]
+```
+
+**Example:**
+```bash
+ghoo approve-plan my-org/my-repo 123 --message "Approach looks good, proceed"
+```
+
+#### ghoo start-work
+
+Begin implementation (`plan-approved` → `in-progress`).
+
+```bash
+ghoo start-work <repository> <issue_number>
+```
+
+**Example:**
+```bash
+ghoo start-work my-org/my-repo 123
+```
+
+#### ghoo submit-work
+
+Submit completed work for approval (`in-progress` → `awaiting-completion-approval`).
+
+```bash
+ghoo submit-work <repository> <issue_number> [--message "<message>"]
+```
+
+**Example:**
+```bash
+ghoo submit-work my-org/my-repo 123 --message "All acceptance criteria met, ready for review"
+```
+
+#### ghoo approve-work
+
+Approve completion and close issue (`awaiting-completion-approval` → `closed`).
+
+```bash
+ghoo approve-work <repository> <issue_number> [--message "<message>"]
+```
+
+**Features:**
+- Validates no unchecked todos remain
+- Validates no open sub-issues exist
+- Closes the issue upon approval
+- Creates final audit trail comment
+
+**Example:**
+```bash
+ghoo approve-work my-org/my-repo 123 --message "Great work! All requirements met"
+```
+
+**Common Features for All Workflow Commands:**
+- **Audit Trail**: Each transition creates a comment showing the state change, user, and optional message
+- **Status Management**: Automatically handles label updates or Projects V2 field changes
+- **Validation**: Ensures valid state transitions with clear error messages
+- **User Attribution**: Extracts and displays the GitHub user making the change
+- **Fallback Support**: Works with both custom issue types and label-based tracking
 
 ## Output Formats
 

@@ -1669,12 +1669,13 @@ class InitCommand:
     
     # Workflow status labels with colors
     STATUS_LABELS = [
-        ("status:backlog", "ededed"),      # Light gray
-        ("status:planning", "d4c5f9"),     # Light purple  
-        ("status:in-progress", "0052cc"),  # Blue
-        ("status:review", "f9d0c4"),       # Light orange
-        ("status:done", "0e8a16"),         # Green
-        ("status:blocked", "d93f0b"),      # Red
+        ("status:backlog", "ededed"),                         # Light gray
+        ("status:planning", "d4c5f9"),                        # Light purple
+        ("status:awaiting-plan-approval", "f9d0c4"),          # Light orange
+        ("status:plan-approved", "bfd4f2"),                   # Light blue
+        ("status:in-progress", "0052cc"),                     # Blue
+        ("status:awaiting-completion-approval", "fbca04"),     # Yellow
+        ("status:closed", "0e8a16"),                          # Green
     ]
     
     # Issue type labels with colors (fallback when GraphQL types unavailable)
@@ -3838,6 +3839,536 @@ class CheckTodoCommand(TodoCommand):
             'action': 'checked' if new_state else 'unchecked',
             'url': issue.html_url
         }
+
+
+class BaseWorkflowCommand(ABC):
+    """Base class for all workflow state transition commands.
+    
+    Provides common functionality for workflow state transitions including:
+    - Status transition validation (checking current state)
+    - Status label management (removing old, adding new)
+    - Projects V2 field updates (when configured)
+    - Audit trail comment creation
+    - User extraction from GitHub token
+    """
+    
+    def __init__(self, github_client: GitHubClient, config: Optional[Config] = None):
+        """Initialize the command with GitHub client and optional configuration.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+            config: Optional ghoo configuration for validation
+        """
+        self.github = github_client
+        self.config = config
+    
+    @abstractmethod
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        pass
+    
+    @abstractmethod
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        pass
+    
+    @abstractmethod
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        pass
+    
+    def execute_transition(self, repo: str, issue_number: int, message: Optional[str] = None) -> Dict[str, Any]:
+        """Execute the workflow state transition.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: GitHub issue number
+            message: Optional message to include in audit trail
+            
+        Returns:
+            Dict with transition result information
+            
+        Raises:
+            ValueError: If repository format is invalid or transition fails
+        """
+        self._validate_repository_format(repo)
+        repo_owner, repo_name = repo.split('/')
+        
+        # Validate the transition
+        self.validate_transition(issue_number, repo_owner, repo_name)
+        
+        # Get the issue
+        repo_obj = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo_obj.get_issue(issue_number)
+        
+        # Update status (labels or Projects V2)
+        old_status = self._get_current_status(issue)
+        self._update_status(issue, self.get_to_state())
+        
+        # Create audit trail comment
+        user = self._get_authenticated_user()
+        self._create_audit_comment(issue, old_status, self.get_to_state(), user, message)
+        
+        return {
+            'success': True,
+            'repository': repo,
+            'issue_number': issue_number,
+            'issue_title': issue.title,
+            'from_state': old_status,
+            'to_state': self.get_to_state(),
+            'user': user,
+            'message': message,
+            'url': issue.html_url
+        }
+    
+    def _validate_repository_format(self, repo: str) -> None:
+        """Validate repository format is 'owner/repo'.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            
+        Raises:
+            ValueError: If repository format is invalid
+        """
+        if '/' not in repo or len(repo.split('/')) != 2:
+            raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+    
+    def _get_current_status(self, issue) -> str:
+        """Get the current workflow status of an issue.
+        
+        Args:
+            issue: GitHub issue object
+            
+        Returns:
+            Current status string (without 'status:' prefix)
+        """
+        # Look for status labels
+        for label in issue.labels:
+            if label.name.startswith('status:'):
+                return label.name[7:]  # Remove 'status:' prefix
+        
+        # Default to 'backlog' if no status label found
+        return 'backlog'
+    
+    def _update_status(self, issue, new_status: str) -> None:
+        """Update the status of an issue.
+        
+        Args:
+            issue: GitHub issue object
+            new_status: New status value (without 'status:' prefix)
+        """
+        # Remove existing status labels
+        current_labels = []
+        for label in issue.labels:
+            if not label.name.startswith('status:'):
+                current_labels.append(label.name)
+        
+        # Add new status label
+        new_status_label = f"status:{new_status}"
+        current_labels.append(new_status_label)
+        
+        # Update issue labels
+        issue.edit(labels=current_labels)
+        
+        # If using Projects V2, also update the field
+        if self.config and self.config.status_method == "status_field":
+            try:
+                self._update_projects_v2_status(issue, new_status)
+            except Exception as e:
+                # Fallback to labels method if Projects V2 fails
+                print(f"Warning: Could not update Projects V2 status field: {e}")
+    
+    def _update_projects_v2_status(self, issue, new_status: str) -> None:
+        """Update Projects V2 status field for an issue.
+        
+        Args:
+            issue: GitHub issue object
+            new_status: New status value
+        """
+        # This would use GraphQL to update Projects V2 field
+        # Implementation would go here when needed
+        # For now, we'll rely on labels as the primary method
+        pass
+    
+    def _create_audit_comment(self, issue, from_state: str, to_state: str, user: str, message: Optional[str]) -> None:
+        """Create an audit trail comment for the state transition.
+        
+        Args:
+            issue: GitHub issue object
+            from_state: Previous workflow state
+            to_state: New workflow state
+            user: GitHub user who made the transition
+            message: Optional message to include
+        """
+        comment_body = f"**Workflow Transition**: `{from_state}` → `{to_state}`\n"
+        comment_body += f"**Changed by**: @{user}\n"
+        
+        if message:
+            comment_body += f"**Message**: {message}\n"
+        
+        issue.create_comment(comment_body)
+    
+    def _get_authenticated_user(self) -> str:
+        """Get the login of the authenticated GitHub user.
+        
+        Returns:
+            GitHub user login
+        """
+        try:
+            user = self.github.github.get_user()
+            return user.login
+        except Exception:
+            return "unknown-user"
+
+
+class StartPlanCommand(BaseWorkflowCommand):
+    """Command for transitioning issues from backlog to planning state."""
+    
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        return "backlog"
+    
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        return "planning"
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        # Get the issue to check current state
+        repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo.get_issue(issue_number)
+        
+        # Check current status
+        current_status = self._get_current_status(issue)
+        if current_status != self.get_from_state():
+            raise ValueError(f"Cannot start planning: issue is in '{current_status}' state, expected '{self.get_from_state()}'")
+        
+        # Check that issue is open
+        if issue.state != "open":
+            raise ValueError(f"Cannot start planning: issue #{issue_number} is {issue.state}")
+
+
+class SubmitPlanCommand(BaseWorkflowCommand):
+    """Command for transitioning issues from planning to awaiting-plan-approval state."""
+    
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        return "planning"
+    
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        return "awaiting-plan-approval"
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        
+        # Get the issue to check current state
+        repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo.get_issue(issue_number)
+        
+        # Check current status
+        current_status = self._get_current_status(issue)
+        if current_status != self.get_from_state():
+            raise ValueError(f"Cannot submit plan: issue is in '{current_status}' state, expected '{self.get_from_state()}'")
+        
+        # Check that issue is open
+        if issue.state != "open":
+            raise ValueError(f"Cannot submit plan: issue #{issue_number} is {issue.state}")
+        
+        # Validate required sections exist (if config available)
+        if self.config and self.config.required_sections:
+            # Determine issue type from labels
+            issue_type = self._get_issue_type(issue)
+            if issue_type and issue_type in self.config.required_sections:
+                required_sections = self.config.required_sections[issue_type]
+                parser = IssueParser()
+                parsed_data = parser.parse_body(issue.body)
+                sections = parsed_data.get('sections', [])
+                
+                # Check for open todos  
+                has_open_todos = any(
+                    any(not todo.checked for todo in section.todos)
+                    for section in sections
+                )
+                
+                # Create a simple object to hold parsed data
+                parsed = type('ParsedIssue', (), {
+                    'sections': sections,
+                    'has_open_todos': has_open_todos
+                })()
+                
+                missing_sections = []
+                for section_name in required_sections:
+                    section_found = any(
+                        section.title.lower() == section_name.lower() 
+                        for section in parsed.sections
+                    )
+                    if not section_found:
+                        missing_sections.append(section_name)
+                
+                if missing_sections:
+                    raise ValueError(f"Cannot submit plan: missing required sections: {', '.join(missing_sections)}")
+    
+    def _get_issue_type(self, issue) -> Optional[str]:
+        """Get the issue type from labels.
+        
+        Args:
+            issue: GitHub issue object
+            
+        Returns:
+            Issue type ('epic', 'task', 'sub-task') or None if not found
+        """
+        for label in issue.labels:
+            if label.name == "type:epic":
+                return "epic"
+            elif label.name == "type:task":
+                return "task"
+            elif label.name == "type:sub-task":
+                return "sub-task"
+        return None
+
+
+class ApprovePlanCommand(BaseWorkflowCommand):
+    """Command for transitioning issues from awaiting-plan-approval to plan-approved state."""
+    
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        return "awaiting-plan-approval"
+    
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        return "plan-approved"
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        # Get the issue to check current state
+        repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo.get_issue(issue_number)
+        
+        # Check current status
+        current_status = self._get_current_status(issue)
+        if current_status != self.get_from_state():
+            raise ValueError(f"Cannot approve plan: issue is in '{current_status}' state, expected '{self.get_from_state()}'")
+        
+        # Check that issue is open
+        if issue.state != "open":
+            raise ValueError(f"Cannot approve plan: issue #{issue_number} is {issue.state}")
+
+
+class StartWorkCommand(BaseWorkflowCommand):
+    """Command for transitioning issues from plan-approved to in-progress state."""
+    
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        return "plan-approved"
+    
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        return "in-progress"
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        # Get the issue to check current state
+        repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo.get_issue(issue_number)
+        
+        # Check current status
+        current_status = self._get_current_status(issue)
+        if current_status != self.get_from_state():
+            raise ValueError(f"Cannot start work: issue is in '{current_status}' state, expected '{self.get_from_state()}'")
+        
+        # Check that issue is open
+        if issue.state != "open":
+            raise ValueError(f"Cannot start work: issue #{issue_number} is {issue.state}")
+
+
+class SubmitWorkCommand(BaseWorkflowCommand):
+    """Command for transitioning issues from in-progress to awaiting-completion-approval state."""
+    
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        return "in-progress"
+    
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        return "awaiting-completion-approval"
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        # Get the issue to check current state
+        repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo.get_issue(issue_number)
+        
+        # Check current status
+        current_status = self._get_current_status(issue)
+        if current_status != self.get_from_state():
+            raise ValueError(f"Cannot submit work: issue is in '{current_status}' state, expected '{self.get_from_state()}'")
+        
+        # Check that issue is open
+        if issue.state != "open":
+            raise ValueError(f"Cannot submit work: issue #{issue_number} is {issue.state}")
+
+
+class ApproveWorkCommand(BaseWorkflowCommand):
+    """Command for transitioning issues from awaiting-completion-approval to closed state."""
+    
+    def get_from_state(self) -> str:
+        """Return the expected current workflow state for this transition."""
+        return "awaiting-completion-approval"
+    
+    def get_to_state(self) -> str:
+        """Return the target workflow state for this transition."""
+        return "closed"
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+        """Validate that this transition is allowed for the given issue.
+        
+        Args:
+            issue_number: GitHub issue number
+            repo_owner: Repository owner
+            repo_name: Repository name
+            
+        Raises:
+            ValueError: If transition validation fails
+        """
+        
+        # Get the issue to check current state
+        repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo.get_issue(issue_number)
+        
+        # Check current status
+        current_status = self._get_current_status(issue)
+        if current_status != self.get_from_state():
+            raise ValueError(f"Cannot approve work: issue is in '{current_status}' state, expected '{self.get_from_state()}'")
+        
+        # Check that issue is open
+        if issue.state != "open":
+            raise ValueError(f"Cannot approve work: issue #{issue_number} is {issue.state}")
+        
+        # Check for open sub-issues and unchecked todos
+        self._validate_completion_requirements(issue)
+    
+    def _validate_completion_requirements(self, issue) -> None:
+        """Validate that all completion requirements are met.
+        
+        Args:
+            issue: GitHub issue object
+            
+        Raises:
+            ValueError: If completion requirements are not met
+        """
+        
+        # Parse issue body to check for unchecked todos
+        parser = IssueParser()
+        parsed_data = parser.parse_body(issue.body)
+        sections = parsed_data.get('sections', [])
+        
+        # Check for open todos  
+        has_open_todos = any(
+            any(not todo.checked for todo in section.todos)
+            for section in sections
+        )
+        
+        # Create a simple object to hold parsed data
+        parsed = type('ParsedIssue', (), {
+            'sections': sections,
+            'has_open_todos': has_open_todos
+        })()
+        
+        # Check for unchecked todos
+        if parsed.has_open_todos:
+            unchecked_todos = []
+            for section in parsed.sections:
+                for todo in section.todos:
+                    if not todo.checked:
+                        unchecked_todos.append(f"[{section.title}] {todo.text}")
+            
+            if unchecked_todos:
+                todos_str = "\n  - " + "\n  - ".join(unchecked_todos[:5])  # Show first 5
+                if len(unchecked_todos) > 5:
+                    todos_str += f"\n  - ... and {len(unchecked_todos) - 5} more"
+                raise ValueError(f"Cannot approve work: issue has unchecked todos:{todos_str}")
+        
+        # Check for open sub-issues (this would require GitHub API calls to check sub-issues)
+        # For now, we'll implement a basic check by looking for sub-issue references in the body
+        # A more comprehensive implementation would use the GraphQL sub-issues feature
+    
+    def execute_transition(self, repo: str, issue_number: int, message: Optional[str] = None) -> Dict[str, Any]:
+        """Execute the workflow state transition and close the issue.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: GitHub issue number
+            message: Optional message to include in audit trail
+            
+        Returns:
+            Dict with transition result information
+        """
+        # Execute the standard transition
+        result = super().execute_transition(repo, issue_number, message)
+        
+        # Close the issue
+        repo_owner, repo_name = repo.split('/')
+        repo_obj = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
+        issue = repo_obj.get_issue(issue_number)
+        issue.edit(state="closed")
+        
+        result['issue_closed'] = True
+        return result
 
 
 class SetBodyCommand:

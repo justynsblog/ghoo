@@ -343,6 +343,7 @@ tests/
 │   ├── test_get_command.py
 │   ├── test_set_body_command.py  # 13 test methods
 │   ├── test_todo_commands.py  # 20+ test methods
+│   ├── test_workflow_commands.py  # 25 test methods (all passing)
 │   └── test_github_client.py
 ├── integration/         # Integration tests
 │   ├── test_commands.py
@@ -352,6 +353,7 @@ tests/
 │   ├── test_get_command_integration.py
 │   ├── test_set_body_integration.py  # 11 test methods
 │   ├── test_todo_commands_integration.py  # 12+ test methods
+│   ├── test_workflow_commands_integration.py  # 12 test methods (all passing)
 │   └── test_init_gh_command.py
 ├── e2e/                 # End-to-end tests
 │   ├── test_smoke.py
@@ -575,6 +577,12 @@ Based on comprehensive testing completed during Phase 3 and Phase 4 development:
   - Todo checking/unchecking with fuzzy matching
   - Section management and creation
   - Unicode and special character support
+- **workflow Commands**: 25 unit test methods covering:
+  - All 6 state transition commands (start-plan, submit-plan, approve-plan, start-work, submit-work, approve-work)
+  - State validation and transition rules
+  - Required section validation for submit-plan
+  - Completion requirements validation for approve-work
+  - Mock fixes applied for IssueParser.parse_body() compatibility
 
 #### Integration Test Results
 - **CLI Interface**: All command structures validated
@@ -586,6 +594,12 @@ Based on comprehensive testing completed during Phase 3 and Phase 4 development:
   - Section finding and creation logic
   - Partial text matching behavior
   - Error message formatting
+- **workflow Commands**: 12 integration test methods validating:
+  - CLI integration for all 6 workflow state commands
+  - Label management and status transitions
+  - Audit trail comment creation
+  - Error handling and validation messages
+  - Projects V2 fallback behavior
 
 #### E2E Test Results
 - **Authentication**: Token-based auth working correctly
@@ -622,6 +636,8 @@ Based on comprehensive testing completed during Phase 3 and Phase 4 development:
 4. **Performance**: Commands execute within acceptable time limits (< 2s for most operations)
 5. **set-body Command Testing**: Achieved comprehensive coverage with 34 total test methods across all test levels, ensuring robust body replacement functionality
 6. **todo Commands Testing**: Achieved comprehensive coverage with 47+ total test methods across all test levels, ensuring reliable todo management functionality with proper body preservation
+7. **workflow Commands Testing**: Achieved comprehensive coverage with 37 test methods (25 unit + 12 integration), validating all state transitions and validation logic
+8. **Mock Structure Fix**: Successfully resolved unit test mock issues for IssueParser.parse_body() method, ensuring proper test isolation and accuracy
 
 ### Generating Test Reports
 

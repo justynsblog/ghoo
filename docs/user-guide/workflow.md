@@ -71,14 +71,14 @@ Move the Epic from `backlog` to `planning`. During this phase, you break the Epi
 **Example:**
 ```bash
 # Move the Epic to the 'planning' state
-ghoo start-plan epic --id 100
+ghoo start-plan owner/repo 100
 
 # You can always see available milestones by getting the epic
-ghoo get epic --id 100
+ghoo get owner/repo 100
 
 # Create tasks and assign them to the milestones from the plan
-ghoo create task --title "OAuth Provider Integration" --parent-epic-id 100 --milestone-id 8
-ghoo create task --title "MFA Implementation" --parent-epic-id 100 --milestone-id 9
+ghoo create-task owner/repo 100 "OAuth Provider Integration" --milestone 8
+ghoo create-task owner/repo 100 "MFA Implementation" --milestone 9
 ```
 
 ### 3. Plan a Task & Get Approval
@@ -93,16 +93,16 @@ Before implementation, each Task must be thoroughly planned. By default, this re
 **Example:**
 ```bash
 # Start planning the first task
-ghoo start-plan task --id 101
+ghoo start-plan owner/repo 101
 
 # Add the detailed plan to the task's body
-ghoo set-body task --id 101 --from-file "./task-plan.md"
+ghoo set-body owner/repo 101 --body-file "./task-plan.md"
 
 # Submit the plan for approval
-ghoo submit-plan task --id 101 --message "OAuth implementation approach is ready for review."
+ghoo submit-plan owner/repo 101 --message "OAuth implementation approach is ready for review."
 
 # A manager or lead approves the plan
-ghoo approve-plan task --id 101 --message "Approach looks good. Proceed."
+ghoo approve-plan owner/repo 101 --message "Approach looks good. Proceed."
 ```
 
 ### 4. Implement the Task with Sub-tasks
@@ -117,23 +117,23 @@ Once a Task's plan is approved, move it to `in progress` and begin implementatio
 **Example:**
 ```bash
 # Start work on the approved task
-ghoo start-work task --id 101
+ghoo start-work owner/repo 101
 
 # Create a sub-task for the first part of the implementation
-ghoo create sub-task --title "Implement GitHub OAuth Flow" --parent-task-id 101
+ghoo create-sub-task owner/repo 101 "Implement GitHub OAuth Flow"
 
 # Plan and implement the sub-task
-ghoo start-plan sub-task --id 201
+ghoo start-plan owner/repo 201
 # ...add body with Summary and Acceptance Criteria, submit plan, approve plan...
-ghoo start-work sub-task --id 201
+ghoo start-work owner/repo 201
 
 # Add and complete granular todos
 ghoo create-todo owner/repo 201 "Implementation" "Register GitHub OAuth app"
 ghoo check-todo owner/repo 201 "Implementation" --match "Register GitHub OAuth app"
 
 # Submit the sub-task for completion approval
-ghoo submit-work sub-task --id 201 --message "GitHub OAuth flow is complete."
-ghoo approve-work sub-task --id 201
+ghoo submit-work owner/repo 201 --message "GitHub OAuth flow is complete."
+ghoo approve-work owner/repo 201
 ```
 
 ### 5. Complete the Task and Epic
@@ -157,10 +157,10 @@ Not all work is part of a large, planned feature. To handle ad-hoc tasks like bu
 **Example:**
 ```bash
 # A bug is reported. Create it as a Task under the "Bugs & Triage" Epic (e.g., ID 12).
-ghoo create task --title "Login button misaligned on mobile" --parent-epic-id 12
+ghoo create-task owner/repo 12 "Login button misaligned on mobile"
 
 # A small feature is requested. Create it under the "General Maintenance" Epic (e.g., ID 13).
-ghoo create task --title "Change primary button color to new brand blue" --parent-epic-id 13
+ghoo create-task owner/repo 13 "Change primary button color to new brand blue"
 ```
 
 These Tasks then follow the standard workflow (`plan` -> `approve` -> `implement`), ensuring they are properly prioritized and tracked alongside feature work.
