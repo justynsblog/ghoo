@@ -90,8 +90,9 @@ class Issue:
     @property
     def pre_section_description(self) -> str:
         """Get the description text before the first section."""
-        # Placeholder - will be implemented by body parser
-        return ""
+        # This would be populated when parsing the body
+        # For now, return empty string - will be enhanced when body parser is integrated
+        return getattr(self, '_pre_section_description', '')
     
     @property
     def has_open_todos(self) -> bool:

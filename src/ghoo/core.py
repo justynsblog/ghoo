@@ -1841,7 +1841,121 @@ class IssueParser:
             body: Raw markdown body of the issue
             
         Returns:
-            Dictionary with parsed sections and todos
+            Dictionary with parsed sections and todos, including:
+            - 'pre_section_description': Text before first section
+            - 'sections': List of Section objects
         """
-        # Placeholder implementation
-        raise NotImplementedError("Body parsing not yet implemented")
+        from .models import Section, Todo
+        import re
+        
+        if not body or not body.strip():
+            return {
+                'pre_section_description': '',
+                'sections': []
+            }
+        
+        lines = body.split('\n')
+        sections = []
+        pre_section_description = ""
+        current_section = None
+        current_section_lines = []
+        pre_section_lines = []
+        found_first_section = False
+        
+        # Regex patterns
+        section_pattern = re.compile(r'^## (.+)$')
+        todo_pattern = re.compile(r'^- \[([x\s])\] (.+)$', re.IGNORECASE)
+        
+        for line_number, line in enumerate(lines, 1):
+            line = line.rstrip()
+            
+            # Check if this is a section header
+            section_match = section_pattern.match(line)
+            
+            if section_match:
+                # Save previous section if it exists
+                if current_section is not None:
+                    current_section['body'] = '\n'.join(current_section_lines).strip()
+                    current_section['todos'] = IssueParser._extract_todos_from_lines(
+                        current_section_lines, 
+                        line_number - len(current_section_lines)
+                    )
+                    sections.append(Section(
+                        title=current_section['title'],
+                        body=current_section['body'],
+                        todos=current_section['todos']
+                    ))
+                
+                # Handle pre-section description
+                if not found_first_section:
+                    pre_section_description = '\n'.join(pre_section_lines).strip()
+                    found_first_section = True
+                
+                # Start new section
+                current_section = {
+                    'title': section_match.group(1).strip(),
+                    'body': '',
+                    'todos': []
+                }
+                current_section_lines = []
+            else:
+                # Add line to appropriate container
+                if found_first_section:
+                    current_section_lines.append(line)
+                else:
+                    pre_section_lines.append(line)
+        
+        # Handle final section
+        if current_section is not None:
+            current_section['body'] = '\n'.join(current_section_lines).strip()
+            current_section['todos'] = IssueParser._extract_todos_from_lines(
+                current_section_lines, 
+                len(lines) - len(current_section_lines) + 1
+            )
+            sections.append(Section(
+                title=current_section['title'],
+                body=current_section['body'],
+                todos=current_section['todos']
+            ))
+        elif not found_first_section:
+            # No sections found, everything is pre-section description
+            pre_section_description = '\n'.join(pre_section_lines).strip()
+        
+        return {
+            'pre_section_description': pre_section_description,
+            'sections': sections
+        }
+    
+    @staticmethod
+    def _extract_todos_from_lines(lines: List[str], start_line_number: int) -> List['Todo']:
+        """Extract todos from a list of lines.
+        
+        Args:
+            lines: List of lines to search for todos
+            start_line_number: Starting line number for tracking
+            
+        Returns:
+            List of Todo objects
+        """
+        from .models import Todo
+        import re
+        
+        todos = []
+        todo_pattern = re.compile(r'^- \[([x\s])\] (.+)$', re.IGNORECASE)
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            todo_match = todo_pattern.match(line)
+            
+            if todo_match:
+                checked = todo_match.group(1).lower() == 'x'
+                text = todo_match.group(2).strip()
+                line_number = start_line_number + i
+                
+                todos.append(Todo(
+                    text=text,
+                    checked=checked,
+                    line_number=line_number
+                ))
+        
+        return todos
