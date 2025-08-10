@@ -294,9 +294,70 @@ print(result["title"])
 print(result["sub_issues"])  # For epics
 ```
 
+## BaseCreateCommand
+
+Abstract base class for all issue creation commands. Provides common functionality and enforces consistent patterns across all create commands.
+
+### Overview
+
+**Key Features:**
+- **Eliminates Code Duplication**: Common functionality shared across all create commands
+- **Consistent API**: All create commands follow the same patterns and interfaces
+- **Validation**: Centralized validation logic for repository format, required sections, etc.
+- **Error Handling**: Standardized error messages and exception handling
+- **Hybrid API**: Unified GraphQL/REST fallback handling
+
+### Abstract Methods
+
+Subclasses must implement:
+
+```python
+@abstractmethod
+def get_issue_type(self) -> str:
+    """Return the issue type ('epic', 'task', 'sub-task')."""
+    pass
+
+@abstractmethod  
+def get_required_sections_key(self) -> str:
+    """Return the config key for required sections."""
+    pass
+
+@abstractmethod
+def generate_body(self, **kwargs) -> str:
+    """Generate the default body template for this issue type."""
+    pass
+```
+
+### Common Methods
+
+**`_validate_repository_format(repo: str) -> None`**
+- Validates repository format is 'owner/repo'
+- Raises ValueError for invalid formats
+
+**`_validate_required_sections(body: str) -> None`**  
+- Validates required sections exist in issue body
+- Uses configuration to determine required sections
+- Raises ValueError for missing sections
+
+**`_prepare_labels(additional_labels: List[str] = None) -> List[str]`**
+- Prepares labels with status:backlog default
+- Adds additional labels if provided
+
+**`_find_milestone(github_repo, milestone_title: str)`**
+- Finds milestone by title in repository
+- Raises ValueError if milestone not found
+
+**`_format_rest_response(issue) -> Dict[str, Any]`**
+- Converts PyGithub issue object to standardized dictionary
+- Ensures consistent return format across all commands
+
+**`_post_graphql_create(repo: str, issue_data: Dict, **kwargs)`**
+- Hook for post-creation actions in GraphQL mode
+- Override in subclasses for custom behavior (e.g., sub-issue relationships)
+
 ## CreateEpicCommand
 
-Implements the `ghoo create-epic` command for creating Epic issues with proper structure.
+Implements the `ghoo create-epic` command. Inherits from BaseCreateCommand.
 
 ### Initialization
 
@@ -307,23 +368,125 @@ client = GitHubClient(token)
 create_epic_cmd = CreateEpicCommand(client)
 ```
 
+### Implementation Details
+
+**`get_issue_type() -> str`**: Returns 'epic'
+**`get_required_sections_key() -> str`**: Returns 'epic' 
+**`generate_body(**kwargs) -> str`**: Calls `_generate_epic_body()`
+
 ### Methods
 
 **`execute(repository: str, title: str, labels: List[str] = None, assignees: List[str] = None, milestone: str = None) -> Dict`**
 - Creates a new Epic issue in the specified repository
+- Uses BaseCreateCommand for common validation and processing
 - Generates body from template with required sections
 - Adds status label and type label automatically
 - Returns created issue data
 
-**`generate_epic_body() -> str`**
-- Creates Epic body from Jinja2 template
-- Includes required sections per configuration
+**`_generate_epic_body() -> str`**
+- Creates Epic body with required sections
+- Includes placeholder for sub-issues
 - Returns formatted markdown body
 
-**`validate_repository(repo: Repository) -> None`**
-- Checks if repository has required configuration
-- Verifies status labels exist
-- Raises exceptions for missing setup
+## CreateTaskCommand  
+
+Implements the `ghoo create-task` command. Inherits from BaseCreateCommand.
+
+### Initialization
+
+```python
+from ghoo.core import CreateTaskCommand, GitHubClient
+
+client = GitHubClient(token)
+create_task_cmd = CreateTaskCommand(client)
+```
+
+### Implementation Details
+
+**`get_issue_type() -> str`**: Returns 'task'
+**`get_required_sections_key() -> str`**: Returns 'task'
+**`generate_body(parent_epic: int = None, **kwargs) -> str`**: Calls `_generate_task_body(parent_epic)`
+
+### Methods
+
+**`execute(repository: str, parent_epic: int, title: str, body: str = None, labels: List[str] = None, assignees: List[str] = None, milestone: str = None) -> Dict`**
+- Creates a new Task issue linked to a parent Epic
+- Validates parent epic exists and is accessible
+- Uses BaseCreateCommand for common validation and processing  
+- Generates body with parent reference and required sections
+- Creates sub-issue relationship via GraphQL when available
+- Returns created issue data with parent_epic field
+
+**`_validate_parent_epic(github_repo, parent_epic: int)`**
+- Validates parent epic exists and is open
+- Checks parent has Epic type (permissive for GraphQL types)
+- Returns parent issue object
+
+**`_generate_task_body(parent_epic: int) -> str`**
+- Creates Task body with parent epic reference
+- Includes required sections: Summary, Acceptance Criteria, Implementation Plan
+- Returns formatted markdown body
+
+**`_ensure_parent_reference(body: str, parent_epic: int) -> str`**
+- Ensures parent epic reference exists in custom body
+- Adds reference if missing
+
+**`_post_graphql_create(repo: str, issue_data: Dict, parent_epic: int = None, **kwargs)`**
+- Creates sub-issue relationship after GraphQL issue creation
+- Handles GraphQL errors gracefully
+
+## CreateSubTaskCommand
+
+Implements the `ghoo create-sub-task` command. Inherits from BaseCreateCommand.
+
+### Initialization
+
+```python
+from ghoo.core import CreateSubTaskCommand, GitHubClient
+
+client = GitHubClient(token)
+create_subtask_cmd = CreateSubTaskCommand(client)
+```
+
+### Implementation Details
+
+**`get_issue_type() -> str`**: Returns 'sub-task'
+**`get_required_sections_key() -> str`**: Returns 'sub-task'  
+**`generate_body(parent_task: int = None, **kwargs) -> str`**: Calls `_generate_sub_task_body(parent_task)`
+
+### Methods
+
+**`execute(repository: str, parent_task: int, title: str, body: str = None, labels: List[str] = None, assignees: List[str] = None, milestone: str = None) -> Dict`**
+- Creates a new Sub-task issue linked to a parent Task
+- Validates parent task exists, is open, and is actually a task
+- Uses BaseCreateCommand for common validation and processing
+- Generates body with parent reference and required sections  
+- Creates sub-issue relationship via GraphQL when available
+- Returns created issue data with parent_task field
+
+**`_validate_parent_task(github_repo, parent_task: int)`**
+- Validates parent task exists and is open
+- Checks parent is a task type (permissive for GraphQL types)
+- Prevents creation under closed tasks
+- Returns parent issue object
+
+**`_generate_sub_task_body(parent_task: int) -> str`**
+- Creates Sub-task body with parent task reference
+- Includes required sections: Summary, Acceptance Criteria, Implementation Notes
+- Returns formatted markdown body
+
+**`_ensure_parent_reference(body: str, parent_task: int) -> str`**
+- Ensures parent task reference exists in custom body
+- Adds reference if missing
+
+**`_post_graphql_create(repo: str, issue_data: Dict, parent_task: int = None, **kwargs)`**
+- Creates sub-issue relationship after GraphQL issue creation
+- Handles GraphQL errors gracefully
+
+**`_create_sub_issue_relationship(repo: str, sub_task_id: str, parent_task: int)`**
+- Creates GraphQL sub-issue relationship between parent task and sub-task
+- Gets parent node ID and calls add_sub_issue mutation
+- Raises GraphQLError if relationship creation fails
 
 ### Usage Example
 

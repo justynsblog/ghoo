@@ -101,34 +101,91 @@ Features:
 - Validates against repository configuration
 - Supports labels, assignees, and milestone assignment
 
-## Issue Hierarchy
+### Create Task
 
-ghoo enforces a strict three-level hierarchy:
+Create a Task issue linked to an Epic:
 
-1. **Epic**: High-level feature or initiative
-   - Contains multiple Tasks
-   - Tracks overall progress
-   - Cannot be closed with open Tasks
+```bash
+# Basic task creation (linked to epic #15)
+ghoo create-task owner/repo 15 "Implement user login endpoint"
 
-2. **Task**: Specific implementation work
-   - Child of an Epic
-   - Contains Sub-tasks for breakdown
-   - Cannot be closed with open Sub-tasks
+# With additional options
+ghoo create-task owner/repo 15 "Add password validation" \
+  --labels "priority:medium,area:backend" \
+  --assignees "alice" \
+  --milestone "Sprint 1"
+```
 
-3. **Sub-task**: Granular work item
-   - Child of a Task
-   - Smallest unit of work
-   - Contains todos for tracking
+Features:
+- Validates parent epic exists and is accessible
+- Auto-generates body with required sections
+- Creates sub-issue relationship (GraphQL when available)
+- Includes parent epic reference in body
+- Sets status label (status:backlog) automatically
 
-## Workflow States
+### Create Sub-task
 
-Issues progress through these states:
-- `backlog` → `planning` → `awaiting-plan-approval` → `plan-approved` → `in-progress` → `awaiting-completion-approval` → `closed`
+Create a Sub-task issue linked to a Task:
+
+```bash
+# Basic sub-task creation (linked to task #42)
+ghoo create-sub-task owner/repo 42 "Add input validation tests"
+
+# With additional options
+ghoo create-sub-task owner/repo 42 "Update API documentation" \
+  --labels "priority:low,area:docs" \
+  --assignees "charlie" \
+  --milestone "Sprint 1"
+```
+
+Features:
+- Validates parent task exists, is open, and is actually a task
+- Auto-generates body with required sections
+- Creates sub-issue relationship (GraphQL when available)
+- Includes parent task reference in body
+- Sets status label (status:backlog) automatically
+
+## Quick Start Example
+
+Here's a quick example to get you started with ghoo:
+
+```bash
+# 1. Initialize your repository
+ghoo init-gh
+
+# 2. Create an Epic
+ghoo create-epic owner/repo "Epic: User Authentication" \
+  --labels "priority:high,area:backend"
+
+# 3. Create a Task under the Epic (using the epic number from step 2)
+ghoo create-task owner/repo 15 "Implement login endpoint" \
+  --assignees "alice"
+
+# 4. Create a Sub-task under the Task (using the task number from step 3)
+ghoo create-sub-task owner/repo 42 "Add input validation tests"
+
+# 5. View the Epic with full hierarchy
+ghoo get owner/repo 15
+```
+
+This creates a complete Epic → Task → Sub-task hierarchy that GitHub will display with proper relationships when sub-issues are supported, or with clear references when falling back to labels.
+
+## Understanding the ghoo Workflow
+
+ghoo enforces a structured workflow for managing development work. For a comprehensive guide on:
+- The complete issue hierarchy (Epic → Task → Sub-task)
+- Workflow states and transitions
+- Planning and approval processes
+- Handling unplanned work
+- Validation rules
+
+Please see the [Workflow Guide](./workflow.md).
 
 ## Next Steps
 
-- Run `ghoo init-gh` to set up your repository
-- Create your first Epic with `ghoo create-epic` command
-- Use `ghoo get` to view issue details and track progress
+1. Run `ghoo init-gh` to set up your repository
+2. Create your first Epic with `ghoo create-epic` command
+3. Review the [Workflow Guide](./workflow.md) to understand the complete development process
+4. Use `ghoo get` to view issue details and track progress
 
 For detailed command documentation, see the [Commands Reference](./commands.md) and [API Reference](../development/api-reference.md).

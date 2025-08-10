@@ -1,10 +1,12 @@
-# ghoo Workflow Guide
+# Workflow Guide
 
 ## Overview
 
-This document describes the structured development workflow that `ghoo` is designed to support. Following this process ensures that work is well-planned, approved, and tracked from a high-level idea down to a granular implementation step.
+This guide describes the structured development workflow that `ghoo` is designed to support. Following this process ensures that work is well-planned, approved, and tracked from a high-level idea down to a granular implementation step.
 
 While you can follow this workflow using GitHub's UI alone, `ghoo` provides streamlined commands to enforce consistency and reduce friction.
+
+> **Note**: If you're new to ghoo, start with the [Getting Started](./getting-started.md) guide for installation and basic setup.
 
 ## The Hierarchy
 

@@ -177,12 +177,76 @@ Configure database connection with proper error handling.
 - Parent epic must exist and be accessible
 - Optional: ghoo.yaml for section validation
 
-## Upcoming Commands (Phase 3-4)
+### ghoo create-sub-task
 
-### Create Commands
+Create a new Sub-task issue linked to a parent Task.
 
 ```bash
 ghoo create-sub-task <repository> <parent_task> <title> [options]
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `parent_task`: Issue number of the parent task
+- `title`: Sub-task title
+
+**Options:**
+- `--body, -b`: Custom sub-task body (uses template if not provided)
+- `--labels, -l`: Comma-separated list of additional labels
+- `--assignees, -a`: Comma-separated list of GitHub usernames to assign
+- `--milestone, -m`: Milestone title to assign
+- `--config, -c`: Path to ghoo.yaml configuration file
+
+**Examples:**
+```bash
+# Create basic sub-task linked to task #42
+ghoo create-sub-task my-org/my-repo 42 "Add input validation tests"
+
+# Create sub-task with additional labels and assignees
+ghoo create-sub-task my-org/my-repo 42 "Update API documentation" \
+  --labels "priority:low,team:docs" \
+  --assignees "charlie" \
+  --milestone "Sprint 1"
+
+# Create sub-task with custom body
+ghoo create-sub-task my-org/my-repo 42 "Fix edge case in validation" \
+  --body "**Parent Task:** #42
+
+## Summary
+Handle edge case where empty strings bypass validation.
+
+## Acceptance Criteria
+- [ ] Empty strings are properly validated
+- [ ] Error messages are clear and helpful
+
+## Implementation Notes
+- Focus on the validateInput function
+- Add unit tests for edge cases"
+```
+
+**Features:**
+- **Parent Validation**: Validates parent task exists, is open, and is actually a task (not epic or sub-task)
+- **Hybrid API Support**: Uses GraphQL for custom issue types and sub-issue relationships, falls back to REST API with labels
+- **Template Generation**: Creates body with required sections (Summary, Acceptance Criteria, Implementation Notes) if no custom body provided
+- **Parent Reference**: Automatically includes parent task reference in body, even for custom bodies
+- **Sub-issue Linking**: Attempts to create GraphQL sub-issue relationship when available
+- **Validation**: Validates required sections if configuration is available
+- **Status Assignment**: Automatically assigns `status:backlog` label
+- **Error Handling**: Clear error messages for invalid parent task, closed tasks, permission issues, etc.
+
+**Requirements:**
+- GITHUB_TOKEN environment variable
+- Repository write permissions
+- Parent task must exist, be open, and be a task type
+- Optional: ghoo.yaml for section validation
+
+## Upcoming Commands (Phase 4)
+
+### Update Commands
+
+```bash
+ghoo set-body <type> --id <number> --value "<content>"
+ghoo set-body <type> --id <number> --from-file <path>
 ```
 
 ### Update Commands
@@ -201,6 +265,8 @@ ghoo uncheck-todo --issue-id <number> --section "<section>" --match "<text>"
 ```
 
 ### Workflow Commands
+
+> **Note**: For a comprehensive guide on the workflow process and how these commands fit into the development lifecycle, see the [Workflow Guide](./workflow.md).
 
 ```bash
 # Planning phase

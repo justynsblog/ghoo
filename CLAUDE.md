@@ -105,7 +105,8 @@ src/ghoo/
 
 ## Important Files
 - `SPEC.md`: Complete technical specification
-- `bootstrap-mvp-workflow.md`: Development workflow
+- `bootstrap-mvp-workflow.md`: Development workflow (for MVP)
+- `docs/user-guide/workflow.md`: User workflow guide
 - `.env`: Contains TESTING_* variables for E2E tests
 - `ghoo.yaml`: Project configuration (when created)
 
@@ -117,12 +118,14 @@ src/ghoo/
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-**Phase 3 In Progress - Issue 04 Complete!**
+**Phase 3 COMPLETE! 🎉 All 6 issues completed.**
 
-When starting work with subagent workflow:
+**Next Phase**: Phase 4 (Workflow Management)
+
+When starting work on next phase with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
-2. Check current phase status in `issues/` - **Phase 3 issue 04 complete, issue 05 is next**
-3. Pick next numbered issue from `issues/phase3/` (05-implement-create-task-command.md) and move to `in-progress/`
+2. Check current phase status in `issues/` - **Phase 3 complete, Phase 4 ready**
+3. Pick next numbered issue from `issues/phase4/` - next should be `01-implement-set-body-command.md`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
 6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically
@@ -130,3 +133,5 @@ When starting work with subagent workflow:
 8. **UPDATE DOCS**: Call `docs-maintainer` agent to ensure documentation is current
 9. **FINALIZE**: Move to `completed/`, commit immediately, verify clean git status
 10. Test against live GitHub repo using TESTING_* credentials throughout process
+
+**Current State**: All core issue creation commands implemented with clean inheritance architecture
