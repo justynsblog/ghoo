@@ -5,7 +5,7 @@ from typing import Optional
 from pathlib import Path
 import sys
 
-from .core import InitCommand, GetCommand, GitHubClient, ConfigLoader
+from .core import InitCommand, GetCommand, CreateEpicCommand, GitHubClient, ConfigLoader
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -275,6 +275,97 @@ def _display_issue(issue_data: dict):
     if 'parent_issue' in issue_data and issue_data['parent_issue']:
         parent = issue_data['parent_issue']
         typer.echo(f"\n⬆️  Parent: #{parent['number']}: {parent['title']}")
+
+
+@app.command()
+def create_epic(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    title: str = typer.Argument(..., help="Epic title"),
+    body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom epic body (uses template if not provided)"),
+    labels: Optional[str] = typer.Option(None, "--labels", "-l", help="Comma-separated list of additional labels"),
+    assignees: Optional[str] = typer.Option(None, "--assignees", "-a", help="Comma-separated list of GitHub usernames to assign"),
+    milestone: Optional[str] = typer.Option(None, "--milestone", "-m", help="Milestone title to assign"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Create a new Epic issue with proper body template and validation."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        if config_path:
+            try:
+                config_loader = ConfigLoader(config_path)
+                config = config_loader.load()
+                typer.echo(f"📋 Using configuration from {config_path}")
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
+        
+        # Parse additional labels
+        labels_list = None
+        if labels:
+            labels_list = [label.strip() for label in labels.split(',')]
+        
+        # Parse assignees
+        assignees_list = None
+        if assignees:
+            assignees_list = [assignee.strip() for assignee in assignees.split(',')]
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute create epic command
+        create_command = CreateEpicCommand(github_client, config)
+        result = create_command.execute(
+            repo=repo,
+            title=title,
+            body=body,
+            labels=labels_list,
+            assignees=assignees_list,
+            milestone=milestone
+        )
+        
+        # Display success message
+        typer.echo(f"✅ Created Epic #{result['number']}: {result['title']}", color=typer.colors.GREEN)
+        typer.echo(f"   URL: {result['url']}")
+        typer.echo(f"   Type: {result['type']}")
+        
+        # Show labels
+        if result['labels']:
+            typer.echo(f"   Labels: {', '.join(result['labels'])}")
+        
+        # Show assignees
+        if result['assignees']:
+            typer.echo(f"   Assignees: {', '.join(result['assignees'])}")
+        
+        # Show milestone
+        if result['milestone']:
+            typer.echo(f"   Milestone: {result['milestone']['title']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 def main():

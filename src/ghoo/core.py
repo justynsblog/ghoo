@@ -1327,6 +1327,166 @@ class GitHubClient:
         # This is a complex operation that would typically require additional queries
         # For now, we'll assume the caller provides the item_id directly
         raise NotImplementedError("Project item ID resolution not yet implemented")
+    
+    def supports_custom_issue_types(self, repo: str) -> bool:
+        """Check if custom issue types are supported for a repository.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            
+        Returns:
+            True if custom issue types are supported, False otherwise
+        """
+        owner, repo_name = repo.split('/')
+        return self.graphql.check_custom_issue_types_available(owner, repo_name)
+    
+    def create_issue_with_type(
+        self, 
+        repo: str, 
+        title: str, 
+        body: str, 
+        issue_type: str, 
+        labels: Optional[List[str]] = None, 
+        assignees: Optional[List[str]] = None, 
+        milestone = None
+    ) -> Dict[str, Any]:
+        """Create an issue with a specific custom type using GraphQL.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            title: Issue title
+            body: Issue body
+            issue_type: Custom issue type ('epic', 'task', 'sub-task')
+            labels: Optional list of label names
+            assignees: Optional list of GitHub usernames
+            milestone: Optional milestone object from PyGithub
+            
+        Returns:
+            Dictionary with created issue information
+            
+        Raises:
+            GraphQLError: If GraphQL operations fail
+            FeatureUnavailableError: If custom issue types are not available
+        """
+        owner, repo_name = repo.split('/')
+        
+        # First, get the repository ID
+        repo_id = self.graphql._get_repository_id(owner, repo_name)
+        
+        # Create issue using GraphQL mutation
+        mutation = """
+        mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String, $issueType: String) {
+          createIssue(input: {
+            repositoryId: $repositoryId
+            title: $title
+            body: $body
+            issueType: $issueType
+          }) {
+            issue {
+              id
+              number
+              title
+              url
+              state
+              labels(first: 100) {
+                nodes {
+                  name
+                }
+              }
+              assignees(first: 100) {
+                nodes {
+                  login
+                }
+              }
+              milestone {
+                title
+                number
+              }
+            }
+          }
+        }
+        """
+        
+        variables = {
+            'repositoryId': repo_id,
+            'title': title,
+            'body': body,
+            'issueType': issue_type
+        }
+        
+        try:
+            result = self.graphql._execute(mutation, variables)
+            issue_data = result['data']['createIssue']['issue']
+            
+            # Post-process to add labels, assignees, milestone if needed
+            if labels or assignees or milestone:
+                self._post_process_created_issue(repo, issue_data['number'], labels, assignees, milestone)
+                # Re-fetch to get updated data
+                github_repo = self.github.get_repo(repo)
+                updated_issue = github_repo.get_issue(issue_data['number'])
+                
+                return {
+                    'number': updated_issue.number,
+                    'title': updated_issue.title,
+                    'url': updated_issue.html_url,
+                    'state': updated_issue.state,
+                    'labels': [label.name for label in updated_issue.labels],
+                    'assignees': [assignee.login for assignee in updated_issue.assignees],
+                    'milestone': {
+                        'title': updated_issue.milestone.title,
+                        'number': updated_issue.milestone.number
+                    } if updated_issue.milestone else None
+                }
+            
+            return {
+                'number': issue_data['number'],
+                'title': issue_data['title'],
+                'url': issue_data['url'],
+                'state': issue_data['state'].lower(),
+                'labels': [label['name'] for label in issue_data['labels']['nodes']],
+                'assignees': [assignee['login'] for assignee in issue_data['assignees']['nodes']],
+                'milestone': {
+                    'title': issue_data['milestone']['title'],
+                    'number': issue_data['milestone']['number']
+                } if issue_data['milestone'] else None
+            }
+            
+        except GraphQLError as e:
+            if 'custom issue types' in str(e).lower():
+                raise FeatureUnavailableError("Custom issue types not available for this repository")
+            raise e
+    
+    def _post_process_created_issue(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        labels: Optional[List[str]] = None,
+        assignees: Optional[List[str]] = None,
+        milestone = None
+    ):
+        """Post-process a created issue to add labels, assignees, and milestone.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number
+            labels: Optional list of label names
+            assignees: Optional list of GitHub usernames
+            milestone: Optional milestone object
+        """
+        github_repo = self.github.get_repo(repo)
+        issue = github_repo.get_issue(issue_number)
+        
+        # Add labels
+        if labels:
+            issue.add_to_labels(*labels)
+        
+        # Add assignees
+        if assignees:
+            issue.add_to_assignees(*assignees)
+        
+        # Set milestone
+        if milestone:
+            issue.edit(milestone=milestone)
 
 
 class ConfigLoader:
@@ -2287,3 +2447,277 @@ class GetCommand:
         except (GithubException, GraphQLError):
             # If we can't search for parent issues, just return None
             return None
+
+
+class CreateEpicCommand:
+    """Command for creating Epic issues with proper body templates and validation.
+    
+    This class handles:
+    - Epic body template processing with required sections
+    - Hybrid GitHub issue creation (GraphQL types with REST fallback)
+    - Status label assignment (status:backlog by default)
+    - Validation of required sections based on configuration
+    """
+    
+    def __init__(self, github_client: GitHubClient, config: Optional[Config] = None):
+        """Initialize the command with GitHub client and optional configuration.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+            config: Optional ghoo configuration for validation
+        """
+        self.github = github_client
+        self.config = config
+    
+    def execute(
+        self, 
+        repo: str,
+        title: str,
+        body: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        assignees: Optional[List[str]] = None,
+        milestone: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute epic creation.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            title: Epic title
+            body: Optional custom body (uses template if not provided)
+            labels: Optional additional labels beyond type:epic and status:backlog
+            assignees: Optional list of GitHub usernames to assign
+            milestone: Optional milestone title to assign
+            
+        Returns:
+            Dictionary containing created issue information
+            
+        Raises:
+            ValueError: If validation fails
+            GraphQLError: If GitHub API errors occur
+            GithubException: If PyGithub REST API errors occur
+        """
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+        
+        # Generate body if not provided
+        if body is None:
+            body = self._generate_epic_body()
+        
+        # Validate required sections if config is available
+        if self.config:
+            self._validate_required_sections(body)
+        
+        # Prepare labels
+        issue_labels = self._prepare_labels(labels)
+        
+        # Get repository object
+        github_repo = self.github.github.get_repo(repo)
+        
+        # Find milestone if specified
+        milestone_obj = None
+        if milestone:
+            milestone_obj = self._find_milestone(github_repo, milestone)
+        
+        # Try to create issue with GraphQL custom type, fallback to REST
+        try:
+            issue_data = self._create_with_graphql(
+                repo, title, body, issue_labels, assignees, milestone_obj
+            )
+        except (GraphQLError, FeatureUnavailableError):
+            # Fallback to REST API with type:epic label
+            issue_data = self._create_with_rest(
+                github_repo, title, body, issue_labels, assignees, milestone_obj
+            )
+        
+        return {
+            'number': issue_data['number'],
+            'title': issue_data['title'],
+            'url': issue_data['url'],
+            'state': issue_data['state'],
+            'type': 'epic',
+            'labels': issue_data['labels'],
+            'assignees': issue_data['assignees'],
+            'milestone': issue_data['milestone']
+        }
+    
+    def _generate_epic_body(self) -> str:
+        """Generate epic body using the template.
+        
+        Returns:
+            Formatted epic body string with required sections
+        """
+        # Default epic template body
+        sections = []
+        
+        if self.config and 'epic' in self.config.required_sections:
+            required_sections = self.config.required_sections['epic']
+        else:
+            required_sections = ["Summary", "Acceptance Criteria", "Milestone Plan"]
+        
+        for section_name in required_sections:
+            sections.append(f"## {section_name}\n\n*TODO: Fill in this section*\n")
+        
+        body = "\n".join(sections)
+        
+        # Add tasks section placeholder
+        body += "\n## Tasks\n\n*Sub-issues will be listed here as they are created*\n"
+        
+        return body
+    
+    def _validate_required_sections(self, body: str) -> None:
+        """Validate that required sections exist in the body.
+        
+        Args:
+            body: The issue body to validate
+            
+        Raises:
+            ValueError: If required sections are missing
+        """
+        if not self.config or 'epic' not in self.config.required_sections:
+            return
+        
+        required_sections = self.config.required_sections['epic']
+        missing_sections = []
+        
+        for section in required_sections:
+            # Look for section headers (case-insensitive)
+            if not re.search(rf'^##\s+{re.escape(section)}\s*$', body, re.MULTILINE | re.IGNORECASE):
+                missing_sections.append(section)
+        
+        if missing_sections:
+            missing_list = ', '.join(missing_sections)
+            raise ValueError(f"Missing required sections: {missing_list}")
+    
+    def _prepare_labels(self, additional_labels: Optional[List[str]] = None) -> List[str]:
+        """Prepare labels for the epic issue.
+        
+        Args:
+            additional_labels: Optional additional labels to add
+            
+        Returns:
+            List of label names for the issue
+        """
+        labels = ['status:backlog']  # Default status for new epics
+        
+        if additional_labels:
+            labels.extend(additional_labels)
+        
+        return labels
+    
+    def _find_milestone(self, github_repo, milestone_title: str):
+        """Find milestone by title.
+        
+        Args:
+            github_repo: PyGithub repository object
+            milestone_title: Title of the milestone to find
+            
+        Returns:
+            Milestone object or None if not found
+            
+        Raises:
+            ValueError: If milestone is not found
+        """
+        try:
+            milestones = github_repo.get_milestones(state='all')
+            for milestone in milestones:
+                if milestone.title.lower() == milestone_title.lower():
+                    return milestone
+            
+            raise ValueError(f"Milestone '{milestone_title}' not found in repository")
+            
+        except GithubException as e:
+            raise ValueError(f"Error finding milestone: {str(e)}")
+    
+    def _create_with_graphql(
+        self, 
+        repo: str, 
+        title: str, 
+        body: str, 
+        labels: List[str], 
+        assignees: Optional[List[str]], 
+        milestone
+    ) -> Dict[str, Any]:
+        """Create epic using GraphQL with custom issue type.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            title: Issue title
+            body: Issue body
+            labels: List of label names
+            assignees: Optional list of assignees
+            milestone: Optional milestone object
+            
+        Returns:
+            Issue data dictionary
+            
+        Raises:
+            GraphQLError: If GraphQL operations fail
+            FeatureUnavailableError: If custom issue types are not available
+        """
+        owner, repo_name = repo.split('/')
+        
+        # First check if custom issue types are available
+        if not self.github.supports_custom_issue_types(repo):
+            raise FeatureUnavailableError("Custom issue types not available")
+        
+        # Create issue with epic type using GraphQL
+        issue_data = self.github.create_issue_with_type(
+            repo, title, body, 'epic', labels, assignees, milestone
+        )
+        
+        return issue_data
+    
+    def _create_with_rest(
+        self, 
+        github_repo, 
+        title: str, 
+        body: str, 
+        labels: List[str], 
+        assignees: Optional[List[str]], 
+        milestone
+    ) -> Dict[str, Any]:
+        """Create epic using REST API with type:epic label fallback.
+        
+        Args:
+            github_repo: PyGithub repository object
+            title: Issue title
+            body: Issue body
+            labels: List of label names
+            assignees: Optional list of assignees
+            milestone: Optional milestone object
+            
+        Returns:
+            Issue data dictionary
+            
+        Raises:
+            GithubException: If REST API operations fail
+        """
+        # Add type:epic label for fallback
+        final_labels = labels + ['type:epic']
+        
+        try:
+            # Create the issue
+            issue = github_repo.create_issue(
+                title=title,
+                body=body,
+                labels=final_labels,
+                assignees=assignees or [],
+                milestone=milestone
+            )
+            
+            return {
+                'number': issue.number,
+                'title': issue.title,
+                'url': issue.html_url,
+                'state': issue.state,
+                'labels': [label.name for label in issue.labels],
+                'assignees': [assignee.login for assignee in issue.assignees],
+                'milestone': {
+                    'title': issue.milestone.title,
+                    'number': issue.milestone.number
+                } if issue.milestone else None
+            }
+            
+        except GithubException as e:
+            raise GithubException(f"Failed to create epic issue: {str(e)}")

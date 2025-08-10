@@ -61,12 +61,63 @@ ghoo get my-org/my-repo 789 --format json | jq '.sub_issues'
 - Sub-issues (for Epics, with progress tracking)
 - Task references (fallback when sub-issues unavailable)
 
+### ghoo create-epic
+
+Create a new Epic issue with proper body template and validation.
+
+```bash
+ghoo create-epic <repository> <title> [options]
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `title`: Epic title
+
+**Options:**
+- `--body, -b`: Custom epic body (uses template if not provided)
+- `--labels, -l`: Comma-separated list of additional labels
+- `--assignees, -a`: Comma-separated list of GitHub usernames to assign
+- `--milestone, -m`: Milestone title to assign
+- `--config, -c`: Path to ghoo.yaml configuration file
+
+**Examples:**
+```bash
+# Create basic epic with default template
+ghoo create-epic my-org/my-repo "Implement User Authentication"
+
+# Create epic with additional labels and assignees
+ghoo create-epic my-org/my-repo "Implement Payment System" \
+  --labels "priority:high,team:backend" \
+  --assignees "alice,bob" \
+  --milestone "v2.0"
+
+# Create epic with custom body
+ghoo create-epic my-org/my-repo "Database Migration" \
+  --body "## Summary
+Custom epic description here.
+
+## Acceptance Criteria
+- [ ] All data migrated successfully
+- [ ] Zero downtime deployment"
+```
+
+**Features:**
+- **Hybrid API Support**: Uses GraphQL for custom issue types, falls back to REST API with labels
+- **Template Generation**: Creates body with required sections if no custom body provided
+- **Validation**: Validates required sections if configuration is available
+- **Status Assignment**: Automatically assigns `status:backlog` label
+- **Error Handling**: Clear error messages for common issues (invalid repo, missing milestone, etc.)
+
+**Requirements:**
+- GITHUB_TOKEN environment variable
+- Repository write permissions
+- Optional: ghoo.yaml for section validation
+
 ## Upcoming Commands (Phase 3-4)
 
 ### Create Commands
 
 ```bash
-ghoo create epic --title "<title>" [--body "<body>"] [--labels "l1,l2"]
 ghoo create task --title "<title>" --parent-epic-id <id> [options]
 ghoo create sub-task --title "<title>" --parent-task-id <id> [options]
 ```
