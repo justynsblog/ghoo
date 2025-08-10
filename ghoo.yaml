@@ -1,0 +1,21 @@
+# ghoo configuration for the ghoo project itself
+# This file will be used once ghoo is self-hosting
+
+project_url: "https://github.com/justynbrt/ghoo"
+
+# Use labels for status tracking (default for repository URLs)
+status_method: "labels"
+
+# Define required sections per issue type
+required_sections:
+  epic:
+    - "Summary"
+    - "Acceptance Criteria"
+    - "Milestone Plan"
+  task:
+    - "Summary"
+    - "Acceptance Criteria"
+    - "Implementation Plan"
+  sub-task:
+    - "Summary"
+    - "Acceptance Criteria"
