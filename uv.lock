@@ -233,8 +233,10 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
+    { name = "markdown-it-py" },
     { name = "pygithub" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "typer" },
 ]
 
@@ -247,8 +249,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "markdown-it-py", specifier = ">=3.0.0" },
     { name = "pygithub", specifier = ">=2.7.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "typer", specifier = ">=0.16.0" },
 ]
 
