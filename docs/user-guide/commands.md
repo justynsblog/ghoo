@@ -1,0 +1,164 @@
+# Command Reference
+
+## Overview
+
+This document provides a complete reference for all `ghoo` commands, including those currently implemented and those planned for future phases.
+
+## Implemented Commands
+
+### ghoo init-gh
+
+Initialize a GitHub repository with required configuration.
+
+```bash
+ghoo init-gh
+```
+
+**What it does:**
+- Reads configuration from `ghoo.yaml`
+- Creates custom issue types (Epic, Task, Sub-task) if supported
+- Creates status labels (status:backlog, status:planning, etc.)
+- Falls back to label-based approach if features unavailable
+
+**Requirements:**
+- Valid `ghoo.yaml` configuration file
+- GITHUB_TOKEN environment variable
+- Repository admin permissions (for custom issue types)
+
+### ghoo get
+
+Fetch and display detailed information about a GitHub issue.
+
+```bash
+ghoo get <repository> <issue_number> [options]
+```
+
+**Arguments:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number to fetch
+
+**Options:**
+- `--format [rich|json]`: Output format (default: rich)
+
+**Examples:**
+```bash
+# Display issue with rich formatting
+ghoo get my-org/my-repo 123
+
+# Get JSON output for scripting
+ghoo get my-org/my-repo 456 --format json
+
+# Pipe JSON to jq for specific fields
+ghoo get my-org/my-repo 789 --format json | jq '.sub_issues'
+```
+
+**Output includes:**
+- Issue metadata (title, state, labels, assignees)
+- Issue type detection (Epic/Task/Sub-task)
+- Status (from labels or Projects V2)
+- Body sections and todos
+- Parent issue (for Tasks and Sub-tasks)
+- Sub-issues (for Epics, with progress tracking)
+- Task references (fallback when sub-issues unavailable)
+
+## Upcoming Commands (Phase 3-4)
+
+### Create Commands
+
+```bash
+ghoo create epic --title "<title>" [--body "<body>"] [--labels "l1,l2"]
+ghoo create task --title "<title>" --parent-epic-id <id> [options]
+ghoo create sub-task --title "<title>" --parent-task-id <id> [options]
+```
+
+### Update Commands
+
+```bash
+ghoo set-body <type> --id <number> --value "<content>"
+ghoo set-body <type> --id <number> --from-file <path>
+```
+
+### Todo Management
+
+```bash
+ghoo create-todo --issue-id <number> --section "<section>" --text "<text>"
+ghoo check-todo --issue-id <number> --section "<section>" --match "<text>"
+ghoo uncheck-todo --issue-id <number> --section "<section>" --match "<text>"
+```
+
+### Workflow Commands
+
+```bash
+# Planning phase
+ghoo start-plan <type> --id <number>
+ghoo submit-plan <type> --id <number> --message "<message>"
+ghoo approve-plan <type> --id <number>
+
+# Implementation phase
+ghoo start-work <type> --id <number>
+ghoo submit-work <type> --id <number> --message "<message>"
+ghoo approve-work <type> --id <number>
+```
+
+## Output Formats
+
+### Rich Format (Default)
+
+The rich format provides human-readable output with:
+- Color coding for different elements
+- Emojis for visual indicators
+- Progress bars for completion tracking
+- Hierarchical indentation
+- Status badges
+
+### JSON Format
+
+The JSON format provides machine-readable output with:
+- Complete issue data structure
+- Nested relationships
+- All metadata fields
+- Suitable for scripting and automation
+
+## Error Handling
+
+All commands provide clear error messages including:
+- What went wrong
+- Why it failed
+- How to fix it
+- Relevant documentation links
+
+Common errors:
+- Missing GITHUB_TOKEN
+- Invalid repository format
+- Issue not found
+- Insufficient permissions
+- Missing configuration file
+
+## Environment Variables
+
+### Required
+- `GITHUB_TOKEN`: GitHub personal access token
+
+### Optional (for testing)
+- `TESTING_GITHUB_TOKEN`: Token for E2E tests
+- `TESTING_REPO_OWNER`: Test repository owner
+- `TESTING_REPO_NAME`: Test repository name
+
+## Configuration
+
+Commands rely on `ghoo.yaml` configuration:
+
+```yaml
+project_url: "https://github.com/owner/repo"
+status_method: "labels"  # or "status_field"
+required_sections:
+  epic: ["Summary", "Acceptance Criteria"]
+  task: ["Summary", "Implementation Plan"]
+  sub-task: ["Summary"]
+```
+
+## See Also
+
+- [Getting Started Guide](./getting-started.md)
+- [API Reference](../development/api-reference.md)
+- [Technical Specification](../../SPEC.md)

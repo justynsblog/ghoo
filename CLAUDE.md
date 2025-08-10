@@ -30,7 +30,11 @@ Follow this **subagent-based workflow** for all development:
   - ✅ `02-implement-issue-type-creation.md` - COMPLETE (implemented as part of 01)
   - ✅ `03-implement-status-label-creation.md` - COMPLETE (implemented as part of 01)  
   - ✅ `04-e2e-test-init-gh.md` - COMPLETE (implemented as part of 01)
-- **Phase 3**: **Ready to start**
+- **Phase 3**: **In Progress**
+  - ✅ `01-implement-data-models.md` - COMPLETE
+  - ✅ `02-implement-body-parser.md` - COMPLETE
+  - ✅ `03-implement-get-command.md` - COMPLETE
+  - **Next**: `04-implement-create-epic-command.md`
 - **Tech Stack**: Python 3.10+, uv, Typer CLI, PyGithub + GraphQL hybrid (GraphQL client implemented)
 
 ## Project Structure
@@ -51,6 +55,8 @@ src/ghoo/
 - **Relationships**: Native GitHub sub-issues via GraphQL, fallback to body references
 - **Status**: Either labels (`status:*`) or Projects V2 field
 - **Config**: `ghoo.yaml` with project_url, status_method, required_sections
+- **Body Parsing**: IssueParser class (✅ IMPLEMENTED) for extracting sections, todos, and references
+- **Get Command**: GetCommand class (✅ IMPLEMENTED) with full issue fetching and display capabilities
 
 ## Testing
 - **E2E Tests**: Against live GitHub using TESTING_* env vars
@@ -62,6 +68,14 @@ src/ghoo/
 - State transitions require validation (e.g., can't close epic with open tasks)
 - Required sections must exist before plan approval
 - No unchecked todos allowed before closure
+
+## Implemented Commands
+- **init-gh**: Initialize GitHub repository with custom issue types and status labels
+- **get**: Fetch and display issue details with hierarchy information
+  - Supports: `ghoo get <repository> <issue_number> [--format json|rich]`
+  - Shows issue type, status, parent/child relationships
+  - Epic display includes sub-issues (tasks) with progress tracking
+  - Rich formatting with emojis, colors, and progress bars
 
 ## Important Files
 - `SPEC.md`: Complete technical specification
@@ -77,12 +91,12 @@ src/ghoo/
 - Each issue should result in exactly ONE commit (unless explicitly fixing issues)
 
 ## Next Steps Checklist
-**Phase 2 Complete - Ready for Phase 3!**
+**Phase 3 In Progress - Issue 03 Complete!**
 
 When starting work with subagent workflow:
 1. Verify clean git status (`git status` should show no changes)
-2. Check current phase status in `issues/` - **Phase 3 is ready**
-3. Pick next numbered issue from `issues/phase3/` and move to `in-progress/`
+2. Check current phase status in `issues/` - **Phase 3 issue 03 complete, issue 04 is next**
+3. Pick next numbered issue from `issues/phase3/` (04-implement-create-epic-command.md) and move to `in-progress/`
 4. **PLAN**: Call `issue-planner` agent to analyze and fill in issue details
 5. Get approval for the plan before proceeding
 6. **EXECUTE**: Implement the planned solution directly, working through sub-tasks methodically

@@ -195,6 +195,105 @@ The GraphQL client handles rate limiting automatically:
 3. **Minimize Node ID Lookups**: Cache node IDs when feasible
 4. **Use REST for Simple Operations**: GraphQL has separate rate limits
 
+## IssueParser
+
+Parses GitHub issue bodies to extract structured information.
+
+### Methods
+
+**`parse(body: str) -> ParsedIssue`**
+- Parses issue body into sections, todos, and references
+- Returns ParsedIssue model with structured data
+
+**`extract_sections(body: str) -> Dict[str, str]`**
+- Extracts all markdown sections (## headers)
+- Returns mapping of section title to content
+
+**`extract_todos(section_content: str) -> List[Todo]`**
+- Extracts checkbox items from section content
+- Returns list of Todo objects with text and checked status
+
+**`extract_parent_reference(body: str) -> Optional[int]`**
+- Finds parent issue reference (Parent: #123)
+- Returns issue number or None
+
+**`extract_task_references(body: str) -> List[int]`**
+- Finds task references in Epic bodies (Tasks: #1, #2)
+- Returns list of issue numbers
+
+### Usage Example
+
+```python
+from ghoo.core import IssueParser
+
+parser = IssueParser()
+parsed = parser.parse(issue.body)
+
+# Access sections
+for title, content in parsed.sections.items():
+    print(f"Section: {title}")
+    
+# Check todos
+for todo in parsed.todos:
+    status = "✓" if todo.checked else "○"
+    print(f"{status} {todo.text}")
+```
+
+## GetCommand
+
+Implements the `ghoo get` command for fetching and displaying issue details.
+
+### Initialization
+
+```python
+from ghoo.core import GetCommand, GitHubClient
+
+client = GitHubClient(token)
+get_cmd = GetCommand(client)
+```
+
+### Methods
+
+**`execute(repository: str, issue_number: int, format: str = "rich") -> Union[str, Dict]`**
+- Fetches issue from GitHub and formats output
+- `format`: "rich" for formatted display, "json" for data structure
+- Returns formatted string or dictionary
+
+**`fetch_issue(repo: Repository, issue_number: int) -> IssueData`**
+- Retrieves issue with all related data
+- Includes parent/child relationships
+- Detects issue type from labels and title
+
+**`fetch_epic_sub_issues(repo: Repository, epic_node_id: str, epic_number: int) -> List[Dict]`**
+- Gets sub-issues for an epic
+- Uses GraphQL with fallback to body parsing
+- Returns list of sub-issue data
+
+**`format_rich_output(issue_data: IssueData) -> str`**
+- Creates rich terminal output with colors and emojis
+- Shows hierarchy, progress bars, and relationships
+
+### Issue Type Detection
+
+The command automatically detects issue types from:
+1. Labels: `type:epic`, `type:task`, `type:sub-task`
+2. Title patterns: "Epic:", "Task:", "Sub-task:"
+3. Defaults to "issue" if no type detected
+
+### Usage Example
+
+```python
+# CLI usage
+$ ghoo get my-org/my-repo 123
+$ ghoo get my-org/my-repo 123 --format json
+
+# Programmatic usage
+get_cmd = GetCommand(client)
+result = get_cmd.execute("my-org/my-repo", 123, format="json")
+print(result["title"])
+print(result["sub_issues"])  # For epics
+```
+
 ## Common Patterns
 
 ### Initialize Once, Use Everywhere
@@ -222,8 +321,61 @@ def create_with_relationship(parent, child):
         child.edit(body=f"Parent: #{parent.number}\n\n{child.body}")
 ```
 
+## CLI Commands
+
+### Implemented Commands
+
+#### init-gh
+
+Initializes a GitHub repository with required issue types and labels.
+
+```bash
+ghoo init-gh
+```
+
+- Creates custom issue types: Epic, Task, Sub-task (if supported)
+- Creates status labels: status:backlog, status:planning, etc.
+- Configures based on ghoo.yaml settings
+
+#### get
+
+Fetches and displays detailed information about a GitHub issue.
+
+```bash
+ghoo get <repository> <issue_number> [--format rich|json]
+```
+
+**Parameters:**
+- `repository`: Repository in format "owner/name"
+- `issue_number`: Issue number to fetch
+- `--format`: Output format (default: rich)
+
+**Features:**
+- Displays issue type, status, and metadata
+- Shows parent/child relationships
+- For epics: Lists sub-issues with progress tracking
+- Rich formatting with colors, emojis, and progress bars
+- JSON output for programmatic use
+
+**Examples:**
+```bash
+# Rich formatted output
+ghoo get my-org/my-repo 123
+
+# JSON output for scripts
+ghoo get my-org/my-repo 456 --format json | jq '.sub_issues'
+```
+
+### Upcoming Commands (Phase 3-4)
+
+- `create epic/task/sub-task`: Create new issues with proper hierarchy
+- `set-body`: Update issue body content
+- `create/check todo`: Manage todos within issues
+- Workflow commands: `start-plan`, `submit-plan`, `approve-plan`, etc.
+
 ## See Also
 
 - [GraphQL Client Architecture](./graphql-client-architecture.md) - Detailed implementation documentation
 - [Testing Guide](./testing.md) - How to test GraphQL operations
 - [GitHub GraphQL API Docs](https://docs.github.com/en/graphql) - Official GitHub documentation
+- [SPEC.md](../../SPEC.md) - Complete command specifications
