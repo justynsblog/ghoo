@@ -113,7 +113,7 @@ def check_test_env(request):
     """Check that required test environment variables are set for e2e tests."""
     markers = [mark.name for mark in request.node.iter_markers()]
     if 'e2e' in markers:
-        required_vars = ['TESTING_GITHUB_TOKEN', 'TESTING_GITHUB_REPO']
+        required_vars = ['TESTING_GITHUB_TOKEN', 'TESTING_GH_REPO']
         missing = [var for var in required_vars if not os.environ.get(var)]
         if missing:
             pytest.skip(f"Missing required environment variables: {', '.join(missing)}")
