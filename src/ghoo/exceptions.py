@@ -53,6 +53,7 @@ class ConfigNotFoundError(ConfigError):
     """Raised when ghoo.yaml is not found."""
     
     def __init__(self, config_path):
+        self.config_path = config_path
         super().__init__(
             f"Configuration file not found: {config_path}\n"
             f"Please create a ghoo.yaml file in your project root with at minimum:\n"
@@ -69,6 +70,8 @@ class InvalidYAMLError(ConfigError):
     """Raised when YAML parsing fails."""
     
     def __init__(self, config_path, original_error):
+        self.config_path = config_path
+        self.yaml_error = original_error
         super().__init__(
             f"Failed to parse YAML from {config_path}\n"
             f"Error: {original_error}"
