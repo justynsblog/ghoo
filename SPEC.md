@@ -196,6 +196,7 @@ All Markdown output must be generated using the Jinja2 templating engine. This s
 
 - Templates will be stored in the `src/ghoo/templates/` directory.
 - The core application logic will fetch data from the GitHub API, populate the data models (`models.py`), and pass these objects to the appropriate Jinja2 template for rendering.
+- Upon creation, issues will have an empty `## Log` section appended to their body to ensure a consistent location for future audit trail entries.
 
 ### Example epic.md template
 ```jinja2
@@ -268,6 +269,24 @@ All Markdown output must be generated using the Jinja2 templating engine. This s
 - `{{ subtask.repository }}`#{{ subtask.id }}: {{ subtask.title }}
 {% else %}
 *No open sub-tasks.*
+{% endfor %}
+
+---
+
+## Log
+{% for entry in task.log_entries %}
+---
+### → {{ entry.to_state }} [{{ entry.timestamp }}]
+*by @{{ entry.author }}*
+{% if entry.message %}
+**Message**: {{ entry.message }}
+{% endif %}
+{% for sub_entry in entry.sub_entries %}
+#### {{ sub_entry.title }}
+{{ sub_entry.content }}
+{% endfor %}
+{% else %}
+*No log entries found.*
 {% endfor %}
 
 ---
@@ -392,6 +411,8 @@ Issues progress through these states:
 - `backlog` → `planning` → `awaiting-plan-approval` → `plan-approved` → `in progress` → `awaiting-completion-approval` → `closed`
 
 #### State Transitions
+
+All state transition commands create a structured, hierarchical entry in the `## Log` section of the issue body. The `--message` parameter populates the log entry.
 
 ```bash
 # Start planning (from backlog → planning)
@@ -583,28 +604,34 @@ When changing states, the tool:
 1. Determines the configured method from `ghoo.yaml`
 2. For labels: Removes any existing `status:*` label and adds the new one
 3. For status field: Updates the field via Projects V2 GraphQL API
-4. Adds an issue comment documenting the state change
+4. Appends a new, structured entry to the `## Log` section in the issue's body to document the change.
 
-### State Change Audit Trail
+### State Change Audit Trail & Logging
 
-Every state change command must add a comment to the issue documenting:
-- The state transition (from → to)
-- The user who made the change (extracted from API token)
-- The timestamp
-- Any message/reason provided with the command
+To reduce notification spam and create a single source of truth, all automated state changes and messages are appended to a `## Log` section within the issue's main body. This provides a complete, chronological, and extensible audit trail without generating unnecessary notifications for issue subscribers.
 
-#### Comment Format
+#### The `## Log` Section
+
+- A section with the exact header `## Log` will be maintained at the end of the issue body.
+- Every state change command appends a new, structured entry to this log.
+- Each entry is separated by a horizontal rule (`---`) and uses a hierarchical Markdown format for readability and machine-parsing.
+
+##### Log Entry Format
+```markdown
+---
+### → awaiting-plan-approval [YYYY-MM-DD HH:MM:SS UTC]
+*by @username*
+**Message**: The implementation plan is ready for review.
+
+---
+### → plan-approved [YYYY-MM-DD HH:MM:SS UTC]
+*by @reviewer1*
 ```
-State changed from `planning` to `awaiting-plan-approval` by @username
-Reason: The plan for executing foo using bar is ready for approval
-```
 
-For commands without a message/reason parameter, the comment omits the reason line:
-```
-State changed from `backlog` to `planning` by @username
-```
-
-This creates a complete audit trail of the issue's workflow progression visible in the issue's comment history.
+- **Primary Entry (`###`)**: Each state transition is a level-3 header, indicating the new state and the UTC timestamp of the event.
+- **Author**: The user who triggered the event is recorded on the next line in italics (`*by @username*`).
+- **Message (`**Message**`)**: The message associated with the command is included as a bolded key-value pair. This part is omitted if no message is provided.
+- **Sub-Entry (`####`)**: The hierarchical format allows for optional, more detailed sub-entries to be added in the future to record related activities (e.g., notifications sent, specific checks passed).
 
 ## MVP Development Plan
 
@@ -622,7 +649,7 @@ The MVP will focus on delivering the core, end-to-end workflow. The goal is to m
     -   `ghoo create epic|task|sub-task`: To create the hierarchy of work.
     -   `ghoo set-body`: To add implementation plans to issues.
     -   `ghoo create todo` and `ghoo check-todo`: To manage granular tasks.
--   **Workflow Commands:** The full set of state transition commands (`start-plan`, `submit-plan`, `approve-plan`, `start-work`, `submit-work`, `approve-work`).
+-   **Workflow Commands:** The full set of state transition commands (`start-plan`, `submit-plan`, `approve-plan`, `start-work`, `submit-work`, `approve-work`) with the new body-based logging.
 -   **Core Validation:** Enforcement of workflow rules, such as blocking issue closure if sub-tasks are open.
 -   **E2E Testing:** A functional end-to-end testing framework to validate commands against the live GitHub API.
 
@@ -639,6 +666,13 @@ After the MVP is delivered, the following features will be built using `ghoo` to
 ## Future Improvements
 
 This section outlines potential enhancements that could be implemented in future versions of ghoo. These features are not part of the initial implementation but represent valuable additions to consider as the tool matures.
+
+### Explicit User Notifications
+
+Design and implement a system for sending explicit notifications to users (e.g., via GitHub comments) when their input is required for actions like approvals or reviews. This work will involve:
+-   Defining the trigger mechanism for such notifications (e.g., command-line flags, configuration settings).
+-   Specifying how these notification events are recorded as sub-entries within the issue's `## Log` section to maintain a complete audit trail.
+-   Ensuring that the content of the notification comment provides clear context, potentially by duplicating the relevant log entry message.
 
 ### Batch Operations
 
@@ -662,4 +696,4 @@ CLI syntax has already been adjusted somewhat with this in mind, considering adv
 
 Rather than having a fixed text file living in the codebase for an agent to read, the tool could auto-generate the dense, efficient instructions for an agent to load into its context window. It could be extended to provide tailored instructions for sub-agents that only have access to a subset of functionality.
 
-The benfit of this approach is that the instructions would also match the requirements configured in ghoo.yaml, which would be the single source of truth. If the agent works better with real files for instructions, perhaps a git-commit hook could have it update the text file on each run, or similar automatic process. 
+The benfit of this approach is that the instructions would also match the requirements configured in ghoo.yaml, which would be the a single source of truth. If the agent works better with real files for instructions, perhaps a git-commit hook could have it update the text file on each run, or similar automatic process.
