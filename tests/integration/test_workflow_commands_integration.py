@@ -132,10 +132,13 @@ class TestWorkflowCommandsIntegration:
         assert result['from_state'] == "planning"
         assert result['to_state'] == "awaiting-plan-approval"
         
-        # Verify issue was updated (order may vary)
-        edit_call = mock_github_api['issue'].edit.call_args[1]['labels']
-        assert "status:awaiting-plan-approval" in edit_call
-        assert "type:epic" in edit_call
+        # Verify issue was updated with labels (search through all edit calls)
+        edit_calls = mock_github_api['issue'].edit.call_args_list
+        labels_call = next((call for call in edit_calls if 'labels' in call[1]), None)
+        assert labels_call is not None, f"No labels call found in {edit_calls}"
+        labels = labels_call[1]['labels']
+        assert "status:awaiting-plan-approval" in labels
+        assert "type:epic" in labels
     
     def test_submit_plan_missing_sections(self, mock_github_api, mock_config):
         """Test submit-plan command fails when required sections are missing."""
@@ -174,8 +177,11 @@ class TestWorkflowCommandsIntegration:
         assert result['from_state'] == "awaiting-plan-approval"
         assert result['to_state'] == "plan-approved"
         
-        # Verify issue was updated
-        mock_github_api['issue'].edit.assert_called_with(labels=["status:plan-approved"])
+        # Verify issue was updated with labels (search through all edit calls)
+        edit_calls = mock_github_api['issue'].edit.call_args_list
+        labels_call = next((call for call in edit_calls if 'labels' in call[1]), None)
+        assert labels_call is not None, f"No labels call found in {edit_calls}"
+        assert labels_call[1]['labels'] == ["status:plan-approved"]
     
     def test_start_work_workflow(self, mock_github_api, mock_config):
         """Test start-work command workflow."""
@@ -194,8 +200,11 @@ class TestWorkflowCommandsIntegration:
         assert result['from_state'] == "plan-approved"
         assert result['to_state'] == "in-progress"
         
-        # Verify issue was updated
-        mock_github_api['issue'].edit.assert_called_with(labels=["status:in-progress"])
+        # Verify issue was updated with labels (search through all edit calls)
+        edit_calls = mock_github_api['issue'].edit.call_args_list
+        labels_call = next((call for call in edit_calls if 'labels' in call[1]), None)
+        assert labels_call is not None, f"No labels call found in {edit_calls}"
+        assert labels_call[1]['labels'] == ["status:in-progress"]
     
     def test_submit_work_workflow(self, mock_github_api, mock_config):
         """Test submit-work command workflow."""
@@ -214,8 +223,11 @@ class TestWorkflowCommandsIntegration:
         assert result['from_state'] == "in-progress"
         assert result['to_state'] == "awaiting-completion-approval"
         
-        # Verify issue was updated
-        mock_github_api['issue'].edit.assert_called_with(labels=["status:awaiting-completion-approval"])
+        # Verify issue was updated with labels (search through all edit calls)
+        edit_calls = mock_github_api['issue'].edit.call_args_list
+        labels_call = next((call for call in edit_calls if 'labels' in call[1]), None)
+        assert labels_call is not None, f"No labels call found in {edit_calls}"
+        assert labels_call[1]['labels'] == ["status:awaiting-completion-approval"]
     
     def test_approve_work_with_todos(self, mock_github_api, mock_config):
         """Test approve-work command with todo validation."""
@@ -238,14 +250,21 @@ class TestWorkflowCommandsIntegration:
         assert result['to_state'] == "closed"
         assert result['issue_closed'] is True
         
-        # Verify issue was updated with status label and then closed
+        # Verify issue was updated with log entry and then closed
         edit_calls = mock_github_api['issue'].edit.call_args_list
         assert len(edit_calls) >= 2
         
-        # First call updates status label
-        assert edit_calls[0] == ((), {'labels': ['status:closed']})
-        # Second call closes the issue
-        assert edit_calls[1] == ((), {'state': 'closed'})
+        # First call should be body update with log entry
+        body_call = next((call for call in edit_calls if 'body' in call[1]), None)
+        assert body_call is not None, f"No body call found in {edit_calls}"
+        updated_body = body_call[1]['body']
+        assert "## Log" in updated_body
+        assert "→ closed" in updated_body
+        
+        # Second call should close the issue
+        state_call = next((call for call in edit_calls if 'state' in call[1]), None)
+        assert state_call is not None, f"No state call found in {edit_calls}"
+        assert state_call[1]['state'] == 'closed'
     
     def test_approve_work_with_open_todos(self, mock_github_api, mock_config):
         """Test approve-work command fails when todos are incomplete."""
@@ -450,15 +469,18 @@ class TestWorkflowValidationIntegration:
         
         # Mock GraphQL client
         mock_graphql_client = Mock()
+        mock_graphql_client.get_issue_node_id.return_value = "test_node_id_123"
         mock_graphql_client.get_issue_with_sub_issues.return_value = {
-            'subIssues': {
-                'nodes': [
-                    {'number': 124, 'title': 'Sub-task 1', 'state': 'OPEN'},
-                    {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
-                ]
+            'node': {
+                'subIssues': {
+                    'nodes': [
+                        {'number': 124, 'title': 'Sub-task 1', 'state': 'OPEN'},
+                        {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
+                    ]
+                }
             }
         }
-        github_client.graphql_client = mock_graphql_client
+        github_client.graphql = mock_graphql_client
         
         command = ApproveWorkCommand(github_client, mock_config_validation)
         
@@ -466,7 +488,8 @@ class TestWorkflowValidationIntegration:
             command.execute_transition("test/repo", 123)
         
         # Verify GraphQL was called
-        mock_graphql_client.get_issue_with_sub_issues.assert_called_once_with("test", "repo", 123)
+        mock_graphql_client.get_issue_node_id.assert_called_once_with("test", "repo", 123)
+        mock_graphql_client.get_issue_with_sub_issues.assert_called_once_with("test_node_id_123")
     
     def test_approve_work_with_closed_sub_issues_graphql(self, mock_github_validation_api, mock_config_validation):
         """Test approve-work command succeeds when all sub-issues are closed using GraphQL."""
@@ -482,15 +505,18 @@ class TestWorkflowValidationIntegration:
             github_client = GitHubClient()
         
         mock_graphql_client = Mock()
+        mock_graphql_client.get_issue_node_id.return_value = "test_node_id_123"
         mock_graphql_client.get_issue_with_sub_issues.return_value = {
-            'subIssues': {
-                'nodes': [
-                    {'number': 124, 'title': 'Sub-task 1', 'state': 'CLOSED'},
-                    {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
-                ]
+            'node': {
+                'subIssues': {
+                    'nodes': [
+                        {'number': 124, 'title': 'Sub-task 1', 'state': 'CLOSED'},
+                        {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
+                    ]
+                }
             }
         }
-        github_client.graphql_client = mock_graphql_client
+        github_client.graphql = mock_graphql_client
         
         command = ApproveWorkCommand(github_client, mock_config_validation)
         result = command.execute_transition("test/repo", 123, "All sub-issues completed")
@@ -501,7 +527,8 @@ class TestWorkflowValidationIntegration:
         assert result['issue_closed'] is True
         
         # Verify GraphQL was called
-        mock_graphql_client.get_issue_with_sub_issues.assert_called_once_with("test", "repo", 123)
+        mock_graphql_client.get_issue_node_id.assert_called_once_with("test", "repo", 123)
+        mock_graphql_client.get_issue_with_sub_issues.assert_called_once_with("test_node_id_123")
     
     def test_approve_work_fallback_to_body_parsing(self, mock_github_validation_api, mock_config_validation):
         """Test approve-work falls back to body parsing when GraphQL fails."""
@@ -518,8 +545,9 @@ class TestWorkflowValidationIntegration:
             github_client = GitHubClient()
         
         mock_graphql_client = Mock()
+        mock_graphql_client.get_issue_node_id.return_value = "test_node_id_123"
         mock_graphql_client.get_issue_with_sub_issues.side_effect = Exception("GraphQL failed")
-        github_client.graphql_client = mock_graphql_client
+        github_client.graphql = mock_graphql_client
         
         # Mock referenced issues (one open, one closed)
         mock_open_issue = Mock()
@@ -547,7 +575,8 @@ class TestWorkflowValidationIntegration:
             command.execute_transition("test/repo", 123)
         
         # Verify GraphQL was attempted and fallback occurred
-        mock_graphql_client.get_issue_with_sub_issues.assert_called_once_with("test", "repo", 123)
+        mock_graphql_client.get_issue_node_id.assert_called_once_with("test", "repo", 123)
+        mock_graphql_client.get_issue_with_sub_issues.assert_called_once_with("test_node_id_123")
         # Verify body parsing fallback tried to get referenced issues
         assert mock_github_validation_api['repo'].get_issue.call_count >= 1
     
