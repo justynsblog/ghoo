@@ -1,3 +1,11 @@
+---
+purpose: |
+  To decide on the best Python library and implementation pattern for interacting with the GitHub GraphQL API.
+  (Originally for: Phase 2, Issue 00: Implement GraphQL Client)
+retention: |
+  This document's recommendation has been implemented in `src/ghoo/graphql_client.py`. It can be archived or deleted, as the final code is now the source of truth for the implementation strategy.
+---
+
 # GraphQL Implementation Strategy for ghoo
 
 ## Executive Summary

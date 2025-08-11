@@ -1,3 +1,11 @@
+---
+purpose: |
+  To provide a comprehensive evaluation of the initial system design and technical specification (`SPEC.md`) for the `ghoo` project.
+  (Originally for: Project planning and architecture validation)
+retention: |
+  This document evaluates the initial design. It should be kept for historical context but may become outdated as the project evolves. It can be replaced by a new evaluation if the system design changes significantly.
+---
+
 # System Design Evaluation: ghoo
 
 ## 1. Overall Assessment

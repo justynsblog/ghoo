@@ -1,3 +1,11 @@
+---
+purpose: |
+  To evaluate the overall code quality, structure, and design of the `ghoo` codebase after the initial implementation phases. This serves as a baseline for planning future refactoring and development work.
+  (Originally for: General project quality assurance)
+retention: |
+  This document should be reviewed periodically (e.g., after major feature additions). It can be updated or replaced with a new evaluation when the codebase significantly changes. It should be deleted if it becomes completely outdated.
+---
+
 ### Overall Assessment
 
 The current codebase is of **high quality**. It is well-structured, demonstrates a strong understanding of modern Python practices, and aligns closely with the technical specification (`SPEC.md`). The code is clean, readable, and the separation of concerns is excellent. The use of a hybrid REST/GraphQL approach is implemented thoughtfully in the `GitHubClient` and `GraphQLClient`.

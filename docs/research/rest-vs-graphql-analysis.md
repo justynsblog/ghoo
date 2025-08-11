@@ -1,3 +1,11 @@
+---
+purpose: |
+  To compare the strengths and weaknesses of using GitHub's REST API (via PyGithub) versus its GraphQL API for the features required by `ghoo`.
+  (Originally for: Initial technical design and planning)
+retention: |
+  This document provides the foundational reasoning for the project's hybrid API architecture. It should be retained as a key architectural decision record.
+---
+
 # REST (PyGithub) vs GraphQL Analysis for ghoo
 
 ## Quick Answer: YES, Use Both!

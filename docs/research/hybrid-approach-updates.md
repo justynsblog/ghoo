@@ -1,3 +1,11 @@
+---
+purpose: |
+  To document the decision and necessary updates for adopting a hybrid REST/GraphQL API approach for `ghoo`. This was based on the findings from the `rest-vs-graphql-analysis.md` and `pygithub-graphql-findings.md` research.
+  (Originally for: Phase 2 planning)
+retention: |
+  This document summarizes a key architectural decision. It should be kept as a historical record of why the hybrid approach was chosen. It can be archived if the project architecture fundamentally changes.
+---
+
 # Hybrid REST/GraphQL Approach - Implementation Complete
 
 ## Summary

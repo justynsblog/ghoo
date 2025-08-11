@@ -1,3 +1,11 @@
+---
+purpose: |
+  To investigate the specific capabilities and limitations of the PyGithub library regarding GitHub's GraphQL API, particularly for sub-issues and custom issue types.
+  (Originally for: Phase 2, Issue 00: Implement GraphQL Client)
+retention: |
+  The findings of this document led to the adoption of the hybrid REST/GraphQL model. It serves as historical context for that decision and can be archived or deleted if it's no longer relevant for understanding the current architecture.
+---
+
 # PyGithub GraphQL Capabilities Analysis
 
 ## Summary

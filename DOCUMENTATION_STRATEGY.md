@@ -32,6 +32,31 @@ The `/docs` directory will be organized as follows:
 -   **/docs/research/**: An archive for exploratory documents, analyses, and findings. This keeps the root directory clean while preserving historical context.
     -   *Example: `PYGITHUB_GRAPHQL_FINDINGS.md` and `REST_VS_GRAPHQL_ANALYSIS.md` belong here.*
 
+    **Research Document Standard:** To prevent documentation rot, all documents in this directory **must** begin with a YAML frontmatter block containing the following fields:
+    - `purpose`: A brief explanation of the research question and which task prompted it.
+    - `retention`: A clear statement on when the document should be considered for deletion (e.g., "once the feature is implemented," "once the design is finalized").
+
+    **Example Header:**
+    ```yaml
+    ---
+    purpose: |
+      To determine the best Python library for making GraphQL calls to the GitHub API.
+      (Originally for: Phase 2, Issue 00: Implement GraphQL Client)
+    retention: |
+      This document can be deleted once the GraphQL client is implemented and stable,
+      as its findings will be superseded by the final code in `src/ghoo/graphql_client.py`.
+    ---
+    ```
+
+### 3. Exploratory Code and Spike Tests
+
+-   **Purpose**: To keep the repository clean, temporary or exploratory scripts (e.g., spike tests, library capability tests) should not be committed to the main branch.
+-   **Workflow**:
+    1.  Conduct such experiments on a separate, local branch.
+    2.  Document the *findings* and *conclusions* in a markdown file within the `/docs/research/` directory.
+    3.  Commit only the research document. The exploratory scripts themselves should not be committed.
+-   **Rule**: The `/tests` directory is reserved for the project's formal, permanent test suite. One-off test scripts do not belong there.
+
 ## The Golden Rule: How We Keep Documentation Current
 
 1.  **Documentation is part of the task**: Any code change that alters, adds, or removes user-facing functionality **must** include corresponding updates to the documentation in the `/docs` directory.
