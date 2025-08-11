@@ -3050,6 +3050,9 @@ class CreateEpicCommand(BaseCreateCommand):
         # Generate body if not provided
         if body is None:
             body = self.generate_body()
+        else:
+            # Ensure Log section exists in custom body
+            body = self._ensure_log_section(body)
         
         # Validate required sections using base class method
         self._validate_required_sections(body)
@@ -3109,6 +3112,26 @@ class CreateEpicCommand(BaseCreateCommand):
         # Add tasks section placeholder
         body += "\n## Tasks\n\n*Sub-issues will be listed here as they are created*\n"
         
+        # Add Log section placeholder
+        body += "\n## Log\n"
+        
+        return body
+    
+    def _ensure_log_section(self, body: str) -> str:
+        """Ensure Log section exists in custom body.
+        
+        Args:
+            body: The custom body text
+            
+        Returns:
+            Body text with Log section ensured
+        """
+        # Check if body already has a Log section
+        if re.search(r'^## Log\s*$', body, re.MULTILINE):
+            return body
+        
+        # Add Log section at the end
+        body = body.rstrip() + "\n\n## Log\n"
         return body
     
     def _create_with_graphql(
@@ -3265,6 +3288,8 @@ class CreateTaskCommand(BaseCreateCommand):
         else:
             # Add parent epic reference to custom body if not present
             body = self._ensure_parent_reference(body, parent_epic)
+            # Ensure Log section exists in custom body
+            body = self._ensure_log_section(body)
         
         # Validate required sections using base class method
         self._validate_required_sections(body)
@@ -3417,6 +3442,9 @@ class CreateTaskCommand(BaseCreateCommand):
         for section_name in required_sections:
             sections.append(f"## {section_name}\n\n*TODO: Fill in this section*\n")
         
+        # Add Log section placeholder
+        sections.append("## Log\n")
+        
         return "\n".join(sections)
     
     def _ensure_parent_reference(self, body: str, parent_epic: int) -> str:
@@ -3445,6 +3473,23 @@ class CreateTaskCommand(BaseCreateCommand):
             # Add parent reference at the top
             body = f"**Parent Epic:** #{parent_epic}\n\n{body}"
         
+        return body
+    
+    def _ensure_log_section(self, body: str) -> str:
+        """Ensure Log section exists in custom body.
+        
+        Args:
+            body: The custom body text
+            
+        Returns:
+            Body text with Log section ensured
+        """
+        # Check if body already has a Log section
+        if re.search(r'^## Log\s*$', body, re.MULTILINE):
+            return body
+        
+        # Add Log section at the end
+        body = body.rstrip() + "\n\n## Log\n"
         return body
     
     def _post_graphql_create(self, repo: str, issue_data: Dict[str, Any], parent_epic: int = None, **kwargs):
@@ -3644,6 +3689,8 @@ class CreateSubTaskCommand(BaseCreateCommand):
         else:
             # Add parent task reference to custom body if not present
             body = self._ensure_parent_reference(body, parent_task)
+            # Ensure Log section exists in custom body
+            body = self._ensure_log_section(body)
         
         # Validate required sections using base class method
         self._validate_required_sections(body)
@@ -3786,6 +3833,9 @@ class CreateSubTaskCommand(BaseCreateCommand):
         body += "## Implementation Notes\n\n"
         body += "*Any technical details, dependencies, or considerations*\n\n"
         
+        # Add Log section placeholder
+        body += "## Log\n"
+        
         return body
     
     def _ensure_parent_reference(self, body: str, parent_task: int) -> str:
@@ -3814,6 +3864,23 @@ class CreateSubTaskCommand(BaseCreateCommand):
             # Add parent reference at the top
             body = f"**Parent Task:** #{parent_task}\n\n{body}"
         
+        return body
+    
+    def _ensure_log_section(self, body: str) -> str:
+        """Ensure Log section exists in custom body.
+        
+        Args:
+            body: The custom body text
+            
+        Returns:
+            Body text with Log section ensured
+        """
+        # Check if body already has a Log section
+        if re.search(r'^## Log\s*$', body, re.MULTILINE):
+            return body
+        
+        # Add Log section at the end
+        body = body.rstrip() + "\n\n## Log\n"
         return body
     
     def _post_graphql_create(self, repo: str, issue_data: Dict[str, Any], parent_task: int = None, **kwargs):

@@ -284,3 +284,69 @@ Custom task for E2E testing.
         assert result.returncode == 0, f"Command failed: {result.stderr}"
         assert "Task created successfully!" in result.stdout
         assert unique_title in result.stdout
+    
+    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
+                       reason="TESTING_GITHUB_TOKEN not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
+    def test_create_task_includes_log_section(self, github_env, unique_title, unique_epic_title):
+        """Test that created task includes Log section in body."""
+        import time
+        
+        # Create parent epic first
+        parent_epic_number = self._create_parent_epic(github_env, unique_epic_title)
+        
+        task_title = f"{unique_title} (Log Section Test)"
+        
+        # Create task
+        create_result = subprocess.run([
+            'uv', 'run', 'ghoo', 'create-task',
+            github_env['repo'], str(parent_epic_number), task_title
+        ], capture_output=True, text=True, env=github_env['env'], timeout=30)
+        
+        assert create_result.returncode == 0, f"Create failed: {create_result.stderr}"
+        
+        # Extract task number from output
+        lines = create_result.stdout.split('\n')
+        task_line = next(line for line in lines if "Task created successfully!" in line)
+        # Look for the issue number in the output
+        import re
+        match = re.search(r'#(\d+)', create_result.stdout)
+        assert match, f"Could not find issue number in output: {create_result.stdout}"
+        task_number = match.group(1)
+        
+        # Give GitHub a moment to process the issue
+        time.sleep(3)
+        
+        # Use GitHub API to fetch the actual issue body
+        import os
+        from github import Github
+        
+        token = os.getenv('TESTING_GITHUB_TOKEN')
+        github_client = Github(token)
+        repo = github_client.get_repo(github_env['repo'])
+        issue = repo.get_issue(int(task_number))
+        
+        # Verify that the issue body contains a Log section
+        assert issue.body is not None, "Issue body should not be None"
+        assert "## Log" in issue.body, f"Issue body should contain '## Log' section. Body: {issue.body}"
+        
+        # Verify Log section is at the end
+        body_lines = issue.body.split('\n')
+        log_section_index = None
+        
+        for i, line in enumerate(body_lines):
+            if line.strip() == "## Log":
+                log_section_index = i
+                break
+        
+        assert log_section_index is not None, "Log section should be present"
+        
+        # Log section should be near the end (allowing for some trailing whitespace)
+        non_empty_lines = [i for i, line in enumerate(body_lines) if line.strip()]
+        if non_empty_lines:
+            last_content_index = non_empty_lines[-1]
+            assert log_section_index >= last_content_index - 2, "Log section should be at or near the end"
+        
+        print(f"✅ Verified task #{task_number} contains Log section at correct position")
+        print(f"Log section found at line {log_section_index + 1}")

@@ -384,6 +384,7 @@ Implementation approach.
         assert "## Summary" in body
         assert "## Acceptance Criteria" in body
         assert "## Implementation Plan" in body
+        assert "## Log" in body
         assert "*TODO: Fill in this section*" in body
     
     def test_generate_task_body_config_sections(self, create_command_with_config):
@@ -394,6 +395,7 @@ Implementation approach.
         assert "## Summary" in body
         assert "## Acceptance Criteria" in body
         assert "## Implementation Plan" in body
+        assert "## Log" in body
     
     def test_prepare_labels_default(self, create_command):
         """Test label preparation with defaults only."""

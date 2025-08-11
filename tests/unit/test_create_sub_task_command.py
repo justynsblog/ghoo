@@ -83,6 +83,7 @@ class TestCreateSubTaskCommand:
         assert "## Summary" in body
         assert "## Acceptance Criteria" in body
         assert "## Implementation Notes" in body
+        assert "## Log" in body
 
     def test_execute_basic_sub_task_creation(self, create_command, mock_created_sub_task_data, mock_parent_task):
         """Test basic sub-task creation with default template."""
@@ -383,6 +384,7 @@ class TestCreateSubTaskCommand:
         assert "## Summary" in body
         assert "## Acceptance Criteria" in body
         assert "## Implementation Notes" in body
+        assert "## Log" in body
 
     def test_ensure_parent_reference_adds_reference(self, create_command):
         """Test that parent reference is added when missing."""

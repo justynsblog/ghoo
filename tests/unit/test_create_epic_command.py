@@ -84,9 +84,11 @@ class TestCreateEpicCommand:
         
         result = create_command.execute("owner/repo", "Test Epic", body=custom_body)
         
-        # Verify custom body was used
+        # Verify custom body was enhanced with Log section
         call_args = mock_github_client.create_issue_with_type.call_args
-        assert call_args[0][2] == custom_body
+        actual_body = call_args[0][2]
+        assert "Custom epic body content" in actual_body
+        assert "## Log" in actual_body
     
     def test_execute_with_additional_labels(self, create_command, mock_github_client, mock_created_issue_data):
         """Test epic creation with additional labels."""
@@ -197,6 +199,7 @@ Milestone information here.
         assert "## Acceptance Criteria" in body
         assert "## Milestone Plan" in body
         assert "## Tasks" in body
+        assert "## Log" in body
         assert "TODO: Fill in this section" in body
     
     def test_generate_epic_body_config_sections(self, create_command_with_config):
@@ -208,6 +211,7 @@ Milestone information here.
         assert "## Acceptance Criteria" in body
         assert "## Milestone Plan" in body
         assert "## Tasks" in body
+        assert "## Log" in body
     
     def test_prepare_labels_default(self, create_command):
         """Test default label preparation."""
@@ -255,3 +259,32 @@ Milestone information here.
         
         with pytest.raises(GithubException):
             create_command.execute("owner/repo", "Test Epic")
+    
+    def test_ensure_log_section_adds_log_when_missing(self, create_command):
+        """Test that _ensure_log_section adds Log section when missing."""
+        custom_body = "# My Custom Epic\n\nThis is a custom body."
+        result = create_command._ensure_log_section(custom_body)
+        
+        assert "# My Custom Epic" in result
+        assert "This is a custom body." in result
+        assert "## Log" in result
+        assert result.endswith("## Log\n")
+    
+    def test_ensure_log_section_preserves_existing_log(self, create_command):
+        """Test that _ensure_log_section preserves existing Log section."""
+        custom_body = "# My Custom Epic\n\n## Log\n\nExisting log content"
+        result = create_command._ensure_log_section(custom_body)
+        
+        # Should be unchanged
+        assert result == custom_body
+    
+    def test_custom_body_with_log_section_unchanged(self, create_command, mock_github_client, mock_created_issue_data):
+        """Test that custom body with existing Log section is not modified."""
+        custom_body = "Custom content\n\n## Log\n"
+        mock_github_client.create_issue_with_type.return_value = mock_created_issue_data
+        
+        result = create_command.execute("owner/repo", "Test Epic", body=custom_body)
+        
+        # Body should remain exactly as provided since it already has Log section
+        call_args = mock_github_client.create_issue_with_type.call_args
+        assert call_args[0][2] == custom_body

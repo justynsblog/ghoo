@@ -17,10 +17,14 @@ class TestCreateEpicE2E:
     def github_env(self):
         """Setup GitHub testing environment."""
         token = os.getenv('TESTING_GITHUB_TOKEN')
-        repo = os.getenv('TESTING_REPO')
+        repo = os.getenv('TESTING_GH_REPO')
+        
+        # Handle URL format - extract owner/repo if it's a full URL
+        if repo and repo.startswith('https://github.com/'):
+            repo = repo.replace('https://github.com/', '')
         
         if not repo:
-            pytest.skip("TESTING_REPO not set - cannot run E2E tests")
+            pytest.skip("TESTING_GH_REPO not set - cannot run E2E tests")
         
         return {
             'token': token,
@@ -44,8 +48,8 @@ class TestCreateEpicE2E:
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_basic(self, github_env, ghoo_path, unique_title):
         """Test creating a basic epic issue."""
         env = github_env['env'].copy()
@@ -77,8 +81,8 @@ class TestCreateEpicE2E:
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_labels(self, github_env, ghoo_path, unique_title):
         """Test creating epic with additional labels."""
         env = github_env['env'].copy()
@@ -106,8 +110,8 @@ class TestCreateEpicE2E:
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_custom_body(self, github_env, ghoo_path, unique_title):
         """Test creating epic with custom body content."""
         env = github_env['env'].copy()
@@ -151,8 +155,8 @@ Tasks will be added here as sub-issues are created.
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_then_get(self, github_env, ghoo_path, unique_title):
         """Test creating an epic and then retrieving it with get command."""
         env = github_env['env'].copy()
@@ -194,8 +198,8 @@ Tasks will be added here as sub-issues are created.
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_nonexistent_milestone(self, github_env, ghoo_path, unique_title):
         """Test creating epic with non-existent milestone (should fail gracefully)."""
         env = github_env['env'].copy()
@@ -216,8 +220,8 @@ Tasks will be added here as sub-issues are created.
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_fallback_behavior(self, github_env, ghoo_path, unique_title):
         """Test that epic creation works even if GraphQL custom types are unavailable."""
         env = github_env['env'].copy()
@@ -261,8 +265,8 @@ Tasks will be added here as sub-issues are created.
     
     @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
                        reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_REPO'), 
-                       reason="TESTING_REPO not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_assignees(self, github_env, ghoo_path, unique_title):
         """Test creating epic with assignees (may fail if users don't exist)."""
         env = github_env['env'].copy()
@@ -286,3 +290,63 @@ Tasks will be added here as sub-issues are created.
             # Should fail gracefully with clear error
             assert len(result.stderr) > 0
             print(f"Epic creation failed as expected due to invalid assignee")
+    
+    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
+                       reason="TESTING_GITHUB_TOKEN not set")
+    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
+                       reason="TESTING_GH_REPO not set")
+    def test_create_epic_includes_log_section(self, github_env, ghoo_path, unique_title):
+        """Test that created epic includes Log section in body."""
+        import time
+        
+        env = github_env['env'].copy()
+        env['PYTHONPATH'] = ghoo_path
+        
+        epic_title = f"{unique_title} (Log Section Test)"
+        
+        # Create epic
+        create_result = subprocess.run([
+            'python3', '-m', 'ghoo.main', 'create-epic',
+            github_env['repo'], epic_title
+        ], capture_output=True, text=True, env=env, cwd='/home/justyn/ghoo/src')
+        
+        assert create_result.returncode == 0, f"Create failed: {create_result.stderr}"
+        
+        # Extract issue number
+        lines = create_result.stdout.split('\n')
+        epic_line = next(line for line in lines if "Created Epic #" in line)
+        issue_number = epic_line.split('#')[1].split(':')[0]
+        
+        # Give GitHub a moment to process the issue
+        time.sleep(3)
+        
+        # Use GitHub API to fetch the actual issue body
+        import os
+        from github import Github
+        
+        token = os.getenv('TESTING_GITHUB_TOKEN')
+        github_client = Github(token)
+        repo = github_client.get_repo(github_env['repo'])
+        issue = repo.get_issue(int(issue_number))
+        
+        # Verify that the issue body contains a Log section
+        assert issue.body is not None, "Issue body should not be None"
+        assert "## Log" in issue.body, f"Issue body should contain '## Log' section. Body: {issue.body}"
+        
+        # Verify Log section is at the end (after Tasks section)
+        body_lines = issue.body.split('\n')
+        log_section_index = None
+        tasks_section_index = None
+        
+        for i, line in enumerate(body_lines):
+            if line.strip() == "## Log":
+                log_section_index = i
+            elif line.strip() == "## Tasks":
+                tasks_section_index = i
+        
+        assert log_section_index is not None, "Log section should be present"
+        assert tasks_section_index is not None, "Tasks section should be present"
+        assert log_section_index > tasks_section_index, "Log section should come after Tasks section"
+        
+        print(f"✅ Verified epic #{issue_number} contains Log section at correct position")
+        print(f"Log section found at line {log_section_index + 1}, Tasks section at line {tasks_section_index + 1}")
