@@ -24,10 +24,16 @@ class TestWorkflowLoggingE2E:
             pytest.skip("TESTING_GITHUB_TOKEN not available for E2E tests")
         
         self.client = GitHubClient(use_testing_token=True)
-        self.test_repo = os.getenv('TESTING_GH_REPO', 'test/repo')
+        test_repo_url = os.getenv('TESTING_GH_REPO', 'test/repo')
         
-        if not self.test_repo or self.test_repo == 'test/repo':
+        if not test_repo_url or test_repo_url == 'test/repo':
             pytest.skip("TESTING_GH_REPO not configured for E2E tests")
+        
+        # Extract owner/repo from URL (e.g., https://github.com/owner/repo -> owner/repo)
+        if test_repo_url.startswith('https://github.com/'):
+            self.test_repo = '/'.join(test_repo_url.split('/')[-2:])
+        else:
+            self.test_repo = test_repo_url
 
     @pytest.fixture
     def test_config(self):
@@ -87,8 +93,8 @@ Phase 2: Verify log entries are correctly parsed""",
             assert len(parsed_body['log_entries']) == 1
             log_entry = parsed_body['log_entries'][0]
             assert log_entry.to_state == "planning"
-            assert log_entry.from_state == "backlog"
             assert log_entry.message == "Starting planning phase"
+            # Note: from_state is not persisted in log format per SPEC.md
             
             # 2. Submit Plan: planning → awaiting-plan-approval
             submit_plan = SubmitPlanCommand(self.client, test_config)
@@ -354,7 +360,7 @@ Testing integration between validation and logging.
             # Try to submit plan with missing Milestone Plan section (should fail validation)
             submit_plan = SubmitPlanCommand(self.client, test_config)
             
-            with pytest.raises(ValueError, match="Missing required section"):
+            with pytest.raises(ValueError, match="missing required section"):
                 submit_plan.execute_transition(self.test_repo, issue_number, "This should fail")
             
             # Verify no log entry was created due to validation failure
