@@ -47,13 +47,15 @@ class TestGetCommand:
         # Setup mocks
         mock_repo = Mock()
         mock_repo.get_issue.return_value = mock_issue
+        mock_repo.get_issues.return_value = []  # Return empty list for parent issue search
         mock_github_client.github.get_repo.return_value = mock_repo
         
         # Mock the issue parser
         with patch('ghoo.core.IssueParser.parse_body') as mock_parser:
             mock_parser.return_value = {
                 'pre_section_description': 'Test description',
-                'sections': []
+                'sections': [],
+                'log_entries': []
             }
             
             # Execute command
@@ -177,8 +179,10 @@ class TestGetCommand:
     
     def test_get_epic_data_with_fallback(self, get_command, mock_github_client):
         """Test getting epic data using body parsing fallback."""
-        # Setup GraphQL unavailability
-        mock_github_client.check_sub_issues_available.return_value = False
+        from ghoo.exceptions import FeatureUnavailableError
+        # Setup GraphQL unavailability - use exception to trigger fallback
+        mock_github_client.check_sub_issues_available.return_value = True
+        mock_github_client.get_issue_with_sub_issues.side_effect = FeatureUnavailableError("GraphQL not available")
         
         # Setup mock issue with body references
         mock_issue = Mock()
@@ -191,6 +195,7 @@ class TestGetCommand:
         
         mock_repo = Mock()
         mock_repo.get_issue.return_value = mock_issue
+        mock_repo.get_issues.return_value = []  # Return empty list for issue queries
         mock_github_client.github.get_repo.return_value = mock_repo
         
         # Execute
@@ -285,7 +290,9 @@ class TestGetCommand:
         parent_issue.state = "open"
         parent_issue.html_url = "https://github.com/owner/repo/issues/100"
         parent_issue.body = "Epic with sub-tasks:\n- [x] #123 This is our target issue"
-        parent_issue.labels = [Mock(name="type:epic")]
+        epic_label = Mock()
+        epic_label.name = "type:epic"
+        parent_issue.labels = [epic_label]
         
         # Create unrelated issue
         other_issue = Mock()
@@ -368,6 +375,7 @@ class TestGetCommand:
         # Setup mocks
         mock_repo = Mock()
         mock_repo.get_issue.return_value = mock_issue
+        mock_repo.get_issues.return_value = []  # Return empty list for parent issue search
         mock_github_client.github.get_repo.return_value = mock_repo
         
         # Mock parsed body with sections and todos
@@ -377,7 +385,8 @@ class TestGetCommand:
         with patch('ghoo.core.IssueParser.parse_body') as mock_parser:
             mock_parser.return_value = {
                 'pre_section_description': 'Issue description',
-                'sections': sections
+                'sections': sections,
+                'log_entries': []
             }
             
             # Execute
@@ -401,6 +410,7 @@ class TestGetCommand:
         
         mock_repo = Mock()
         mock_repo.get_issue.return_value = mock_issue
+        mock_repo.get_issues.return_value = []  # Return empty list for parent issue search
         mock_github_client.github.get_repo.return_value = mock_repo
         
         # Mock GraphQL sub-issues data
@@ -429,7 +439,8 @@ class TestGetCommand:
         with patch('ghoo.core.IssueParser.parse_body') as mock_parser:
             mock_parser.return_value = {
                 'pre_section_description': 'Epic description',
-                'sections': []
+                'sections': [],
+                'log_entries': []
             }
             
             # Execute

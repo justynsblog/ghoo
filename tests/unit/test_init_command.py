@@ -77,8 +77,11 @@ class TestInitCommand:
         """Test parsing project URL (currently not fully implemented)."""
         command = InitCommand(mock_github_client, project_config)
         
-        # This should raise NotImplementedError in the current MVP
-        with pytest.raises(NotImplementedError, match="Project URL parsing not fully implemented"):
+        # Mock GraphQL to return empty result so parsing logic can proceed
+        mock_github_client.graphql._execute.return_value = {}
+        
+        # This should raise GraphQLError when project is not found
+        with pytest.raises(GraphQLError, match="Failed to retrieve project information"):
             command._parse_project_url()
     
     def test_parse_invalid_url(self, mock_github_client):
@@ -145,20 +148,20 @@ class TestInitCommand:
     def test_create_issue_types_already_exists(self, init_command):
         """Test issue type creation when types already exist."""
         # Setup mocks
-        init_command.github.graphql.check_custom_issue_types_available.return_value = True
-        init_command.github.graphql.create_issue_type.side_effect = [
-            GraphQLError("Epic already exists"),  # First call fails
+        init_command.github.graphql.check_custom_issue_types_available = Mock(return_value=True)
+        init_command.github.graphql.create_issue_type = Mock(side_effect=[
+            GraphQLError("Epic already exists"),  # First call - goes to 'existed'
             {"issueType": {"id": "task-id"}},     # Second call succeeds
-            GraphQLError("Sub-task already exists")  # Third call fails
-        ]
+            GraphQLError("Sub-task creation failed")  # Third call - goes to 'failed'
+        ])
         
         # Execute
         init_command._create_issue_types("test-owner", "test-repo")
         
         # Verify results
         assert "Issue type 'Task'" in init_command.results['created']
-        assert "Issue type 'Epic': Epic already exists" in init_command.results['failed']
-        assert "Issue type 'Sub-task': Sub-task already exists" in init_command.results['failed']
+        assert "Issue type 'Epic'" in init_command.results['existed']  # "already exists" goes to existed
+        assert "Issue type 'Sub-task': Sub-task creation failed" in init_command.results['failed']
     
     def test_create_type_labels_success(self, init_command):
         """Test successful type label creation."""

@@ -278,8 +278,8 @@ class TestCreateSubTaskCommand:
         create_command.github.create_issue_with_type.return_value = mock_issue_data
         
         # Mock sub-issue relationship creation
-        create_command.github.graphql.get_node_id.return_value = 'parent_node_id_124'
-        create_command.github.add_sub_issue.return_value = {'success': True}
+        create_command.github.graphql.get_issue_node_id = Mock(return_value='parent_node_id_124')
+        create_command.github.graphql.add_sub_issue = Mock(return_value={'success': True})
         
         # Execute
         result = create_command.execute(
@@ -292,7 +292,7 @@ class TestCreateSubTaskCommand:
         create_command.github.create_issue_with_type.assert_called_once()
         
         # Verify sub-issue relationship was created
-        create_command.github.add_sub_issue.assert_called_once_with(
+        create_command.github.graphql.add_sub_issue.assert_called_once_with(
             'parent_node_id_124',
             'issue_node_id_123'
         )
