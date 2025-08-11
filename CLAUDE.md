@@ -74,12 +74,23 @@ src/ghoo/
 
 ## Testing
 
+### 🚨 CRITICAL E2E TESTING RULES 🚨
+**READ THIS FIRST - FAILURE TO FOLLOW = INVALID VALIDATION**
+
+1. **Environment Setup**: `set -a && source .env && set +a` (NOT just `source .env`)
+2. **Verify Setup**: Run `python3 -c "import os; print('TOKEN:', len(os.getenv('TESTING_GITHUB_TOKEN', '')))"`
+3. **Validate Results**: SKIPPED tests = NO validation occurred = FAILURE
+4. **Never Claim**: "E2E tests passing" if they show "SKIPPED"
+
 ### Live Testing Environment (CRITICAL)
 - **⚠️ MANDATORY**: All new work must be validated with E2E tests against live GitHub
 - **Configuration**: Live testing environment is configured in `.env` file with:
   - `TESTING_GITHUB_TOKEN`: Personal access token with repo permissions
   - `TESTING_GH_REPO`: Target repository URL for testing (e.g., `https://github.com/user/test-repo`)
-- **Usage**: `source .env` before running tests to load credentials
+- **⚠️ CRITICAL Environment Setup**: Use `set -a && source .env && set +a` to properly export all variables
+  - **NEVER** use just `source .env` - this doesn't export variables for child processes
+  - **ALWAYS** verify variables are loaded: `python3 -c "import os; print('TOKEN:', len(os.getenv('TESTING_GITHUB_TOKEN', '')))"` 
+- **⚠️ SKIPPED TESTS = FAILURE**: If E2E tests show "SKIPPED", the environment is NOT configured properly
 - **Repository Requirements**: 
   - Must have write access for creating/updating issues
   - Should be a dedicated testing repository to avoid contaminating production data
@@ -103,23 +114,39 @@ src/ghoo/
 2. **New commands**: Must have comprehensive E2E test coverage
 3. **Bug fixes**: Must include regression tests  
 4. **All Phase completions**: Run full E2E test suite
-5. **Environment setup**: Always `source .env` before testing
-6. **Cleanup verification**: Ensure test issues are properly closed
+5. **⚠️ CRITICAL Environment setup**: Always use `set -a && source .env && set +a` before testing
+6. **⚠️ VALIDATE Tests Actually Run**: If tests show "SKIPPED", they are NOT validating anything
+7. **Cleanup verification**: Ensure test issues are properly closed
 
-### Example Testing Commands
+### ❌ NEVER DO THIS:
+- Claim E2E tests are "passing" when they are "skipped"
+- Use `source .env` without `set -a` and `set +a`
+- Skip E2E validation for workflow-related changes
+
+### ✅ CORRECT Testing Commands
 ```bash
-# Load testing environment
-source .env
+# 1. CRITICAL: Load testing environment properly
+set -a && source .env && set +a
 
-# Run specific E2E tests for new work
-uv run pytest tests/e2e/test_todo_commands_e2e.py -v
+# 2. VERIFY environment is loaded
+python3 -c "import os; print('TOKEN:', len(os.getenv('TESTING_GITHUB_TOKEN', ''))); print('REPO:', os.getenv('TESTING_GH_REPO'))"
 
-# Run all E2E tests
-uv run pytest tests/e2e/ -v
+# 3. Run specific E2E tests for new work
+PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/e2e/test_workflow_logging_e2e.py -v
 
-# Run full test suite
-uv run pytest tests/ -v
+# 4. Run all E2E tests 
+PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/e2e/ -v
+
+# 5. Run full test suite
+PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/ -v
 ```
+
+### ⚠️ E2E Test Result Validation
+- **✅ PASSING**: Tests show "PASSED" - functionality is validated
+- **❌ SKIPPED**: Tests show "SKIPPED" - environment not configured, NO validation occurred  
+- **❌ FAILED**: Tests show "FAILED" - functionality has bugs, must be fixed
+
+**NEVER claim tests are passing if they are skipping!**
 
 ## Commands & Validation
 - Always validate before proceeding (run linters, type checkers when available)
