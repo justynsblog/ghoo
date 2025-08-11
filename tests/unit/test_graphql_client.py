@@ -142,6 +142,24 @@ class TestGraphQLClient:
         assert 'Permission denied' in result[0]
         assert 'required permissions' in result[0]
 
+    def test_parse_graphql_errors_could_not_resolve(self, client):
+        """Test parsing of 'Could not resolve' errors."""
+        errors = [{'message': 'Could not resolve to an Issue with the number of 999999'}]
+        result = client._parse_graphql_errors(errors)
+        
+        assert len(result) == 1
+        assert 'Resource not found' in result[0]
+        assert 'Could not resolve to an Issue with the number of 999999' in result[0]
+
+    def test_parse_graphql_errors_not_found_traditional(self, client):
+        """Test parsing of traditional 'not found' errors."""
+        errors = [{'message': 'Issue not found'}]
+        result = client._parse_graphql_errors(errors)
+        
+        assert len(result) == 1
+        assert 'Resource not found' in result[0]
+        assert 'Issue not found' in result[0]
+
     @patch.object(GraphQLClient, '_execute')
     def test_add_sub_issue(self, mock_execute, client):
         """Test add_sub_issue method."""

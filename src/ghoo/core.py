@@ -155,6 +155,7 @@ class GraphQLClient:
             locations = error.get('locations', [])
             
             # Provide more specific error messages for common issues
+            # Note: GitHub's GraphQL API returns "Could not resolve" for non-existent resources
             if 'sub_issues' in message.lower() or 'subissues' in message.lower():
                 parsed_errors.append(
                     f"Sub-issues feature not available: {message}. "
@@ -165,7 +166,7 @@ class GraphQLClient:
                     f"Projects V2 error: {message}. "
                     "Ensure you have access to the project and proper permissions."
                 )
-            elif 'not found' in message.lower():
+            elif 'not found' in message.lower() or 'could not resolve' in message.lower():
                 parsed_errors.append(f"Resource not found: {message}")
             elif 'permission' in message.lower() or 'access' in message.lower():
                 parsed_errors.append(
