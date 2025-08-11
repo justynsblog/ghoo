@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -30,6 +30,65 @@ class Todo:
     text: str
     checked: bool = False
     line_number: Optional[int] = None
+
+
+@dataclass
+class LogSubEntry:
+    """A sub-entry within a log entry for future extensibility.
+    
+    Args:
+        title: The title/header of the sub-entry
+        content: The content/body of the sub-entry
+    """
+    title: str
+    content: str
+    
+    def to_markdown(self) -> str:
+        """Convert this sub-entry to markdown format."""
+        return f"#### {self.title}\n{self.content}"
+
+
+@dataclass
+class LogEntry:
+    """A log entry representing a state transition.
+    
+    Follows the hierarchical log format defined in SPEC.md for audit trail.
+    
+    Args:
+        to_state: The workflow state being transitioned to
+        timestamp: UTC timestamp of the transition
+        author: Username of the person who triggered the transition
+        message: Optional message describing the transition
+        sub_entries: List of sub-entries for detailed logging
+    """
+    to_state: str
+    timestamp: datetime
+    author: str
+    message: Optional[str] = None
+    sub_entries: List[LogSubEntry] = field(default_factory=list)
+    
+    def to_markdown(self) -> str:
+        """Convert this log entry to markdown format following SPEC.md format."""
+        # Format timestamp as YYYY-MM-DD HH:MM:SS UTC
+        timestamp_str = self.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
+        
+        # Build the markdown
+        lines = [
+            "---",
+            f"### → {self.to_state} [{timestamp_str}]",
+            f"*by @{self.author}*"
+        ]
+        
+        # Add message if provided
+        if self.message:
+            lines.append(f"**Message**: {self.message}")
+        
+        # Add sub-entries if any
+        for sub_entry in self.sub_entries:
+            lines.append("")  # Empty line before sub-entry
+            lines.append(sub_entry.to_markdown())
+        
+        return "\n".join(lines)
 
 
 @dataclass
@@ -84,6 +143,7 @@ class Issue:
     assignees: List[str] = field(default_factory=list)
     sections: List[Section] = field(default_factory=list)
     comments: List[Comment] = field(default_factory=list)
+    log_entries: List[LogEntry] = field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -102,6 +162,51 @@ class Issue:
             for section in self.sections 
             for todo in section.todos
         )
+    
+    def add_log_entry(self, to_state: str, author: str, message: Optional[str] = None) -> LogEntry:
+        """Add a new log entry to this issue.
+        
+        Args:
+            to_state: The workflow state being transitioned to
+            author: Username of the person who triggered the transition
+            message: Optional message describing the transition
+            
+        Returns:
+            LogEntry: The created log entry
+        """
+        log_entry = LogEntry(
+            to_state=to_state,
+            timestamp=datetime.now(timezone.utc),
+            author=author,
+            message=message
+        )
+        self.log_entries.append(log_entry)
+        return log_entry
+    
+    def format_log_section(self) -> str:
+        """Generate the complete ## Log section markdown.
+        
+        Returns:
+            str: Formatted log section or empty string if no entries exist
+        """
+        if not self.log_entries:
+            return ""
+        
+        lines = ["## Log"]
+        for log_entry in self.log_entries:
+            lines.append("")  # Empty line before each entry
+            lines.append(log_entry.to_markdown())
+        
+        return "\n".join(lines)
+    
+    @property
+    def has_log_section(self) -> bool:
+        """Check if this issue has any log entries.
+        
+        Returns:
+            bool: True if log entries exist, False otherwise
+        """
+        return len(self.log_entries) > 0
 
 
 @dataclass  
