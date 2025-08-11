@@ -1533,6 +1533,136 @@ class GitHubClient:
         # Set milestone
         if milestone:
             issue.edit(milestone=milestone)
+    
+    def append_log_entry(
+        self,
+        repo: str,
+        issue_number: int,
+        to_state: str,
+        author: str,
+        message: Optional[str] = None,
+        sub_entries: Optional[List] = None
+    ) -> None:
+        """Append a new log entry to an issue's body.
+        
+        This method creates a new LogEntry object and appends it to the issue's
+        Log section, creating the section if it doesn't exist. The entry is
+        formatted according to SPEC.md's hierarchical log format.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to append log entry to
+            to_state: The workflow state being transitioned to
+            author: Username of the person who triggered the transition
+            message: Optional message describing the transition
+            sub_entries: Optional list of LogSubEntry objects
+            
+        Raises:
+            GithubException: If issue update fails
+            ValueError: If the updated body would exceed GitHub's size limit
+        """
+        from .models import LogEntry, LogSubEntry
+        from datetime import datetime, timezone
+        
+        # Get the current issue
+        github_repo = self.github.get_repo(repo)
+        issue = github_repo.get_issue(issue_number)
+        current_body = issue.body or ""
+        
+        # Create the new log entry
+        log_entry = LogEntry(
+            to_state=to_state,
+            timestamp=datetime.now(timezone.utc),
+            author=author,
+            message=message,
+            sub_entries=sub_entries or []
+        )
+        
+        # Append to the log section
+        updated_body = self._append_to_log_section(current_body, log_entry)
+        
+        # Check GitHub's body size limit (65536 characters)
+        if len(updated_body) > 65536:
+            raise ValueError(f"Updated issue body would exceed GitHub's 65536 character limit (would be {len(updated_body)} characters)")
+        
+        # Update the issue
+        issue.edit(body=updated_body)
+    
+    def _ensure_log_section(self, body: str) -> str:
+        """Ensure the body has a Log section, adding one if needed.
+        
+        Args:
+            body: The current issue body
+            
+        Returns:
+            str: Body with Log section guaranteed to exist
+        """
+        if not body.strip():
+            return "## Log"
+        
+        # Check if Log section already exists
+        if "\n## Log" in body or body.startswith("## Log"):
+            return body
+        
+        # Add Log section at the end with proper spacing
+        if body.endswith("\n"):
+            return body + "\n## Log"
+        else:
+            return body + "\n\n## Log"
+    
+    def _append_to_log_section(self, body: str, log_entry) -> str:
+        """Append a log entry to the Log section of the body.
+        
+        Args:
+            body: The current issue body
+            log_entry: LogEntry object to append
+            
+        Returns:
+            str: Updated body with the new log entry appended
+        """
+        # Ensure Log section exists
+        body_with_log = self._ensure_log_section(body)
+        
+        # Generate the log entry markdown
+        log_markdown = log_entry.to_markdown()
+        
+        # Find the Log section and append the entry
+        lines = body_with_log.split('\n')
+        log_section_index = -1
+        
+        # Find the Log section
+        for i, line in enumerate(lines):
+            if line.strip() == "## Log":
+                log_section_index = i
+                break
+        
+        if log_section_index == -1:
+            # This shouldn't happen after _ensure_log_section, but handle it
+            return body_with_log + "\n\n" + log_markdown
+        
+        # Check if this is the first entry in the Log section
+        log_content_start = log_section_index + 1
+        has_existing_entries = False
+        
+        # Look for existing log entries (lines starting with ---)
+        for i in range(log_content_start, len(lines)):
+            line = lines[i].strip()
+            if line and not line.startswith('#'):  # Found non-empty, non-header content
+                if line == '---':
+                    has_existing_entries = True
+                break
+        
+        # Insert the new log entry
+        if has_existing_entries:
+            # Append after existing entries
+            lines.append("")  # Empty line before new entry
+            lines.append(log_markdown)
+        else:
+            # First entry in log section
+            lines.insert(log_content_start, "")  # Empty line after header
+            lines.insert(log_content_start + 1, log_markdown)
+        
+        return '\n'.join(lines)
 
 
 class ConfigLoader:
@@ -4200,9 +4330,23 @@ class BaseWorkflowCommand(ABC):
         old_status = self._get_current_status(issue)
         self._update_status(issue, self.get_to_state())
         
-        # Create audit trail comment
+        # Create audit trail (log entry or comment based on configuration)
         user = self._get_authenticated_user()
-        self._create_audit_comment(issue, old_status, self.get_to_state(), user, message)
+        
+        # For now, always use log entries (can be made configurable later)
+        # TODO: Add configuration option to choose between log entries and comments
+        try:
+            self.github.append_log_entry(
+                repo=repo,
+                issue_number=issue_number,
+                to_state=self.get_to_state(),
+                author=user,
+                message=message
+            )
+        except Exception as e:
+            # Fallback to comment if log entry fails
+            print(f"Warning: Failed to append log entry, falling back to comment: {e}")
+            self._create_audit_comment(issue, old_status, self.get_to_state(), user, message)
         
         return {
             'success': True,
