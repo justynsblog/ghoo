@@ -2051,6 +2051,7 @@ class IssueParser:
             Dictionary with parsed sections and todos, including:
             - 'pre_section_description': Text before first section
             - 'sections': List of Section objects
+            - 'log_entries': List of LogEntry objects from ## Log section
         """
         from .models import Section, Todo
         import re
@@ -2058,11 +2059,13 @@ class IssueParser:
         if not body or not body.strip():
             return {
                 'pre_section_description': '',
-                'sections': []
+                'sections': [],
+                'log_entries': []
             }
         
         lines = body.split('\n')
         sections = []
+        log_entries = []
         pre_section_description = ""
         current_section = None
         current_section_lines = []
@@ -2083,15 +2086,21 @@ class IssueParser:
                 # Save previous section if it exists
                 if current_section is not None:
                     current_section['body'] = '\n'.join(current_section_lines).strip()
-                    current_section['todos'] = IssueParser._extract_todos_from_lines(
-                        current_section_lines, 
-                        line_number - len(current_section_lines)
-                    )
-                    sections.append(Section(
-                        title=current_section['title'],
-                        body=current_section['body'],
-                        todos=current_section['todos']
-                    ))
+                    
+                    # Handle Log section specially
+                    if current_section['title'] == 'Log':
+                        log_entries = IssueParser._parse_log_section(current_section['body'])
+                    else:
+                        # Regular section
+                        current_section['todos'] = IssueParser._extract_todos_from_lines(
+                            current_section_lines, 
+                            line_number - len(current_section_lines)
+                        )
+                        sections.append(Section(
+                            title=current_section['title'],
+                            body=current_section['body'],
+                            todos=current_section['todos']
+                        ))
                 
                 # Handle pre-section description
                 if not found_first_section:
@@ -2115,22 +2124,29 @@ class IssueParser:
         # Handle final section
         if current_section is not None:
             current_section['body'] = '\n'.join(current_section_lines).strip()
-            current_section['todos'] = IssueParser._extract_todos_from_lines(
-                current_section_lines, 
-                len(lines) - len(current_section_lines) + 1
-            )
-            sections.append(Section(
-                title=current_section['title'],
-                body=current_section['body'],
-                todos=current_section['todos']
-            ))
+            
+            # Handle Log section specially
+            if current_section['title'] == 'Log':
+                log_entries = IssueParser._parse_log_section(current_section['body'])
+            else:
+                # Regular section
+                current_section['todos'] = IssueParser._extract_todos_from_lines(
+                    current_section_lines, 
+                    len(lines) - len(current_section_lines) + 1
+                )
+                sections.append(Section(
+                    title=current_section['title'],
+                    body=current_section['body'],
+                    todos=current_section['todos']
+                ))
         elif not found_first_section:
             # No sections found, everything is pre-section description
             pre_section_description = '\n'.join(pre_section_lines).strip()
         
         return {
             'pre_section_description': pre_section_description,
-            'sections': sections
+            'sections': sections,
+            'log_entries': log_entries
         }
     
     @staticmethod
@@ -2166,6 +2182,181 @@ class IssueParser:
                 ))
         
         return todos
+    
+    @staticmethod
+    def _parse_log_section(content: str) -> List['LogEntry']:
+        """Parse a Log section content into LogEntry objects.
+        
+        Args:
+            content: Raw content of the ## Log section
+            
+        Returns:
+            List of LogEntry objects parsed from the content
+        """
+        from .models import LogEntry
+        import re
+        
+        if not content or not content.strip():
+            return []
+        
+        log_entries = []
+        
+        # Split by horizontal rules to get individual log entries
+        entry_blocks = re.split(r'^\s*---\s*$', content, flags=re.MULTILINE)
+        
+        for block in entry_blocks:
+            block = block.strip()
+            if not block:
+                continue
+                
+            try:
+                log_entry = IssueParser._parse_single_log_entry(block)
+                if log_entry:
+                    log_entries.append(log_entry)
+            except Exception as e:
+                # Log warning but don't crash - skip malformed entries
+                import sys
+                print(f"Warning: Failed to parse log entry: {e}", file=sys.stderr)
+                continue
+        
+        return log_entries
+    
+    @staticmethod
+    def _parse_single_log_entry(entry_block: str) -> 'LogEntry':
+        """Parse a single log entry block into a LogEntry object.
+        
+        Args:
+            entry_block: A single log entry block (between --- separators)
+            
+        Returns:
+            LogEntry object or None if parsing fails
+        """
+        from .models import LogEntry, LogSubEntry
+        import re
+        
+        if not entry_block or not entry_block.strip():
+            return None
+        
+        lines = [line.rstrip() for line in entry_block.split('\n')]
+        
+        # Patterns for parsing
+        header_pattern = re.compile(r'^### → ([^\[]+) \[([^\]]+)\]$')
+        author_pattern = re.compile(r'^\*by @([^*]+)\*$')
+        message_pattern = re.compile(r'^\*\*Message\*\*: (.+)$')
+        subentry_header_pattern = re.compile(r'^#### (.+)$')
+        
+        to_state = None
+        timestamp = None
+        author = None
+        message = None
+        sub_entries = []
+        
+        current_subentry_title = None
+        current_subentry_lines = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            if not line:
+                i += 1
+                continue
+            
+            # Parse header (### → state [timestamp])
+            header_match = header_pattern.match(line)
+            if header_match:
+                to_state = header_match.group(1).strip()
+                timestamp_str = header_match.group(2).strip()
+                timestamp = IssueParser._parse_timestamp(timestamp_str)
+                i += 1
+                continue
+            
+            # Parse author (*by @username*)
+            author_match = author_pattern.match(line)
+            if author_match:
+                author = author_match.group(1).strip()
+                i += 1
+                continue
+            
+            # Parse message (**Message**: text)
+            message_match = message_pattern.match(line)
+            if message_match:
+                message = message_match.group(1).strip()
+                i += 1
+                continue
+            
+            # Parse sub-entry header (#### title)
+            subentry_match = subentry_header_pattern.match(line)
+            if subentry_match:
+                # Save previous sub-entry if exists
+                if current_subentry_title and current_subentry_lines:
+                    sub_entries.append(LogSubEntry(
+                        title=current_subentry_title,
+                        content='\n'.join(current_subentry_lines).strip()
+                    ))
+                
+                # Start new sub-entry
+                current_subentry_title = subentry_match.group(1).strip()
+                current_subentry_lines = []
+                i += 1
+                continue
+            
+            # Add line to current sub-entry content
+            if current_subentry_title:
+                current_subentry_lines.append(line)
+            
+            i += 1
+        
+        # Handle final sub-entry
+        if current_subentry_title and current_subentry_lines:
+            sub_entries.append(LogSubEntry(
+                title=current_subentry_title,
+                content='\n'.join(current_subentry_lines).strip()
+            ))
+        
+        # Validate required fields
+        if not to_state or not timestamp or not author:
+            return None
+        
+        return LogEntry(
+            to_state=to_state,
+            timestamp=timestamp,
+            author=author,
+            message=message,
+            sub_entries=sub_entries
+        )
+    
+    @staticmethod
+    def _parse_timestamp(timestamp_str: str) -> 'datetime':
+        """Parse a timestamp string into a datetime object.
+        
+        Args:
+            timestamp_str: Timestamp in format 'YYYY-MM-DD HH:MM:SS UTC'
+            
+        Returns:
+            datetime object with UTC timezone
+        """
+        from datetime import datetime, timezone
+        import re
+        
+        # Primary format: YYYY-MM-DD HH:MM:SS UTC
+        primary_pattern = re.compile(r'^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) UTC$')
+        match = primary_pattern.match(timestamp_str.strip())
+        
+        if match:
+            year, month, day, hour, minute, second = map(int, match.groups())
+            return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+        
+        # Fallback: try parsing without UTC suffix
+        fallback_pattern = re.compile(r'^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$')
+        match = fallback_pattern.match(timestamp_str.strip())
+        
+        if match:
+            year, month, day, hour, minute, second = map(int, match.groups())
+            return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+        
+        # If all parsing fails, raise an error
+        raise ValueError(f"Unable to parse timestamp: {timestamp_str}")
 
 
 class GetCommand:
@@ -2237,6 +2428,7 @@ class GetCommand:
                 } if issue.milestone else None,
                 'pre_section_description': parsed_body['pre_section_description'],
                 'sections': [self._format_section(section) for section in parsed_body['sections']],
+                'log_entries': [self._format_log_entry(entry) for entry in parsed_body['log_entries']],
                 **additional_data
             }
             
@@ -2363,6 +2555,28 @@ class GetCommand:
                     'checked': todo.checked,
                     'line_number': todo.line_number
                 } for todo in section.todos
+            ]
+        }
+    
+    def _format_log_entry(self, log_entry) -> Dict[str, Any]:
+        """Format a parsed log entry for display.
+        
+        Args:
+            log_entry: LogEntry object from parser
+            
+        Returns:
+            Dictionary with formatted log entry data
+        """
+        return {
+            'to_state': log_entry.to_state,
+            'timestamp': log_entry.timestamp.isoformat(),
+            'author': log_entry.author,
+            'message': log_entry.message,
+            'sub_entries': [
+                {
+                    'title': sub_entry.title,
+                    'content': sub_entry.content
+                } for sub_entry in log_entry.sub_entries
             ]
         }
     
