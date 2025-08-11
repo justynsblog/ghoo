@@ -203,6 +203,97 @@ def get(
         sys.exit(1)
 
 
+def _format_timestamp(timestamp: str) -> str:
+    """Format timestamp for display.
+    
+    Args:
+        timestamp: ISO format timestamp string
+        
+    Returns:
+        str: Human-readable timestamp
+    """
+    import datetime
+    
+    try:
+        # Parse ISO timestamp (handle both Z and +00:00 formats)
+        if timestamp.endswith('Z'):
+            dt = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        else:
+            dt = datetime.datetime.fromisoformat(timestamp)
+        
+        # Format as readable timestamp
+        return dt.strftime('%Y-%m-%d %H:%M UTC')
+    except Exception:
+        # Fallback for any parsing errors
+        return timestamp
+
+
+def _display_log_entry(log_entry: dict):
+    """Display a single log entry with formatting.
+    
+    Args:
+        log_entry: Log entry dictionary from GetCommand
+    """
+    # Handle edge cases - ensure we have a valid log entry
+    if not log_entry or not isinstance(log_entry, dict):
+        typer.echo("    ⚠️  Invalid log entry", color=typer.colors.RED)
+        return
+    
+    # Format the main transition line with fallbacks
+    to_state = log_entry.get('to_state', 'unknown')
+    timestamp = log_entry.get('timestamp', '')
+    author = log_entry.get('author', 'unknown')
+    message = log_entry.get('message', '')
+    
+    # Ensure to_state isn't empty
+    if not to_state or not to_state.strip():
+        to_state = 'unknown'
+    
+    # Ensure author isn't empty
+    if not author or not author.strip():
+        author = 'unknown'
+    
+    # State transition with arrow and color
+    typer.echo(f"  → ", nl=False, color=typer.colors.CYAN)
+    typer.echo(to_state, nl=False, color=typer.colors.BRIGHT_GREEN)
+    
+    # Timestamp and author
+    formatted_timestamp = _format_timestamp(timestamp) if timestamp else 'unknown time'
+    typer.echo(f" | {formatted_timestamp} | @{author}", color=typer.colors.BRIGHT_BLACK)
+    
+    # Optional message with text wrapping for long messages
+    if message and message.strip():
+        # Simple text wrapping - split long messages
+        if len(message) > 80:
+            # Split into lines of approximately 76 characters (with 4-space indent)
+            words = message.split()
+            current_line = ""
+            for word in words:
+                if len(current_line) + len(word) + 1 <= 76:
+                    current_line = current_line + " " + word if current_line else word
+                else:
+                    if current_line:
+                        typer.echo(f"    \"{current_line}\"", color=typer.colors.BRIGHT_WHITE)
+                    current_line = word
+            if current_line:
+                typer.echo(f"    \"{current_line}\"", color=typer.colors.BRIGHT_WHITE)
+        else:
+            typer.echo(f"    \"{message}\"", color=typer.colors.BRIGHT_WHITE)
+    
+    # Sub-entries with indentation
+    sub_entries = log_entry.get('sub_entries', [])
+    if sub_entries:
+        for sub_entry in sub_entries:
+            if isinstance(sub_entry, dict):
+                title = sub_entry.get('title', '').strip()
+                content = sub_entry.get('content', '').strip()
+                if title or content:
+                    display_text = f"{title}: {content}" if title and content else (title or content)
+                    typer.echo(f"    • {display_text}", color=typer.colors.YELLOW)
+            else:
+                typer.echo(f"    • Invalid sub-entry", color=typer.colors.RED)
+
+
 def _display_issue(issue_data: dict):
     """Display issue data with rich formatting.
     
@@ -271,6 +362,13 @@ def _display_issue(issue_data: dict):
                 for todo in section['todos']:
                     check_mark = "✅" if todo['checked'] else "⬜"
                     typer.echo(f"{check_mark} {todo['text']}")
+    
+    # Log entries
+    log_entries = issue_data.get('log_entries', [])
+    if log_entries:
+        typer.echo(f"\n📋 Log ({len(log_entries)} entries):")
+        for log_entry in log_entries:
+            _display_log_entry(log_entry)
     
     # Epic-specific data
     if 'sub_issues' in issue_data and issue_data['sub_issues']:
