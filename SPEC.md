@@ -739,6 +739,10 @@ After the MVP is delivered, the following features will be built using `ghoo` to
 
 This section outlines potential enhancements that could be implemented in future versions of ghoo. These features are not part of the initial implementation but represent valuable additions to consider as the tool matures.
 
+### Hooks system
+
+Configure operations for certain operations, for example return current git status to `get` commands, or require a clean working tree when marking code complete or asking for approval (or must give an explicit reason why it is not clean). These kinds of common hooks should be available as built-ins, but it should also be possible to specify custom ones.
+
 ### Batch Operations
 
 Enable efficient bulk operations on multiple issues simultaneously.
@@ -761,4 +765,4 @@ CLI syntax has already been adjusted somewhat with this in mind, considering adv
 
 Rather than having a fixed text file living in the codebase for an agent to read, the tool could auto-generate the dense, efficient instructions for an agent to load into its context window. It could be extended to provide tailored instructions for sub-agents that only have access to a subset of functionality.
 
-The benfit of this approach is that the instructions would also match the requirements configured in ghoo.yaml, which would be the a single source of truth. If the agent works better with real files for instructions, perhaps a git-commit hook could have it update the text file on each run, or similar automatic process.
+The benefit of this approach is that the instructions would also match the requirements configured in ghoo.yaml, which would be the a single source of truth. If the agent works better with real files for instructions, perhaps a git-commit hook could have it update the text file on each run, or similar automatic process.
