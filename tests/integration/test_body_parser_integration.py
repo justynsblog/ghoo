@@ -280,8 +280,9 @@ Related: #456 (performance monitoring) and #789 (backup procedures)."""
         assert checklist_section.total_todos == 7
         assert checklist_section.completed_todos == 3
         
-        # Verify links are preserved
-        assert '[MySQL 8.0 migration guide]' in result['pre_section_description']
+        # Verify links are preserved in the Database Migration Plan section
+        migration_plan_section = next(s for s in result['sections'] if s.title == 'Database Migration Plan')
+        assert '[MySQL 8.0 migration guide]' in migration_plan_section.body
         
         # Check that markdown formatting in risk assessment is preserved
         risk_section = next(s for s in result['sections'] if s.title == 'Risk Assessment')

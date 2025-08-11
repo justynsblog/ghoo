@@ -376,3 +376,67 @@ class TestBodyParserHelpers:
         assert todos[0].text == "Todo with leading spaces"
         assert todos[1].text == "Todo with tab and trailing spaces"
         assert todos[2].text == "Todo with extra spaces in text"
+
+
+class TestBodyParserEdgeCases:
+    """Test edge cases for body parser."""
+    
+    def test_links_in_section_titles_and_todos(self):
+        """Test that links in section titles and todos are preserved."""
+        body = """## [Documentation](https://docs.com) Update
+
+Content with [inline link](https://example.com).
+
+## Tasks
+
+- [x] Review [API docs](https://api.com) carefully
+- [ ] Update [README](./README.md) file
+- [ ] Test [endpoints](https://test.com) thoroughly"""
+        
+        result = IssueParser.parse_body(body)
+        
+        assert len(result['sections']) == 2
+        
+        # Verify section title with link is preserved
+        doc_section = result['sections'][0]
+        assert doc_section.title == '[Documentation](https://docs.com) Update'
+        assert '[inline link](https://example.com)' in doc_section.body
+        
+        # Verify todos with links
+        task_section = result['sections'][1]
+        assert task_section.total_todos == 3
+        assert task_section.completed_todos == 1
+        
+        todo_texts = [t.text for t in task_section.todos]
+        assert any('[API docs](https://api.com)' in text for text in todo_texts)
+        assert any('[README](./README.md)' in text for text in todo_texts)
+        assert any('[endpoints](https://test.com)' in text for text in todo_texts)
+    
+    def test_markdown_table_preservation(self):
+        """Test that markdown tables are preserved correctly in sections."""
+        body = """## Feature Comparison
+
+| Feature | Current | Proposed |
+|---------|---------|----------|
+| Auth | Basic | OAuth |
+| API | REST | GraphQL |
+
+## Next Steps
+
+- [ ] Implement OAuth
+- [ ] Add GraphQL support"""
+        
+        result = IssueParser.parse_body(body)
+        
+        assert len(result['sections']) == 2
+        
+        # Verify table structure is preserved
+        comparison_section = result['sections'][0]
+        assert '| Feature | Current | Proposed |' in comparison_section.body
+        assert '| Auth | Basic | OAuth |' in comparison_section.body
+        assert '| API | REST | GraphQL |' in comparison_section.body
+        
+        # Verify todos in next section
+        next_section = result['sections'][1]
+        assert next_section.total_todos == 2
+        assert next_section.completed_todos == 0

@@ -2171,7 +2171,25 @@ class InitCommand:
 
 
 class IssueParser:
-    """Parse issue bodies to extract sections and todos."""
+    """Parse issue bodies to extract sections and todos.
+    
+    This parser handles GitHub-flavored markdown and extracts structured data
+    from issue bodies including sections, todos, and log entries.
+    
+    Behavior:
+    - Only ## (H2) level headers and below are treated as sections
+    - # (H1) level headers are treated as pre-section content
+    - Todos are extracted from section content using - [x] or - [ ] patterns
+    - Todos in table cells are preserved as text but not parsed as todos
+    - Markdown formatting (links, code, tables) is preserved in section bodies
+    - Malformed todo items (missing closing bracket) are not parsed
+    - Log entries are extracted from special ## Log sections
+    
+    Limitations:
+    - Complex nested structures may not be fully preserved
+    - Unicode and special characters are supported but may affect parsing
+    - Performance is optimized for typical issue sizes (<50KB)
+    """
     
     @staticmethod
     def parse_body(body: str) -> Dict[str, Any]:
