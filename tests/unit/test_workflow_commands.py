@@ -311,6 +311,16 @@ class TestApproveWorkCommand(TestBaseWorkflowCommand):
     @patch('ghoo.core.IssueParser')
     def test_validate_completion_requirements_success(self, mock_parser_class, approve_work_command, mock_issue):
         """Test successful validation when no open todos."""
+        # Mock issue body as string
+        mock_issue.body = "Issue body content"
+        
+        # Mock GraphQL client - no sub-issues
+        approve_work_command.github.graphql_client = Mock()
+        approve_work_command.github.graphql_client.get_issue_with_sub_issues.return_value = {
+            'subIssues': {'nodes': []}
+        }
+        mock_issue.repository.full_name = "owner/repo"
+        
         # Mock parser
         mock_parser = Mock()
         mock_parser_class.return_value = mock_parser
@@ -371,6 +381,190 @@ class TestApproveWorkCommand(TestBaseWorkflowCommand):
         
         # Verify result includes closure flag
         assert result['issue_closed'] is True
+    
+    @patch('ghoo.core.IssueParser')
+    def test_validate_open_sub_issues_with_graphql_success(self, mock_parser_class, approve_work_command, mock_issue):
+        """Test successful validation when all sub-issues are closed using GraphQL."""
+        # Mock GraphQL client
+        approve_work_command.github.graphql_client = Mock()
+        approve_work_command.github.graphql_client.get_issue_with_sub_issues.return_value = {
+            'subIssues': {
+                'nodes': [
+                    {'number': 124, 'title': 'Sub-task 1', 'state': 'CLOSED'},
+                    {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
+                ]
+            }
+        }
+        
+        # Mock issue repository
+        mock_issue.repository.full_name = "owner/repo"
+        mock_issue.body = "Some issue body"  # Ensure body is a string
+        
+        # Should not raise exception
+        approve_work_command._validate_open_sub_issues(mock_issue)
+    
+    @patch('ghoo.core.IssueParser')
+    def test_validate_open_sub_issues_with_graphql_failure(self, mock_parser_class, approve_work_command, mock_issue):
+        """Test validation fails when sub-issues are open using GraphQL."""
+        # Mock GraphQL client
+        approve_work_command.github.graphql_client = Mock()
+        approve_work_command.github.graphql_client.get_issue_with_sub_issues.return_value = {
+            'subIssues': {
+                'nodes': [
+                    {'number': 124, 'title': 'Sub-task 1', 'state': 'OPEN'},
+                    {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
+                ]
+            }
+        }
+        
+        # Mock issue repository
+        mock_issue.repository.full_name = "owner/repo"
+        mock_issue.body = "Some issue body"
+        
+        with pytest.raises(ValueError, match="Cannot approve work: issue has open sub-issues"):
+            approve_work_command._validate_open_sub_issues(mock_issue)
+    
+    @patch('ghoo.core.IssueParser')
+    def test_validate_open_sub_issues_fallback_success(self, mock_parser_class, approve_work_command, mock_issue):
+        """Test successful validation using body parsing fallback."""
+        # Mock GraphQL client failure
+        approve_work_command.github.graphql_client = Mock()
+        approve_work_command.github.graphql_client.get_issue_with_sub_issues.side_effect = Exception("GraphQL failed")
+        
+        # Mock issue body with references
+        mock_issue.body = "See related issues #124 and #125"
+        
+        # Mock repository responses for referenced issues (all closed)
+        mock_ref_issue1 = Mock()
+        mock_ref_issue1.state = 'closed'
+        mock_ref_issue1.title = 'Referenced issue 1'
+        
+        mock_ref_issue2 = Mock()
+        mock_ref_issue2.state = 'closed'
+        mock_ref_issue2.title = 'Referenced issue 2'
+        
+        mock_issue.repository.get_issue.side_effect = lambda n: mock_ref_issue1 if n == 124 else mock_ref_issue2
+        
+        # Should not raise exception
+        approve_work_command._validate_open_sub_issues(mock_issue)
+    
+    @patch('ghoo.core.IssueParser')
+    def test_validate_open_sub_issues_fallback_failure(self, mock_parser_class, approve_work_command, mock_issue):
+        """Test validation fails using body parsing fallback when issues are open."""
+        # Mock GraphQL client failure
+        approve_work_command.github.graphql_client = Mock()
+        approve_work_command.github.graphql_client.get_issue_with_sub_issues.side_effect = Exception("GraphQL failed")
+        
+        # Mock issue body with references
+        mock_issue.body = "See related issues #124 and #125"
+        
+        # Mock repository responses for referenced issues (one open)
+        mock_ref_issue1 = Mock()
+        mock_ref_issue1.state = 'open'
+        mock_ref_issue1.title = 'Open issue 1'
+        
+        mock_ref_issue2 = Mock()
+        mock_ref_issue2.state = 'closed'
+        mock_ref_issue2.title = 'Closed issue 2'
+        
+        mock_issue.repository.get_issue.side_effect = lambda n: mock_ref_issue1 if n == 124 else mock_ref_issue2
+        
+        with pytest.raises(ValueError, match="Cannot approve work: issue has open sub-issues"):
+            approve_work_command._validate_open_sub_issues(mock_issue)
+
+
+class TestCreateCommandValidation:
+    """Unit tests for parent state validation in create commands."""
+    
+    @pytest.fixture
+    def mock_github_client(self):
+        """Mock GitHub client for testing."""
+        mock_client = Mock(spec=GitHubClient)
+        mock_github = Mock()
+        mock_client.github = mock_github
+        return mock_client
+    
+    @pytest.fixture
+    def create_task_command(self, mock_github_client):
+        """Create CreateTaskCommand instance for testing."""
+        from ghoo.core import CreateTaskCommand
+        return CreateTaskCommand(mock_github_client)
+    
+    @pytest.fixture
+    def create_sub_task_command(self, mock_github_client):
+        """Create CreateSubTaskCommand instance for testing."""
+        from ghoo.core import CreateSubTaskCommand
+        return CreateSubTaskCommand(mock_github_client)
+    
+    def test_get_parent_workflow_state_with_label(self, create_task_command):
+        """Test getting workflow state from status label."""
+        mock_issue = Mock()
+        mock_label = Mock()
+        mock_label.name = "status:planning"
+        mock_issue.labels = [mock_label]
+        
+        result = create_task_command._get_parent_workflow_state(mock_issue)
+        assert result == "planning"
+    
+    def test_get_parent_workflow_state_no_label(self, create_task_command):
+        """Test default workflow state when no label found."""
+        mock_issue = Mock()
+        mock_issue.labels = []
+        
+        result = create_task_command._get_parent_workflow_state(mock_issue)
+        assert result == "backlog"
+    
+    def test_validate_parent_epic_valid_state(self, create_task_command):
+        """Test successful validation of parent epic in valid state."""
+        mock_repo = Mock()
+        mock_epic = Mock()
+        mock_epic.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:planning"
+        mock_epic.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_epic
+        
+        result = create_task_command._validate_parent_epic(mock_repo, 123)
+        assert result == mock_epic
+    
+    def test_validate_parent_epic_invalid_state(self, create_task_command):
+        """Test validation failure when parent epic in invalid state."""
+        mock_repo = Mock()
+        mock_epic = Mock()
+        mock_epic.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:backlog"  # Invalid state for task creation
+        mock_epic.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_epic
+        
+        with pytest.raises(ValueError, match="Cannot create task under epic #123: epic is in 'backlog' state"):
+            create_task_command._validate_parent_epic(mock_repo, 123)
+    
+    def test_validate_parent_task_valid_state(self, create_sub_task_command):
+        """Test successful validation of parent task in valid state."""
+        mock_repo = Mock()
+        mock_task = Mock()
+        mock_task.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:in-progress"
+        mock_task.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_task
+        
+        result = create_sub_task_command._validate_parent_task(mock_repo, 456)
+        assert result == mock_task
+    
+    def test_validate_parent_task_invalid_state(self, create_sub_task_command):
+        """Test validation failure when parent task in invalid state."""
+        mock_repo = Mock()
+        mock_task = Mock()
+        mock_task.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:closed"  # Invalid state for sub-task creation
+        mock_task.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_task
+        
+        with pytest.raises(ValueError, match="Cannot create sub-task under task #456: task is in 'closed' state"):
+            create_sub_task_command._validate_parent_task(mock_repo, 456)
 
 
 class TestWorkflowCommandIntegration:

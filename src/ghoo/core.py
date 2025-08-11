@@ -2973,7 +2973,16 @@ class CreateTaskCommand(BaseCreateCommand):
         return result
     
     def _validate_parent_epic(self, github_repo, parent_epic: int):
-        """Validate that the parent epic exists and is appropriate for task creation.
+        """Validate that the parent epic exists and is in the correct workflow state for task creation.
+        
+        This method enforces the workflow rule that tasks can only be created under epics
+        that are actively being planned or worked on. This ensures that tasks are only
+        added to epics that have been thought through and approved for work.
+        
+        Workflow state requirements:
+        - Epic must be in 'planning' or 'in-progress' state
+        - Epic cannot be in 'backlog' (not yet started)  
+        - Epic cannot be 'closed' (already completed)
         
         Args:
             github_repo: PyGithub repository object
@@ -2983,7 +2992,8 @@ class CreateTaskCommand(BaseCreateCommand):
             PyGithub Issue object for the parent epic
             
         Raises:
-            ValueError: If parent epic is invalid
+            ValueError: If parent epic is invalid or in wrong workflow state,
+                       with actionable guidance on how to fix the issue
         """
         try:
             parent_issue = github_repo.get_issue(parent_epic)
@@ -2995,6 +3005,16 @@ class CreateTaskCommand(BaseCreateCommand):
             # Check if the issue is closed
             if parent_issue.state.lower() == 'closed':
                 raise ValueError(f"Cannot create task under closed epic #{parent_epic}")
+            
+            # Check workflow state - tasks can only be created under epics in planning or in-progress state
+            current_status = self._get_parent_workflow_state(parent_issue)
+            allowed_states = ['planning', 'in-progress']
+            if current_status not in allowed_states:
+                raise ValueError(
+                    f"Cannot create task under epic #{parent_epic}: epic is in '{current_status}' state.\n"
+                    f"Tasks can only be created under epics that are in {' or '.join(allowed_states)} state.\n"
+                    f"Use 'ghoo start-plan epic --id {parent_epic}' to begin planning the epic first."
+                )
             
             # Check if it's actually an epic (has type:epic label or epic issue type)
             epic_labels = [label.name.lower() for label in parent_issue.labels]
@@ -3010,6 +3030,23 @@ class CreateTaskCommand(BaseCreateCommand):
                 raise ValueError(f"Parent epic #{parent_epic} not found")
             else:
                 raise ValueError(f"Error accessing parent epic #{parent_epic}: {str(e)}")
+    
+    def _get_parent_workflow_state(self, issue) -> str:
+        """Get the workflow state of a parent issue.
+        
+        Args:
+            issue: GitHub issue object
+            
+        Returns:
+            Current workflow state (without 'status:' prefix)
+        """
+        # Look for status labels
+        for label in issue.labels:
+            if label.name.startswith('status:'):
+                return label.name[7:]  # Remove 'status:' prefix
+        
+        # Default to 'backlog' if no status label found
+        return 'backlog'
     
     def _generate_task_body(self, parent_epic: int) -> str:
         """Generate task body using the template.
@@ -3314,7 +3351,16 @@ class CreateSubTaskCommand(BaseCreateCommand):
         return result
     
     def _validate_parent_task(self, github_repo, parent_task: int):
-        """Validate that the parent task exists and is in a valid state.
+        """Validate that the parent task exists and is in the correct workflow state for sub-task creation.
+        
+        This method enforces the workflow rule that sub-tasks can only be created under tasks
+        that are actively being planned or worked on. This ensures sub-tasks are only added
+        to tasks that have clear direction and scope.
+        
+        Workflow state requirements:
+        - Task must be in 'planning' or 'in-progress' state
+        - Task cannot be in 'backlog' (planning hasn't started)
+        - Task cannot be 'closed' (work already completed)
         
         Args:
             github_repo: PyGithub repository object
@@ -3324,7 +3370,8 @@ class CreateSubTaskCommand(BaseCreateCommand):
             Issue object for the parent task
             
         Raises:
-            ValueError: If parent task validation fails
+            ValueError: If parent task is invalid or in wrong workflow state,
+                       with actionable guidance on how to fix the issue
         """
         try:
             parent_issue = github_repo.get_issue(parent_task)
@@ -3335,6 +3382,16 @@ class CreateSubTaskCommand(BaseCreateCommand):
         if parent_issue.state == 'closed':
             raise ValueError(f"Cannot create sub-task for closed parent task #{parent_task}")
         
+        # Check workflow state - sub-tasks can only be created under tasks in planning or in-progress state
+        current_status = self._get_parent_workflow_state(parent_issue)
+        allowed_states = ['planning', 'in-progress']
+        if current_status not in allowed_states:
+            raise ValueError(
+                f"Cannot create sub-task under task #{parent_task}: task is in '{current_status}' state.\n"
+                f"Sub-tasks can only be created under tasks that are in {' or '.join(allowed_states)} state.\n"
+                f"Use 'ghoo start-plan task --id {parent_task}' to begin planning the task first."
+            )
+        
         # Validate parent is actually a task (has type:task label or is GraphQL task type)
         task_labels = [label.name for label in parent_issue.labels]
         if 'type:task' not in task_labels:
@@ -3343,6 +3400,23 @@ class CreateSubTaskCommand(BaseCreateCommand):
             pass
         
         return parent_issue
+    
+    def _get_parent_workflow_state(self, issue) -> str:
+        """Get the workflow state of a parent issue.
+        
+        Args:
+            issue: GitHub issue object
+            
+        Returns:
+            Current workflow state (without 'status:' prefix)
+        """
+        # Look for status labels
+        for label in issue.labels:
+            if label.name.startswith('status:'):
+                return label.name[7:]  # Remove 'status:' prefix
+        
+        # Default to 'backlog' if no status label found
+        return 'backlog'
     
     def _generate_sub_task_body(self, parent_task: int) -> str:
         """Generate the default body template for sub-task issues.
@@ -4341,12 +4415,183 @@ class ApproveWorkCommand(BaseWorkflowCommand):
                 todos_str = "\n  - " + "\n  - ".join(unchecked_todos[:5])  # Show first 5
                 if len(unchecked_todos) > 5:
                     todos_str += f"\n  - ... and {len(unchecked_todos) - 5} more"
-                raise ValueError(f"Cannot approve work: issue has unchecked todos:{todos_str}")
+                raise ValueError(
+                    f"Cannot approve work: issue has unchecked todos that must be completed first:{todos_str}\n\n"
+                    f"Use 'ghoo check-todo --issue-id {issue.number} --section <section> --match <text>' to mark todos as completed."
+                )
         
-        # Check for open sub-issues (this would require GitHub API calls to check sub-issues)
-        # For now, we'll implement a basic check by looking for sub-issue references in the body
-        # A more comprehensive implementation would use the GraphQL sub-issues feature
+        # Check for open sub-issues
+        self._validate_open_sub_issues(issue)
     
+    def _validate_open_sub_issues(self, issue) -> None:
+        """Validate that there are no open sub-issues blocking closure.
+        
+        This method implements the core workflow rule that prevents closing issues
+        while they still have open sub-issues. It uses a dual-strategy approach:
+        
+        1. **Primary**: GraphQL sub-issues API for accurate sub-issue detection
+        2. **Fallback**: Body parsing for issue references when GraphQL unavailable
+        
+        The validation prevents approval of issues that have dependencies,
+        ensuring proper workflow completion order.
+        
+        Args:
+            issue: GitHub issue object to validate
+            
+        Raises:
+            ValueError: If there are open sub-issues that block closure,
+                       with detailed information about which issues are blocking
+        """
+        try:
+            # Try GraphQL approach first for better performance and accuracy
+            repo_owner, repo_name = issue.repository.full_name.split('/')
+            sub_issues_data = self.github.graphql_client.get_issue_with_sub_issues(
+                repo_owner, repo_name, issue.number
+            )
+            
+            if sub_issues_data and 'subIssues' in sub_issues_data:
+                # Extract only open sub-issues with optimized list comprehension
+                open_sub_issues = [
+                    f"#{sub_issue['number']}: {sub_issue['title'][:50]}{'...' if len(sub_issue['title']) > 50 else ''}"
+                    for sub_issue in sub_issues_data['subIssues']['nodes']
+                    if sub_issue.get('state') == 'OPEN'
+                ]
+                
+                if open_sub_issues:
+                    sub_issues_str = "\n  - " + "\n  - ".join(open_sub_issues[:5])  # Show first 5
+                    if len(open_sub_issues) > 5:
+                        sub_issues_str += f"\n  - ... and {len(open_sub_issues) - 5} more"
+                    raise ValueError(
+                        f"Cannot approve work: issue has open sub-issues that must be completed first:{sub_issues_str}\n\n"
+                        f"Please complete or close these sub-issues before approving this work."
+                    )
+                return
+                
+        except ValueError:
+            # Re-raise validation errors
+            raise
+        except Exception:
+            # GraphQL failed, fall back to body parsing
+            pass
+        
+        # Fallback: Parse issue body for sub-issue references
+        self._validate_sub_issues_from_body_parsing(issue)
+    
+    def _validate_sub_issues_from_body_parsing(self, issue) -> None:
+        """Validate sub-issues using fallback body parsing method.
+        
+        This method provides a fallback when GraphQL sub-issues API is unavailable.
+        It includes performance optimizations and edge case handling:
+        
+        - Batched API calls when possible
+        - Timeout protection for large issue sets
+        - Cross-repository reference detection
+        - Circular reference prevention
+        - Deleted/inaccessible issue handling
+        
+        Args:
+            issue: GitHub issue object to validate
+            
+        Raises:
+            ValueError: If open sub-issues are found that block closure
+        """
+        import re
+        import time
+        from typing import Set
+        
+        # Enhanced regex to capture both same-repo (#123) and cross-repo (owner/repo#123) references
+        issue_ref_pattern = re.compile(r'(?:([a-zA-Z0-9\-_.]+/[a-zA-Z0-9\-_.]+))?#(\d+)')
+        matches = issue_ref_pattern.findall(issue.body or '')
+        
+        if not matches:
+            return
+        
+        # Organize references by repository to minimize API calls
+        repo_refs = {}
+        current_repo = issue.repository
+        current_repo_name = current_repo.full_name
+        
+        # Process references and group by repository
+        processed_refs: Set[str] = set()
+        for repo_part, issue_num in matches:
+            # Determine target repository
+            target_repo_name = repo_part if repo_part else current_repo_name
+            issue_number = int(issue_num)
+            
+            # Prevent circular references (issue referencing itself)
+            ref_key = f"{target_repo_name}#{issue_number}"
+            if ref_key == f"{current_repo_name}#{issue.number}":
+                continue  # Skip self-reference
+                
+            if ref_key in processed_refs:
+                continue  # Skip duplicates
+            processed_refs.add(ref_key)
+            
+            if target_repo_name not in repo_refs:
+                repo_refs[target_repo_name] = []
+            repo_refs[target_repo_name].append(issue_number)
+        
+        # Process each repository's references
+        open_sub_issues = []
+        max_references = 50  # Limit to prevent excessive API calls
+        processed_count = 0
+        start_time = time.time()
+        timeout_seconds = 30
+        
+        for repo_name, issue_numbers in repo_refs.items():
+            # Check timeout
+            if time.time() - start_time > timeout_seconds:
+                # If we've hit timeout, add a warning message and break
+                if processed_count < len(processed_refs):
+                    open_sub_issues.append("... timeout checking remaining references")
+                break
+            
+            try:
+                # Get repository object
+                if repo_name == current_repo_name:
+                    target_repo = current_repo
+                else:
+                    # Cross-repository reference - try to access it
+                    target_repo = self.github.github.get_repo(repo_name)
+                
+                # Check each issue in this repository
+                for issue_num in issue_numbers[:max_references - processed_count]:
+                    if processed_count >= max_references:
+                        open_sub_issues.append(f"... and more (limited to {max_references} references)")
+                        break
+                    
+                    try:
+                        ref_issue = target_repo.get_issue(issue_num)
+                        if ref_issue.state == 'open':
+                            if repo_name == current_repo_name:
+                                open_sub_issues.append(f"#{issue_num}: {ref_issue.title}")
+                            else:
+                                open_sub_issues.append(f"{repo_name}#{issue_num}: {ref_issue.title}")
+                        processed_count += 1
+                        
+                    except Exception:
+                        # Issue might not exist, be private, or be deleted - skip it
+                        processed_count += 1
+                        continue
+                        
+            except Exception:
+                # Repository might not exist or be accessible - skip all issues in this repo
+                processed_count += len(issue_numbers)
+                continue
+            
+            if processed_count >= max_references:
+                break
+        
+        # Raise error if we found any open sub-issues
+        if open_sub_issues:
+            sub_issues_str = "\n  - " + "\n  - ".join(open_sub_issues[:5])  # Show first 5
+            if len(open_sub_issues) > 5:
+                sub_issues_str += f"\n  - ... and {len(open_sub_issues) - 5} more"
+            raise ValueError(
+                f"Cannot approve work: issue has open sub-issues that must be completed first:{sub_issues_str}\n\n"
+                f"Please complete or close these sub-issues before approving this work."
+            )
+
     def execute_transition(self, repo: str, issue_number: int, message: Optional[str] = None) -> Dict[str, Any]:
         """Execute the workflow state transition and close the issue.
         
