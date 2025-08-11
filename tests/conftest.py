@@ -58,7 +58,7 @@ def cli_runner():
             else:
                 # Use python directly with main module
                 import sys
-                cmd = [sys.executable, '/home/justyn/ghoo/src/ghoo/main.py'] + args
+                cmd = [sys.executable, '-m', 'ghoo.main'] + args
             
             result = subprocess.run(
                 cmd,

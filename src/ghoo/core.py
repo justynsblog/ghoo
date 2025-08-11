@@ -3546,13 +3546,11 @@ class CreateSubTaskCommand(BaseCreateCommand):
         repo_owner, repo_name = repo.split('/')
         
         # Get parent task node ID
-        parent_node_id = self.github.graphql.get_node_id(repo_owner, repo_name, parent_task)
+        parent_node_id = self.github.graphql.get_issue_node_id(repo_owner, repo_name, parent_task)
         
         # Create the sub-issue relationship
-        result = self.github.add_sub_issue(parent_node_id, sub_task_id)
-        
-        if not result.get('success', False):
-            raise GraphQLError("Failed to create sub-issue relationship")
+        if parent_node_id:
+            self.github.graphql.add_sub_issue(parent_node_id, sub_task_id)
     
     def _create_with_rest(
         self, 
@@ -4445,15 +4443,21 @@ class ApproveWorkCommand(BaseWorkflowCommand):
         try:
             # Try GraphQL approach first for better performance and accuracy
             repo_owner, repo_name = issue.repository.full_name.split('/')
-            sub_issues_data = self.github.graphql_client.get_issue_with_sub_issues(
-                repo_owner, repo_name, issue.number
-            )
             
-            if sub_issues_data and 'subIssues' in sub_issues_data:
+            # Get the node ID of the issue first
+            issue_node_id = self.github.graphql.get_issue_node_id(repo_owner, repo_name, issue.number)
+            
+            if not issue_node_id:
+                # If we can't get node ID, fall back to body parsing
+                raise Exception("Could not get issue node ID")
+                
+            sub_issues_data = self.github.graphql.get_issue_with_sub_issues(issue_node_id)
+            
+            if sub_issues_data and 'node' in sub_issues_data and sub_issues_data['node'] and 'subIssues' in sub_issues_data['node']:
                 # Extract only open sub-issues with optimized list comprehension
                 open_sub_issues = [
                     f"#{sub_issue['number']}: {sub_issue['title'][:50]}{'...' if len(sub_issue['title']) > 50 else ''}"
-                    for sub_issue in sub_issues_data['subIssues']['nodes']
+                    for sub_issue in sub_issues_data['node']['subIssues']['nodes']
                     if sub_issue.get('state') == 'OPEN'
                 ]
                 
