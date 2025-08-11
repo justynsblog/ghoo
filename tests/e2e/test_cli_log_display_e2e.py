@@ -2,6 +2,7 @@
 
 import pytest
 import subprocess
+import sys
 import tempfile
 import os
 from pathlib import Path
@@ -62,7 +63,7 @@ required_sections:
         try:
             # Step 1: Create a test epic with logging enabled
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'create-epic', repo, 
+                sys.executable, '-m', 'ghoo.main', 'create-epic', repo, 
                 'CLI Log Display Test Epic',
                 '--config', temp_config
             ], 
@@ -80,7 +81,7 @@ required_sections:
             # Step 2: Perform workflow transitions to generate log entries
             # Start planning
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'start-plan', repo, str(epic_number),
+                sys.executable, '-m', 'ghoo.main', 'start-plan', repo, str(epic_number),
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
@@ -91,7 +92,7 @@ required_sections:
             
             # Submit plan (this should fail due to missing sections, but still create a log entry)
             subprocess.run([
-                'python3', '-m', 'ghoo.main', 'submit-plan', repo, str(epic_number),
+                sys.executable, '-m', 'ghoo.main', 'submit-plan', repo, str(epic_number),
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
@@ -101,7 +102,7 @@ required_sections:
             
             # Step 3: Use get command to retrieve the issue and verify log display
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'get', repo, str(epic_number),
+                sys.executable, '-m', 'ghoo.main', 'get', repo, str(epic_number),
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
@@ -166,7 +167,7 @@ required_sections:
         try:
             # Create a simple epic and immediately test it without workflow transitions
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'create-epic', repo,
+                sys.executable, '-m', 'ghoo.main', 'create-epic', repo,
                 'Simple Epic Without Logs',
                 '--config', temp_config
             ],
@@ -183,7 +184,7 @@ required_sections:
             
             # Get the issue immediately (should have no log entries)
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'get', repo, str(epic_number),
+                sys.executable, '-m', 'ghoo.main', 'get', repo, str(epic_number),
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
@@ -234,7 +235,7 @@ required_sections:
         try:
             # Step 1: Create a task (easier to complete full workflow than epic)
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'create-epic', repo,
+                sys.executable, '-m', 'ghoo.main', 'create-epic', repo,
                 'Parent Epic for Workflow Test',
                 '--config', temp_config
             ],
@@ -250,7 +251,7 @@ required_sections:
             
             # Create a task under this epic
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'create-task', repo, str(epic_number),
+                sys.executable, '-m', 'ghoo.main', 'create-task', repo, str(epic_number),
                 'Extensive Workflow Test Task',
                 '--config', temp_config
             ],
@@ -273,7 +274,7 @@ required_sections:
             
             for cmd_name, expected_transition in workflow_commands:
                 result = subprocess.run([
-                    'python3', '-m', 'ghoo.main', cmd_name, repo, str(task_number),
+                    sys.executable, '-m', 'ghoo.main', cmd_name, repo, str(task_number),
                     '--config', temp_config
                 ],
                 cwd='/home/justyn/ghoo/src',
@@ -285,7 +286,7 @@ required_sections:
                 
             # Step 3: Get the task and verify log entries
             result = subprocess.run([
-                'python3', '-m', 'ghoo.main', 'get', repo, str(task_number),
+                sys.executable, '-m', 'ghoo.main', 'get', repo, str(task_number),
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',

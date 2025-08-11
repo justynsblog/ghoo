@@ -4,6 +4,7 @@ import pytest
 import subprocess
 import json
 import os
+import sys
 from pathlib import Path
 
 
@@ -23,7 +24,7 @@ class TestGetCommandIntegration:
     def test_get_command_help(self):
         """Test get command help output."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', '--help'
+            sys.executable, '-m', 'ghoo.main', 'get', '--help'
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -35,7 +36,7 @@ class TestGetCommandIntegration:
     def test_get_command_invalid_repo_format(self):
         """Test get command with invalid repository format."""
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', 'invalid-repo', '1'
+            sys.executable, '-m', 'ghoo.main', 'get', 'invalid-repo', '1'
         ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'dummy'})
         
         assert result.returncode == 1
@@ -49,7 +50,7 @@ class TestGetCommandIntegration:
         env.pop('TESTING_GITHUB_TOKEN', None)
         
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', 'owner/repo', '1'
+            sys.executable, '-m', 'ghoo.main', 'get', 'owner/repo', '1'
         ], capture_output=True, text=True, env=env)
         
         assert result.returncode == 1
@@ -65,7 +66,7 @@ class TestGetCommandIntegration:
         
         # Use a very high issue number that likely doesn't exist
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', repo_env['TESTING_REPO'], '999999'
+            sys.executable, '-m', 'ghoo.main', 'get', repo_env['TESTING_REPO'], '999999'
         ], capture_output=True, text=True, env=env)
         
         assert result.returncode == 1
@@ -84,7 +85,7 @@ class TestGetCommandIntegration:
         # This test assumes there's at least one issue in the test repo
         # We'll use issue #1 which commonly exists
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', repo_env['TESTING_REPO'], '1', 
+            sys.executable, '-m', 'ghoo.main', 'get', repo_env['TESTING_REPO'], '1', 
             '--format', 'json'
         ], capture_output=True, text=True, env=env)
         
@@ -127,7 +128,7 @@ class TestGetCommandIntegration:
         env['GITHUB_TOKEN'] = repo_env['GITHUB_TOKEN']
         
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', repo_env['TESTING_REPO'], '1'
+            sys.executable, '-m', 'ghoo.main', 'get', repo_env['TESTING_REPO'], '1'
         ], capture_output=True, text=True, env=env)
         
         if result.returncode != 0:
@@ -216,7 +217,7 @@ if __name__ == "__main__":
         """Test command line argument validation."""
         # Test missing arguments
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get'
+            sys.executable, '-m', 'ghoo.main', 'get'
         ], capture_output=True, text=True)
         
         assert result.returncode != 0
@@ -224,7 +225,7 @@ if __name__ == "__main__":
         
         # Test invalid issue number (non-integer)  
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', 'owner/repo', 'not-a-number'
+            sys.executable, '-m', 'ghoo.main', 'get', 'owner/repo', 'not-a-number'
         ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'dummy'})
         
         assert result.returncode != 0
@@ -234,7 +235,7 @@ if __name__ == "__main__":
         """Test format option accepts valid values."""
         # Test with invalid format
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', 'owner/repo', '1', 
+            sys.executable, '-m', 'ghoo.main', 'get', 'owner/repo', '1', 
             '--format', 'invalid'
         ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'dummy'})
         
@@ -246,7 +247,7 @@ if __name__ == "__main__":
         """Test error handling for GitHub API errors."""
         # Test with invalid token
         result = subprocess.run([
-            'python', '-m', 'ghoo.main', 'get', 'owner/repo', '1'
+            sys.executable, '-m', 'ghoo.main', 'get', 'owner/repo', '1'
         ], capture_output=True, text=True, env={'GITHUB_TOKEN': 'invalid-token'})
         
         assert result.returncode == 1

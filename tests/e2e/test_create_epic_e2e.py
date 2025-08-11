@@ -306,7 +306,7 @@ Tasks will be added here as sub-issues are created.
         
         # Create epic
         create_result = subprocess.run([
-            'python3', '-m', 'ghoo.main', 'create-epic',
+            sys.executable, '-m', 'ghoo.main', 'create-epic',
             github_env['repo'], epic_title
         ], capture_output=True, text=True, env=env, cwd='/home/justyn/ghoo/src')
         
