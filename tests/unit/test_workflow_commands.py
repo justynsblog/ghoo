@@ -467,14 +467,17 @@ class TestApproveWorkCommand(TestBaseWorkflowCommand):
     @patch('ghoo.core.IssueParser')
     def test_validate_open_sub_issues_with_graphql_failure(self, mock_parser_class, approve_work_command, mock_issue):
         """Test validation fails when sub-issues are open using GraphQL."""
-        # Mock GraphQL client
-        approve_work_command.github.graphql_client = Mock()
-        approve_work_command.github.graphql_client.get_issue_with_sub_issues.return_value = {
-            'subIssues': {
-                'nodes': [
-                    {'number': 124, 'title': 'Sub-task 1', 'state': 'OPEN'},
-                    {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
-                ]
+        # Mock GraphQL client properly - mock the actual methods called
+        approve_work_command.github.graphql = Mock()
+        approve_work_command.github.graphql.get_issue_node_id.return_value = "issue_node_id"
+        approve_work_command.github.graphql.get_issue_with_sub_issues.return_value = {
+            'node': {
+                'subIssues': {
+                    'nodes': [
+                        {'number': 124, 'title': 'Sub-task 1', 'state': 'OPEN'},
+                        {'number': 125, 'title': 'Sub-task 2', 'state': 'CLOSED'}
+                    ]
+                }
             }
         }
         

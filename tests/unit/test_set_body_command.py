@@ -123,7 +123,6 @@ class TestSetBodyCommand:
         # Setup mock to raise 404 error
         mock_repo = Mock()
         github_exception = GithubException(404, "Not Found", {})
-        github_exception.status = 404
         mock_repo.get_issue.side_effect = github_exception
         mock_github_client.github.get_repo.return_value = mock_repo
         
@@ -136,7 +135,6 @@ class TestSetBodyCommand:
         # Setup mock to raise 403 error
         mock_repo = Mock()
         github_exception = GithubException(403, "Forbidden", {})
-        github_exception.status = 403
         mock_repo.get_issue.side_effect = github_exception
         mock_github_client.github.get_repo.return_value = mock_repo
         
@@ -149,7 +147,6 @@ class TestSetBodyCommand:
         # Setup mock to raise 500 error
         mock_repo = Mock()
         github_exception = GithubException(500, "Internal Server Error", {})
-        github_exception.status = 500
         mock_repo.get_issue.side_effect = github_exception
         mock_github_client.github.get_repo.return_value = mock_repo
         

@@ -62,8 +62,10 @@ class TestCreateTaskCommand:
         issue.number = 123
         issue.title = "Parent Epic"
         issue.state = "open"
-        issue.labels = [Mock(name='type:epic')]
+        # Add both type and status labels - need status:planning or status:in-progress for task creation
+        issue.labels = [Mock(name='type:epic'), Mock(name='status:planning')]
         issue.labels[0].name = 'type:epic'
+        issue.labels[1].name = 'status:planning'
         return issue
     
     def test_execute_basic_task_creation(self, create_command, mock_created_task_data, mock_parent_issue):

@@ -4048,6 +4048,11 @@ class TodoCommand:
         if '/' not in repo or len(repo.split('/')) != 2:
             raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
         
+        # Check that both owner and repo parts are non-empty
+        parts = repo.split('/')
+        if not parts[0].strip() or not parts[1].strip():
+            raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+        
         # Get repository and issue
         github_repo = self.github.github.get_repo(repo)
         issue = github_repo.get_issue(issue_number)
@@ -5097,6 +5102,11 @@ class SetBodyCommand:
         try:
             # Validate repository format
             if '/' not in repo or len(repo.split('/')) != 2:
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Check that both owner and repo parts are non-empty
+            parts = repo.split('/')
+            if not parts[0].strip() or not parts[1].strip():
                 raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
             
             # Get repository and issue

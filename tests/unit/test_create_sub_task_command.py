@@ -63,8 +63,10 @@ class TestCreateSubTaskCommand:
         task.number = 124
         task.title = "Parent Task"
         task.state = "open"
-        task.labels = [Mock(name='type:task')]
+        # Add both type and status labels - need status:planning or status:in-progress for sub-task creation
+        task.labels = [Mock(name='type:task'), Mock(name='status:planning')]
         task.labels[0].name = 'type:task'
+        task.labels[1].name = 'status:planning'
         return task
 
     def test_get_issue_type(self, create_command):

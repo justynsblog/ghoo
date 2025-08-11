@@ -62,7 +62,6 @@ class TestSetBodyIntegration:
         """Test handling when repository is not found."""
         # Setup repository not found error
         github_exception = GithubException(404, "Not Found", {})
-        github_exception.status = 404
         mock_github_api['github'].get_repo.side_effect = github_exception
         
         # Initialize and execute command
@@ -78,7 +77,6 @@ class TestSetBodyIntegration:
         """Test handling when issue is not found."""
         # Setup issue not found error
         github_exception = GithubException(404, "Not Found", {})
-        github_exception.status = 404
         mock_github_api['repo'].get_issue.side_effect = github_exception
         
         # Initialize and execute command
@@ -94,7 +92,6 @@ class TestSetBodyIntegration:
         """Test handling when user lacks write permissions."""
         # Setup permission denied error
         github_exception = GithubException(403, "Forbidden", {})
-        github_exception.status = 403
         mock_github_api['repo'].get_issue.side_effect = github_exception
         
         # Initialize and execute command
@@ -194,7 +191,6 @@ Testing émojis: 🎉 🔧 ⚡ and other characters: ñáéíóú
         """Test handling of invalid token errors."""
         # Setup invalid token error
         github_exception = GithubException(401, "Bad credentials", {})
-        github_exception.status = 401
         mock_github_api['github'].get_repo.side_effect = github_exception
         
         # Initialize and execute command

@@ -9,9 +9,9 @@ from ghoo.models import Config
 from ghoo.exceptions import (
     InvalidGitHubURLError,
     GraphQLError,
-    FeatureUnavailableError,
-    GithubException
+    FeatureUnavailableError
 )
+from github import GithubException
 
 
 @pytest.fixture
@@ -216,13 +216,13 @@ class TestInitCommand:
         # Execute
         init_command._create_status_labels("test-owner", "test-repo")
         
-        # Verify label creation calls (6 status labels)
-        assert mock_repo.create_label.call_count == 6
+        # Verify label creation calls (7 status labels)
+        assert mock_repo.create_label.call_count == 7
         
         # Verify results
-        assert len(init_command.results['created']) == 6
+        assert len(init_command.results['created']) == 7
         assert "Status label 'status:backlog'" in init_command.results['created']
-        assert "Status label 'status:done'" in init_command.results['created']
+        assert "Status label 'status:closed'" in init_command.results['created']
     
     def test_create_status_labels_repository_access_error(self, init_command):
         """Test status label creation with repository access error."""
@@ -337,13 +337,13 @@ class TestInitCommandConstants:
     
     def test_status_labels_constant(self):
         """Test STATUS_LABELS constant has correct structure."""
-        assert len(InitCommand.STATUS_LABELS) == 6
+        assert len(InitCommand.STATUS_LABELS) == 7
         
         # Check specific labels
         labels_dict = dict(InitCommand.STATUS_LABELS)
         assert labels_dict['status:backlog'] == 'ededed'
         assert labels_dict['status:in-progress'] == '0052cc'
-        assert labels_dict['status:done'] == '0e8a16'
+        assert labels_dict['status:closed'] == '0e8a16'
     
     def test_type_labels_constant(self):
         """Test TYPE_LABELS constant has correct structure."""

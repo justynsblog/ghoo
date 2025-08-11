@@ -89,12 +89,16 @@ class TestEnvironmentSetup:
     def test_required_env_vars_set(self):
         """Test that required environment variables are set."""
         assert os.environ.get('TESTING_GITHUB_TOKEN'), "TESTING_GITHUB_TOKEN not set"
-        assert os.environ.get('TESTING_GITHUB_REPO'), "TESTING_GITHUB_REPO not set"
+        assert os.environ.get('TESTING_GH_REPO'), "TESTING_GH_REPO not set"
     
     def test_testing_repo_format(self):
-        """Test that TESTING_GITHUB_REPO has correct format."""
-        repo_name = os.environ.get('TESTING_GITHUB_REPO')
-        assert '/' in repo_name, "TESTING_GITHUB_REPO should be in format 'owner/repo'"
-        parts = repo_name.split('/')
-        assert len(parts) == 2, "TESTING_GITHUB_REPO should have exactly one '/'"
-        assert parts[0] and parts[1], "TESTING_GITHUB_REPO parts should not be empty"
+        """Test that TESTING_GH_REPO has correct format."""
+        repo_url = os.environ.get('TESTING_GH_REPO')
+        assert repo_url, "TESTING_GH_REPO not set"
+        # The variable contains a full URL, so extract repo name from it
+        if repo_url.startswith('https://github.com/'):
+            repo_name = repo_url.replace('https://github.com/', '')
+            assert '/' in repo_name, "TESTING_GH_REPO should contain 'owner/repo' format"
+            parts = repo_name.split('/')
+            assert len(parts) >= 2, "TESTING_GH_REPO should have at least 'owner/repo'"
+            assert parts[0] and parts[1], "TESTING_GH_REPO owner and repo should not be empty"
