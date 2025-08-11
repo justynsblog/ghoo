@@ -119,6 +119,7 @@ The tool will be configured via a `ghoo.yaml` file located in the root of the us
   - `required_sections`: (Optional) A mapping of issue types to a list of section titles that must exist in the issue's body before its plan can be submitted for approval.
     - If this field is omitted, `ghoo` will enforce a default set of required sections.
     - To disable required sections for a specific issue type, you can provide an empty list (e.g., `task: []`).
+  - `notifications`: (Optional) Configures how and when users are notified via GitHub issue comments.
 
 <details>
 <summary>Default Required Sections</summary>
@@ -155,6 +156,32 @@ required_sections:
     - "Implementation Plan"
   sub-task:
     - "Acceptance Criteria"
+
+# Optional: Configure user notifications via issue comments
+notifications:
+  # A list of GitHub usernames to tag on general questions
+  ask_recipients: ["@my-manager", "@tech-lead"]
+
+  # A cascading configuration for approvals.
+  # The tool resolves the correct approver list by checking the most specific
+  # entry first, then falling back to more general defaults.
+  approvers:
+    # Fallback for any approval if a more specific rule isn't found
+    default: ["@my-manager"]
+
+    # Override for all 'plan' approvals
+    plan: ["@planning-committee"]
+
+    # Overrides for 'task' issues
+    task:
+      # Default for both plan and completion approvals for tasks
+      default: ["@task-supervisor"]
+      # Specific override for task *completion* approval
+      completion: ["@qa-engineer", "@task-supervisor"]
+
+    # Example: No approval/notification needed for sub-task plans
+    sub-task:
+      plan: []
 ```
 
 ## Authentication
@@ -293,7 +320,7 @@ All Markdown output must be generated using the Jinja2 templating engine. This s
 
 ## Comments ({{ task.comments | length }})
 {% for comment in task.comments %}
-**{{ comment.author }}** on {{ comment.created_at }}:
+**{{ comment.author }}** on {{ comment.created_at }} (ID: `{{ comment.id }}`):
 > {{ comment.body }}
 {% endfor %}
 ```
@@ -412,7 +439,9 @@ Issues progress through these states:
 
 #### State Transitions
 
-All state transition commands create a structured, hierarchical entry in the `## Log` section of the issue body. The `--message` parameter populates the log entry.
+All state transition commands create a structured, hierarchical entry in the `## Log` section of the issue body. The `--message` parameter populates the log entry. If configured, these commands also create a GitHub comment to notify the relevant user(s).
+
+For automation purposes (e.g., a separate tool that listens for GitHub webhooks), all state transition commands that generate comments also accept a `--no-comment` flag. When this flag is present, the command will perform its primary action (changing the issue state and updating the log) but will suppress the creation of a GitHub comment.
 
 ```bash
 # Start planning (from backlog → planning)
@@ -421,14 +450,16 @@ ghoo start-plan task --id <number>
 ghoo start-plan sub-task --id <number>
 
 # Submit plan for approval (from planning → awaiting-plan-approval)
-ghoo submit-plan epic --id <number> --message "<what needs approval>"
-ghoo submit-plan task --id <number> --message "<what needs approval>"
-ghoo submit-plan sub-task --id <number> --message "<what needs approval>"
+# Creates a comment tagging the configured approver(s).
+ghoo submit-plan epic --id <number> --message "<what needs approval>" [--no-comment]
+ghoo submit-plan task --id <number> --message "<what needs approval>" [--no-comment]
+ghoo submit-plan sub-task --id <number> --message "<what needs approval>" [--no-comment]
 
 # Approve plan (from awaiting-plan-approval → plan-approved)
-ghoo approve-plan epic --id <number> [--message "<approval comment>"]
-ghoo approve-plan task --id <number> [--message "<approval comment>"]
-ghoo approve-plan sub-task --id <number> [--message "<approval comment>"]
+# Creates a comment tagging the user who submitted the plan.
+ghoo approve-plan epic --id <number> [--message "<approval comment>"] [--no-comment]
+ghoo approve-plan task --id <number> [--message "<approval comment>"] [--no-comment]
+ghoo approve-plan sub-task --id <number> [--message "<approval comment>"] [--no-comment]
 
 # Start implementation (from plan-approved → in progress)
 ghoo start-work epic --id <number>
@@ -436,14 +467,30 @@ ghoo start-work task --id <number>
 ghoo start-work sub-task --id <number>
 
 # Mark work complete and request approval (from in progress → awaiting-completion-approval)
-ghoo submit-work epic --id <number> --message "<completion summary>"
-ghoo submit-work task --id <number> --message "<completion summary>"
-ghoo submit-work sub-task --id <number> --message "<completion summary>"
+# Creates a comment tagging the configured approver(s).
+ghoo submit-work epic --id <number> --message "<completion summary>" [--no-comment]
+ghoo submit-work task --id <number> --message "<completion summary>" [--no-comment]
+ghoo submit-work sub-task --id <number> --message "<completion summary>" [--no-comment]
 
 # Approve completion (from awaiting-completion-approval → closed)
-ghoo approve-work epic --id <number> [--message "<approval comment>"]
-ghoo approve-work task --id <number> [--message "<approval comment>"]
-ghoo approve-work sub-task --id <number> [--message "<approval comment>"]
+# Creates a comment tagging the user who submitted the work.
+ghoo approve-work epic --id <number> [--message "<approval comment>"] [--no-comment]
+ghoo approve-work task --id <number> [--message "<approval comment>"] [--no-comment]
+ghoo approve-work sub-task --id <number> [--message "<approval comment>"] [--no-comment]
+```
+
+### Communication Commands
+
+These commands facilitate asking and answering questions via issue comments.
+
+```bash
+# Asks a question by creating a comment and tagging configured recipients.
+# Outputs the ID of the created comment.
+ghoo ask task --id <number> --message "<query for the user>"
+
+# Answers a question by creating a reply comment.
+# It uses the comment-id to find the original question's author and tags them.
+ghoo answer task --id <number> --comment-id <id> --message "<response to the query>"
 ```
 
 ### `todo` Management Commands
@@ -478,6 +525,27 @@ ghoo search "<query_string>"
 ```
 
 **Note:** This command is a placeholder for future development. The exact implementation, query syntax, and output format need to be designed.
+
+## User Notifications & Communication
+
+To facilitate communication between human users and automated agents, `ghoo` uses GitHub issue comments as a notification mechanism. This system is used for both approvals and ad-hoc questions.
+
+-   **Approvals**: The standard workflow commands (`submit-plan`, `approve-work`, etc.) can be configured to automatically create comments that tag the appropriate users, requesting their review or notifying them of a change.
+-   **Questions**: A simple `ask`/`answer` command pair allows for direct, asynchronous communication within the context of a specific issue.
+
+Crucially, these comments are for notification purposes only. The single source of truth for an issue's state and history remains the `## Log` section within the issue's body. To facilitate the `ghoo answer` command, the output templates for `ghoo get` will render the ID of each comment alongside its content.
+
+### Configuration
+
+User notification behavior is controlled by the `notifications` section in the `ghoo.yaml` file. This allows for project-specific routing of questions and approvals.
+
+-   `ask_recipients`: A list of GitHub usernames to notify for general questions submitted via the `ghoo ask` command.
+-   `approvers`: A flexible, cascading configuration that determines who is tagged for approval on `submit-plan` and `submit-work` commands. The logic resolves the correct user list by checking from most-specific to most-general:
+    1.  `issue_type.action` (e.g., `task.completion`)
+    2.  `issue_type.default` (e.g., `task.default`)
+    3.  `action` (e.g., `plan`)
+    4.  `default`
+-   An empty list (`[]`) can be used to explicitly disable notifications for a specific approval path.
 
 ## Error Handling
 
@@ -610,6 +678,8 @@ When changing states, the tool:
 
 To reduce notification spam and create a single source of truth, all automated state changes and messages are appended to a `## Log` section within the issue's main body. This provides a complete, chronological, and extensible audit trail without generating unnecessary notifications for issue subscribers.
 
+While the `## Log` is the formal record, notification comments are created separately to alert users when their input is required. The log remains the source of truth for an issue's state.
+
 #### The `## Log` Section
 
 - A section with the exact header `## Log` will be maintained at the end of the issue body.
@@ -656,23 +726,18 @@ The MVP will focus on delivering the core, end-to-end workflow. The goal is to m
 ### Post-MVP Scope (To be developed using `ghoo`)
 
 After the MVP is delivered, the following features will be built using `ghoo` to manage the development process:
+-   Support for comments/notifications as described
 -   All `list`, `rename`, and `delete` commands.
 -   The remaining `set`, `add`, and `remove` commands.
 -   `--json` output for all commands.
 -   Creation of items using the `--from-file` flag.
 -   Advanced, structured error reporting using templates.
+-   The user notification and communication system.
 -   All items listed in the "Future Improvements" section.
 
 ## Future Improvements
 
 This section outlines potential enhancements that could be implemented in future versions of ghoo. These features are not part of the initial implementation but represent valuable additions to consider as the tool matures.
-
-### Explicit User Notifications
-
-Design and implement a system for sending explicit notifications to users (e.g., via GitHub comments) when their input is required for actions like approvals or reviews. This work will involve:
--   Defining the trigger mechanism for such notifications (e.g., command-line flags, configuration settings).
--   Specifying how these notification events are recorded as sub-entries within the issue's `## Log` section to maintain a complete audit trail.
--   Ensuring that the content of the notification comment provides clear context, potentially by duplicating the relevant log entry message.
 
 ### Batch Operations
 
