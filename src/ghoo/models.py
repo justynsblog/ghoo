@@ -60,12 +60,14 @@ class LogEntry:
         author: Username of the person who triggered the transition
         message: Optional message describing the transition
         sub_entries: List of sub-entries for detailed logging
+        from_state: Optional workflow state being transitioned from (for validation/tracking)
     """
     to_state: str
     timestamp: datetime
     author: str
     message: Optional[str] = None
     sub_entries: List[LogSubEntry] = field(default_factory=list)
+    from_state: Optional[str] = None
     
     def to_markdown(self) -> str:
         """Convert this log entry to markdown format following SPEC.md format."""
@@ -247,10 +249,15 @@ class Config:
     """Configuration loaded from ghoo.yaml."""
     project_url: str
     status_method: str = "labels"  # or "status_field"
+    audit_method: str = "log_entries"  # or "comments"
     required_sections: Dict[str, List[str]] = field(default_factory=dict)
     
     def __post_init__(self):
-        """Set default required sections if not provided."""
+        """Set default required sections if not provided and validate configuration."""
+        # Validate audit_method
+        if self.audit_method not in ["log_entries", "comments"]:
+            raise ValueError(f"audit_method must be 'log_entries' or 'comments', got '{self.audit_method}'")
+        
         if not self.required_sections:
             self.required_sections = {
                 "epic": ["Summary", "Acceptance Criteria", "Milestone Plan"],

@@ -21,6 +21,7 @@ class TestBaseWorkflowCommand:
         mock_client = Mock(spec=GitHubClient)
         mock_github = Mock()
         mock_client.github = mock_github
+        mock_client.append_log_entry = Mock()
         return mock_client
     
     @pytest.fixture
@@ -28,6 +29,7 @@ class TestBaseWorkflowCommand:
         """Mock configuration for testing."""
         config = Mock(spec=Config)
         config.status_method = "labels"
+        config.audit_method = "log_entries"
         config.required_sections = {
             "epic": ["Summary", "Acceptance Criteria", "Milestone Plan"],
             "task": ["Summary", "Acceptance Criteria", "Implementation Plan"],
@@ -44,7 +46,6 @@ class TestBaseWorkflowCommand:
         mock_issue.state = "open"
         mock_issue.html_url = "https://github.com/owner/repo/issues/123"
         mock_issue.edit = Mock()
-        mock_issue.create_comment = Mock()
         
         # Mock labels
         mock_label = Mock()
@@ -136,12 +137,72 @@ class TestStartPlanCommand(TestBaseWorkflowCommand):
         # Verify issue was updated with new labels
         mock_issue.edit.assert_called_once_with(labels=["status:planning"])
         
-        # Verify audit comment was created
+        # Verify log entry was created
+        start_plan_command.github.append_log_entry.assert_called_once()
+        call_args = start_plan_command.github.append_log_entry.call_args
+        assert call_args[1]['repo'] == "owner/repo"
+        assert call_args[1]['issue_number'] == 123
+        assert call_args[1]['to_state'] == "planning"
+        assert call_args[1]['author'] == "testuser"
+        assert call_args[1]['message'] == "Starting planning phase"
+        assert call_args[1]['from_state'] == "backlog"
+
+    def test_execute_transition_log_entry_fallback_to_comment(self, start_plan_command, mock_repo, mock_issue, mock_user):
+        """Test fallback to comment when log entry creation fails."""
+        start_plan_command.github.github.get_repo.return_value = mock_repo
+        start_plan_command.github.github.get_user.return_value = mock_user
+        
+        # Mock log entry creation to fail
+        start_plan_command.github.append_log_entry.side_effect = Exception("API Error")
+        
+        # Add create_comment mock to issue for fallback
+        mock_issue.create_comment = Mock()
+        
+        with patch('builtins.print'):  # Suppress warning output
+            result = start_plan_command.execute_transition("owner/repo", 123, "Fallback test")
+        
+        # Verify log entry was attempted
+        start_plan_command.github.append_log_entry.assert_called_once()
+        
+        # Verify fallback comment was created
         mock_issue.create_comment.assert_called_once()
         comment_body = mock_issue.create_comment.call_args[0][0]
         assert "**Workflow Transition**: `backlog` → `planning`" in comment_body
         assert "**Changed by**: @testuser" in comment_body
-        assert "**Message**: Starting planning phase" in comment_body
+        assert "**Message**: Fallback test" in comment_body
+        
+        # Verify result still indicates success
+        assert result['success'] is True
+
+    def test_execute_transition_comments_when_configured(self, mock_github_client, mock_repo, mock_issue, mock_user):
+        """Test using comments directly when audit_method is configured to 'comments'."""
+        # Create config with comments as audit method
+        config = Mock(spec=Config)
+        config.status_method = "labels"
+        config.audit_method = "comments"
+        config.required_sections = {}
+        
+        command = StartPlanCommand(mock_github_client, config)
+        mock_github_client.github.get_repo.return_value = mock_repo
+        mock_github_client.github.get_user.return_value = mock_user
+        
+        # Add create_comment mock to issue
+        mock_issue.create_comment = Mock()
+        
+        result = command.execute_transition("owner/repo", 123, "Using comments")
+        
+        # Verify log entry was NOT attempted
+        mock_github_client.append_log_entry.assert_not_called()
+        
+        # Verify comment was created directly
+        mock_issue.create_comment.assert_called_once()
+        comment_body = mock_issue.create_comment.call_args[0][0]
+        assert "**Workflow Transition**: `backlog` → `planning`" in comment_body
+        assert "**Changed by**: @testuser" in comment_body
+        assert "**Message**: Using comments" in comment_body
+        
+        # Verify result indicates success
+        assert result['success'] is True
 
 
 class TestSubmitPlanCommand(TestBaseWorkflowCommand):
@@ -576,6 +637,7 @@ class TestWorkflowCommandIntegration:
         mock_client = Mock(spec=GitHubClient)
         mock_github = Mock()
         mock_client.github = mock_github
+        mock_client.append_log_entry = Mock()
         return mock_client
     
     def test_invalid_repository_format(self, mock_github_client):

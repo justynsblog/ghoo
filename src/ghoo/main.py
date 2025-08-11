@@ -31,6 +31,14 @@ app = typer.Typer(
 )
 
 
+def display_audit_trail_info(result: dict) -> None:
+    """Display audit trail information based on the result from workflow commands."""
+    if result.get('audit_method') == 'log_entries':
+        typer.echo(f"   📋 Audit trail: Log entry created in issue body", color=typer.colors.BLUE)
+    elif result.get('audit_method') == 'comments':
+        typer.echo(f"   💬 Audit trail: Comment created (configured method or fallback)", color=typer.colors.YELLOW)
+
+
 @app.command()
 def version():
     """Show the version of ghoo."""
@@ -782,6 +790,9 @@ def start_plan(
             typer.echo(f"   Message: {result['message']}")
         typer.echo(f"   URL: {result['url']}")
         
+        # Display audit trail information
+        display_audit_trail_info(result)
+        
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)
         sys.exit(1)
@@ -840,6 +851,9 @@ def submit_plan(
         if result['message']:
             typer.echo(f"   Message: {result['message']}")
         typer.echo(f"   URL: {result['url']}")
+        
+        # Display audit trail information
+        display_audit_trail_info(result)
         
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)
@@ -900,6 +914,9 @@ def approve_plan(
             typer.echo(f"   Message: {result['message']}")
         typer.echo(f"   URL: {result['url']}")
         
+        # Display audit trail information
+        display_audit_trail_info(result)
+        
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)
         sys.exit(1)
@@ -959,6 +976,9 @@ def start_work(
             typer.echo(f"   Message: {result['message']}")
         typer.echo(f"   URL: {result['url']}")
         
+        # Display audit trail information
+        display_audit_trail_info(result)
+        
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)
         sys.exit(1)
@@ -1017,6 +1037,9 @@ def submit_work(
         if result['message']:
             typer.echo(f"   Message: {result['message']}")
         typer.echo(f"   URL: {result['url']}")
+        
+        # Display audit trail information
+        display_audit_trail_info(result)
         
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)
@@ -1078,6 +1101,9 @@ def approve_work(
         if result.get('issue_closed'):
             typer.echo(f"   🔒 Issue has been closed")
         typer.echo(f"   URL: {result['url']}")
+        
+        # Display audit trail information
+        display_audit_trail_info(result)
         
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)

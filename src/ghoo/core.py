@@ -1541,7 +1541,8 @@ class GitHubClient:
         to_state: str,
         author: str,
         message: Optional[str] = None,
-        sub_entries: Optional[List] = None
+        sub_entries: Optional[List] = None,
+        from_state: Optional[str] = None
     ) -> None:
         """Append a new log entry to an issue's body.
         
@@ -1556,6 +1557,7 @@ class GitHubClient:
             author: Username of the person who triggered the transition
             message: Optional message describing the transition
             sub_entries: Optional list of LogSubEntry objects
+            from_state: Optional workflow state being transitioned from
             
         Raises:
             GithubException: If issue update fails
@@ -1575,7 +1577,8 @@ class GitHubClient:
             timestamp=datetime.now(timezone.utc),
             author=author,
             message=message,
-            sub_entries=sub_entries or []
+            sub_entries=sub_entries or [],
+            from_state=from_state
         )
         
         # Append to the log section
@@ -4333,20 +4336,35 @@ class BaseWorkflowCommand(ABC):
         # Create audit trail (log entry or comment based on configuration)
         user = self._get_authenticated_user()
         
-        # For now, always use log entries (can be made configurable later)
-        # TODO: Add configuration option to choose between log entries and comments
-        try:
-            self.github.append_log_entry(
-                repo=repo,
-                issue_number=issue_number,
-                to_state=self.get_to_state(),
-                author=user,
-                message=message
-            )
-        except Exception as e:
-            # Fallback to comment if log entry fails
-            print(f"Warning: Failed to append log entry, falling back to comment: {e}")
+        # Determine audit method from configuration (default to log_entries)
+        audit_method = "log_entries"
+        if self.config and hasattr(self.config, 'audit_method'):
+            audit_method = self.config.audit_method
+        
+        audit_success = False
+        actual_audit_method = audit_method  # Track what was actually used
+        if audit_method == "log_entries":
+            # Try log entry first
+            try:
+                self.github.append_log_entry(
+                    repo=repo,
+                    issue_number=issue_number,
+                    to_state=self.get_to_state(),
+                    author=user,
+                    message=message,
+                    from_state=old_status
+                )
+                audit_success = True
+            except Exception as e:
+                # Fallback to comment if log entry fails
+                print(f"Warning: Failed to append log entry, falling back to comment: {e}")
+                self._create_audit_comment(issue, old_status, self.get_to_state(), user, message)
+                actual_audit_method = "comments"  # Record that we fell back to comments
+                audit_success = True
+        else:
+            # Use comments directly when configured
             self._create_audit_comment(issue, old_status, self.get_to_state(), user, message)
+            audit_success = True
         
         return {
             'success': True,
@@ -4357,7 +4375,8 @@ class BaseWorkflowCommand(ABC):
             'to_state': self.get_to_state(),
             'user': user,
             'message': message,
-            'url': issue.html_url
+            'url': issue.html_url,
+            'audit_method': actual_audit_method
         }
     
     def _validate_repository_format(self, repo: str) -> None:

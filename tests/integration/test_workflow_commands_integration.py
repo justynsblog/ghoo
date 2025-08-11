@@ -40,7 +40,6 @@ class TestWorkflowCommandsIntegration:
             mock_issue.html_url = "https://github.com/test/repo/issues/123"
             mock_issue.body = "## Summary\nTest issue body\n\n## Acceptance Criteria\n- [ ] Task 1\n- [x] Task 2"
             mock_issue.edit = Mock()
-            mock_issue.create_comment = Mock()
             
             # Mock labels - start with backlog state
             mock_label = Mock()
@@ -61,6 +60,7 @@ class TestWorkflowCommandsIntegration:
         """Mock configuration for testing."""
         config = Mock(spec=Config)
         config.status_method = "labels"
+        config.audit_method = "log_entries"
         config.required_sections = {
             "epic": ["Summary", "Acceptance Criteria", "Milestone Plan"],
             "task": ["Summary", "Acceptance Criteria", "Implementation Plan"],
@@ -83,15 +83,23 @@ class TestWorkflowCommandsIntegration:
         mock_github_api['repo'].get_issue.assert_called_with(123)
         assert mock_github_api['github'].get_user.call_count >= 1
         
-        # Verify issue was updated with new status label
-        mock_github_api['issue'].edit.assert_called_with(labels=["status:planning"])
+        # Verify issue was updated (labels and body for log entry)
+        edit_calls = mock_github_api['issue'].edit.call_args_list
+        assert len(edit_calls) >= 2  # At least labels and body updates
         
-        # Verify audit comment was created
-        mock_github_api['issue'].create_comment.assert_called_once()
-        comment_body = mock_github_api['issue'].create_comment.call_args[0][0]
-        assert "**Workflow Transition**: `backlog` → `planning`" in comment_body
-        assert "**Changed by**: @test-user" in comment_body
-        assert "**Message**: Starting planning phase" in comment_body
+        # Check that labels were updated
+        labels_call = next((call for call in edit_calls if 'labels' in call[1]), None)
+        assert labels_call is not None
+        assert labels_call[1]['labels'] == ["status:planning"]
+        
+        # Check that body was updated with log entry
+        body_call = next((call for call in edit_calls if 'body' in call[1]), None)
+        assert body_call is not None
+        updated_body = body_call[1]['body']
+        assert "## Log" in updated_body
+        assert "→ planning" in updated_body
+        assert "@test-user" in updated_body
+        assert "Starting planning phase" in updated_body
         
         # Verify result structure
         assert result['success'] is True
@@ -366,8 +374,10 @@ class TestWorkflowCommandsIntegration:
         assert result6['to_state'] == "closed"
         assert result6['issue_closed'] is True
         
-        # Verify all transitions were recorded in comments
-        assert mock_github_api['issue'].create_comment.call_count == 6
+        # Verify all transitions were recorded as log entries (body updates)
+        edit_calls = mock_github_api['issue'].edit.call_args_list
+        body_updates = [call for call in edit_calls if 'body' in call[1]]
+        assert len(body_updates) == 6  # One body update per transition for log entries
 
 
 class TestWorkflowValidationIntegration:
@@ -398,7 +408,6 @@ class TestWorkflowValidationIntegration:
             mock_issue.html_url = "https://github.com/test/repo/issues/123"
             mock_issue.body = "## Summary\nTest issue body"
             mock_issue.edit = Mock()
-            mock_issue.create_comment = Mock()
             mock_issue.repository = mock_repo
             mock_issue.repository.full_name = "test/repo"
             
