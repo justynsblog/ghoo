@@ -1,0 +1,176 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+      fail-fast: false
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git
+        # Note: uv installation is handled in next step
+    
+    - name: Install uv (Python package manager)
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Verify uv installation
+      run: |
+        uv --version
+    
+    - name: Create virtual environment and install dependencies
+      run: |
+        uv venv .venv
+        source .venv/bin/activate
+        uv pip install -e ".[dev]"
+        # Fallback installation for missing dependencies
+        uv pip install pytest-httpx pydantic httpx python-dotenv
+    
+    - name: Verify installation
+      run: |
+        source .venv/bin/activate
+        python -c "import ghoo.main; print('✅ ghoo module imports successfully')"
+        python -m ghoo.main --version
+        python tests/dependency_manager.py --format json
+    
+    - name: Set up test environment variables
+      run: |
+        # Create .env file for tests (using GitHub secrets if available)
+        cat > .env << 'EOF'
+        TESTING_GITHUB_TOKEN=${{ secrets.TESTING_GITHUB_TOKEN || '' }}
+        TESTING_GH_REPO=${{ secrets.TESTING_GH_REPO || 'mock/test-repo' }}
+        FORCE_MOCK_MODE=${{ secrets.TESTING_GITHUB_TOKEN == '' && 'true' || 'false' }}
+        EOF
+        
+        # Show environment status (without revealing secrets)
+        echo "Environment configuration:"
+        echo "- Python version: $(python --version)"
+        echo "- Virtual environment: $(which python)"
+        echo "- GitHub token configured: ${{ secrets.TESTING_GITHUB_TOKEN != '' }}"
+        echo "- Test repo: ${{ secrets.TESTING_GH_REPO || 'mock/test-repo' }}"
+        echo "- Mock mode: ${{ secrets.TESTING_GITHUB_TOKEN == '' && 'true' || 'false' }}"
+    
+    - name: Run unit tests
+      run: |
+        source .venv/bin/activate
+        python -m pytest tests/unit/ -v --tb=short
+    
+    - name: Run integration tests
+      run: |
+        source .venv/bin/activate
+        python -m pytest tests/integration/ -v --tb=short
+    
+    - name: Run E2E tests
+      run: |
+        source .venv/bin/activate
+        # Set environment variables for subprocess calls
+        export PYTHONPATH="$PWD/src:$PYTHONPATH"
+        # Load environment variables for test execution
+        set -a && source .env && set +a
+        python -m pytest tests/e2e/ -v --tb=short
+    
+    - name: Generate test report
+      if: always()
+      run: |
+        source .venv/bin/activate
+        echo "## Test Environment Report" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        python tests/dependency_manager.py --verbose >> $GITHUB_STEP_SUMMARY || true
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        
+        # Show environment diagnostics
+        echo "## Environment Diagnostics" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "Python: $(python --version)" >> $GITHUB_STEP_SUMMARY
+        echo "uv: $(uv --version 2>/dev/null || echo 'not available')" >> $GITHUB_STEP_SUMMARY
+        echo "Virtual env: $(which python)" >> $GITHUB_STEP_SUMMARY
+        echo "PYTHONPATH: $PYTHONPATH" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-python${{ matrix.python-version }}
+        path: |
+          .env
+          pytest.log
+          tests/
+        retention-days: 7
+
+  # Separate job for testing without uv (pip fallback)
+  test-pip-fallback:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository  
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    
+    - name: Install with pip only (no uv)
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install -e ".[dev]"
+        # Install any missing dependencies
+        pip install pytest-httpx pydantic httpx python-dotenv
+    
+    - name: Verify pip-only installation
+      run: |
+        source .venv/bin/activate
+        python -c "import ghoo.main; print('✅ ghoo module imports successfully')"
+        python tests/dependency_manager.py
+    
+    - name: Run smoke tests with pip environment
+      run: |
+        source .venv/bin/activate
+        # Create minimal .env for testing
+        echo "FORCE_MOCK_MODE=true" > .env
+        export PYTHONPATH="$PWD/src:$PYTHONPATH"
+        set -a && source .env && set +a
+        python -m pytest tests/e2e/test_smoke.py -v
+
+  # Test environment setup script
+  test-setup-script:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    
+    - name: Test virtual environment setup script
+      run: |
+        python3 scripts/setup_test_env.py --quiet
+        # Verify the setup worked
+        source .venv/bin/activate
+        python tests/dependency_manager.py
+        python -c "import ghoo.main; print('Setup script worked correctly')"

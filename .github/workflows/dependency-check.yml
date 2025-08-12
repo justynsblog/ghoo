@@ -1,0 +1,72 @@
+name: Dependency Check
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC to check for dependency issues
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pyproject.toml'
+      - 'tests/dependency_manager.py'
+      - '.github/workflows/dependency-check.yml'
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install basic dependencies for audit
+      run: |
+        uv venv .venv
+        source .venv/bin/activate
+        # Install minimal dependencies needed for dependency manager
+        uv pip install importlib-metadata
+    
+    - name: Run comprehensive dependency check
+      run: |
+        source .venv/bin/activate
+        echo "## Dependency Status Report" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        python tests/dependency_manager.py --verbose >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Run dependency check in JSON format
+      run: |
+        source .venv/bin/activate
+        python tests/dependency_manager.py --format json > dependency-report.json
+    
+    - name: Upload dependency report
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-report
+        path: dependency-report.json
+        retention-days: 30
+    
+    - name: Check for security vulnerabilities (if available)
+      continue-on-error: true
+      run: |
+        source .venv/bin/activate
+        # Install safety if not already present  
+        pip install safety || true
+        safety check --json > security-report.json || echo "Security check not available"
+    
+    - name: Upload security report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-report
+        path: security-report.json
+        retention-days: 30

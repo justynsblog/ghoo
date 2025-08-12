@@ -12,9 +12,39 @@ from github.GithubException import GithubException
 # Import centralized environment management
 from tests.environment import get_test_environment
 
+# Import dependency management
+from tests.dependency_manager import check_dependencies, DependencyReporter
+
 
 @pytest.fixture(scope="session")
-def test_environment():
+def dependency_check():
+    """Check dependencies at session start and report issues."""
+    checker = check_dependencies()
+    missing_required = checker.get_missing_dependencies(include_optional=False)
+    
+    if missing_required:
+        reporter = DependencyReporter(checker)
+        report = reporter.generate_status_report()
+        
+        print("\n" + "="*60)
+        print("🚨 DEPENDENCY CHECK FAILED")
+        print("="*60)
+        print(report)
+        print("="*60)
+        
+        # Don't fail immediately - let tests run in mock mode if possible
+        # But warn about potential issues
+        missing_names = [dep.requirement.name for dep in missing_required]
+        pytest.warns(
+            UserWarning,
+            match=f"Missing required dependencies: {', '.join(missing_names)}. Some tests may fail or be skipped."
+        )
+    
+    return checker
+
+
+@pytest.fixture(scope="session")
+def test_environment(dependency_check):
     """Initialize test environment at session start."""
     return get_test_environment()
 
@@ -54,6 +84,14 @@ def cli_runner(test_environment):
         def __init__(self):
             # Use centralized environment management
             self.env = test_environment.get_github_client_env()
+            
+            # Ensure PYTHONPATH includes the source directory for subprocess calls
+            src_path = str(Path(__file__).parent.parent / "src")
+            existing_pythonpath = self.env.get('PYTHONPATH', '')
+            if existing_pythonpath:
+                self.env['PYTHONPATH'] = f"{src_path}:{existing_pythonpath}"
+            else:
+                self.env['PYTHONPATH'] = src_path
             
         def run(self, args: List[str], input: Optional[str] = None, 
                 cwd: Optional[str] = None, check: bool = False) -> subprocess.CompletedProcess:

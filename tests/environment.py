@@ -26,6 +26,69 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _parse_env_file(env_path: Path) -> Dict[str, str]:
+    """Manual .env file parser as fallback when python-dotenv is not available.
+    
+    Supports:
+    - KEY=value pairs
+    - Comments (lines starting with #)
+    - Empty lines
+    - Basic quote handling (single and double quotes)
+    - Variable expansion like ${VAR} (limited)
+    
+    Args:
+        env_path: Path to .env file
+        
+    Returns:
+        Dictionary of environment variables
+    """
+    env_vars = {}
+    
+    if not env_path.exists():
+        return env_vars
+    
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Look for KEY=VALUE pattern
+                if '=' not in line:
+                    logger.warning(f"Invalid line {line_num} in {env_path}: {line}")
+                    continue
+                
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Handle quotes
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]  # Remove double quotes
+                elif value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]  # Remove single quotes
+                
+                # Basic variable expansion (limited support)
+                if '${' in value:
+                    # Simple replacement for ${VAR} patterns
+                    import re
+                    def replace_var(match):
+                        var_name = match.group(1)
+                        return os.getenv(var_name, env_vars.get(var_name, ''))
+                    
+                    value = re.sub(r'\$\{([^}]+)\}', replace_var, value)
+                
+                env_vars[key] = value
+                
+    except Exception as e:
+        logger.error(f"Error parsing .env file {env_path}: {e}")
+    
+    return env_vars
+
+
 @dataclass
 class EnvironmentConfig:
     """Configuration for test environment setup."""
@@ -80,11 +143,18 @@ class TestEnvironment:
         
         # Try to load .env file
         env_path = self._find_env_file()
-        if env_path and load_dotenv:
-            load_dotenv(env_path)
-            logger.debug(f"Loaded environment from {env_path}")
-        elif not load_dotenv:
-            logger.warning("python-dotenv not available, skipping .env file loading")
+        if env_path:
+            if load_dotenv:
+                load_dotenv(env_path)
+                logger.debug(f"Loaded environment from {env_path} using python-dotenv")
+            else:
+                # Fallback to manual parsing
+                env_vars = _parse_env_file(env_path)
+                for key, value in env_vars.items():
+                    # Only set if not already in environment (don't override system env vars)
+                    if key not in os.environ:
+                        os.environ[key] = value
+                logger.debug(f"Loaded environment from {env_path} using manual parser (python-dotenv not available)")
         
         # Load configuration from environment variables
         self._load_config_from_env()

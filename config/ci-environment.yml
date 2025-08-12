@@ -1,0 +1,160 @@
+# CI/CD Environment Configuration for ghoo
+# This file defines environment setup for different CI/CD platforms
+
+# GitHub Actions configuration
+github_actions:
+  python_versions: ["3.10", "3.11", "3.12"]
+  runner_image: "ubuntu-latest"
+  
+  environment_variables:
+    # Required for tests
+    PYTHONPATH: "${{ github.workspace }}/src"
+    FORCE_MOCK_MODE: "true"  # Default to mock mode unless secrets available
+    
+    # Optional - set via repository secrets
+    TESTING_GITHUB_TOKEN: "${{ secrets.TESTING_GITHUB_TOKEN }}"
+    TESTING_GH_REPO: "${{ secrets.TESTING_GH_REPO }}"
+  
+  setup_steps:
+    1: "checkout"
+    2: "setup-python"
+    3: "install-uv"
+    4: "create-venv"
+    5: "install-dependencies"
+    6: "verify-installation"
+    7: "setup-environment"
+    8: "run-tests"
+  
+  dependencies:
+    system_packages:
+      - "git"
+      - "curl"
+    
+    python_packages:
+      required:
+        - "pytest>=8.4.1"
+        - "pytest-httpx>=0.35.0"
+        - "pydantic"
+        - "httpx"
+        - "PyGithub"
+        - "typer"
+        - "Jinja2"
+        - "requests"
+      
+      optional:
+        - "python-dotenv>=1.0.0"
+    
+    tools:
+      - name: "uv"
+        install_method: "curl"
+        install_command: "curl -LsSf https://astral.sh/uv/install.sh | sh"
+        fallback: "pip"
+
+# Generic CI configuration (for other platforms)
+generic_ci:
+  setup_commands:
+    - "python3 -m venv .venv"
+    - "source .venv/bin/activate"
+    - "pip install --upgrade pip"
+    - "pip install -e .[dev]"
+    - "python tests/dependency_manager.py --install"
+  
+  test_commands:
+    - "export PYTHONPATH=$PWD/src:$PYTHONPATH"
+    - "set -a && source .env && set +a"
+    - "python -m pytest tests/ -v"
+  
+  environment_setup:
+    - "echo 'FORCE_MOCK_MODE=true' > .env"
+    - "echo 'TESTING_GH_REPO=mock/test-repo' >> .env"
+
+# Local development environment
+local_development:
+  recommended_setup:
+    1: "python3 scripts/setup_test_env.py"
+    2: "source .venv/bin/activate"
+    3: "cp .env.example .env"
+    4: "# Edit .env with your GitHub token and test repo"
+    5: "python tests/dependency_manager.py"
+  
+  manual_setup:
+    1: "python3 -m venv .venv"
+    2: "source .venv/bin/activate"
+    3: "pip install -e .[dev]"
+    4: "python tests/dependency_manager.py --install"
+
+# Docker environment (future)
+docker:
+  base_image: "python:3.11-slim"
+  setup_commands:
+    - "apt-get update && apt-get install -y git curl"
+    - "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    - "export PATH=$HOME/.cargo/bin:$PATH"
+  
+  environment_variables:
+    PYTHONPATH: "/app/src"
+    FORCE_MOCK_MODE: "true"
+
+# Test matrix configurations
+test_matrices:
+  minimal:
+    # Minimal test configuration for quick feedback
+    python_versions: ["3.10"]
+    test_types: ["unit", "integration"]
+    environment: "mock"
+  
+  standard:
+    # Standard configuration for most use cases
+    python_versions: ["3.10", "3.11"]
+    test_types: ["unit", "integration", "e2e"]
+    environments: ["mock", "live"]
+  
+  comprehensive:
+    # Full test matrix for releases
+    python_versions: ["3.10", "3.11", "3.12"]
+    test_types: ["unit", "integration", "e2e"]
+    environments: ["mock", "live"]
+    additional_configs:
+      - "no-uv"  # Test pip fallback
+      - "no-dotenv"  # Test manual env parsing
+
+# Environment validation rules
+validation:
+  required_env_vars:
+    mock_mode:
+      - "FORCE_MOCK_MODE=true"
+    
+    live_mode:
+      - "TESTING_GITHUB_TOKEN"
+      - "TESTING_GH_REPO"
+  
+  required_python_packages:
+    - "pytest"
+    - "ghoo"
+  
+  optional_tools:
+    - "uv"
+    - "git"
+
+# Troubleshooting guides
+troubleshooting:
+  common_issues:
+    missing_dependencies:
+      description: "Required Python packages not found"
+      solution: "Run 'python tests/dependency_manager.py --install'"
+    
+    pythonpath_issues:
+      description: "Module import errors in subprocess calls"
+      solution: "Ensure PYTHONPATH includes src directory"
+    
+    environment_variables:
+      description: "Tests failing due to missing environment setup"
+      solution: "Use 'set -a && source .env && set +a' before running tests"
+    
+    uv_not_found:
+      description: "uv command not found"
+      solution: "Install uv or tests will fallback to pip automatically"
+    
+    token_authentication:
+      description: "GitHub API authentication failures"
+      solution: "Set TESTING_GITHUB_TOKEN in .env file or use FORCE_MOCK_MODE=true"
