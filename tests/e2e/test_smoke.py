@@ -1,26 +1,48 @@
-"""Basic smoke tests for ghoo CLI."""
+"""Basic smoke tests for ghoo CLI.
+
+This test module uses the new unified test execution patterns with:
+- Proper test categorization markers (@pytest.mark.e2e)
+- Unified CLI execution via fixtures
+- Standardized assertion helpers
+- Environment-aware test execution
+"""
 
 import os
 import pytest
-from tests.helpers.cli import assert_command_success, assert_command_error
-from tests.helpers.github import verify_issue_exists
+
+# Import from new unified test utilities
+from tests.test_utils import (
+    assert_command_success, 
+    assert_command_error,
+    assert_output_contains
+)
+
+# Import test mode decorators
+from tests.test_modes import both_modes, live_only
 
 
 @pytest.mark.e2e
+@pytest.mark.both_modes
 class TestSmoke:
-    """Basic smoke tests to verify test setup works."""
+    """Basic smoke tests to verify test setup works.
     
+    These tests verify basic CLI functionality and can run in both
+    live and mock modes since they don't require GitHub API access.
+    """
+    
+    @both_modes
     def test_ghoo_version(self, cli_runner):
         """Test that ghoo version command works."""
         result = cli_runner.run(['version'])
         assert_command_success(result)
-        assert 'ghoo' in result.stdout.lower()
+        assert_output_contains(result, 'ghoo')
     
+    @both_modes  
     def test_ghoo_help(self, cli_runner):
         """Test that ghoo --help works."""
         result = cli_runner.run(['--help'])
         assert_command_success(result)
-        assert 'Usage:' in result.stdout
+        assert_output_contains(result, 'Usage:')
     
     def test_auth_without_token(self, cli_runner):
         """Test that commands fail gracefully without auth token."""

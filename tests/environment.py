@@ -118,6 +118,19 @@ class EnvironmentConfig:
     def is_mock_mode(self) -> bool:
         """Determine if tests should run in mock mode."""
         return not self.is_live_mode()
+    
+    def get_credentials_source(self) -> Optional[str]:
+        """Get information about where credentials came from."""
+        if not self.github_token:
+            return None
+        
+        # Check different potential sources
+        if os.environ.get('TESTING_GITHUB_TOKEN'):
+            return 'TESTING_GITHUB_TOKEN environment variable'
+        elif os.environ.get('GITHUB_TOKEN'):
+            return 'GITHUB_TOKEN environment variable'
+        else:
+            return 'Unknown source'
 
 
 class TestEnvironment:

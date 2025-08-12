@@ -29,3 +29,25 @@ dev = [
     "pytest-httpx>=0.35.0",
     "python-dotenv>=1.0.0",
 ]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = "-v --tb=short"
+markers = [
+    "unit: Unit test",
+    "integration: Integration test", 
+    "e2e: End-to-end test",
+    "live_only: Test requires live GitHub API",
+    "mock_only: Test should only run in mock mode",
+    "both_modes: Test can run in both live and mock modes",
+    "slow: Slow test",
+    "fast: Fast test", 
+    "simple: Simple test",
+    "complex: Complex test",
+    "requires_network: Test requires network access",
+    "requires_credentials: Test requires credentials",
+]

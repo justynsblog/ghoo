@@ -1,19 +1,31 @@
 import os
-import subprocess
-import json
-import tempfile
-import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, List
 import pytest
-from github import Github, Repository
-from github.GithubException import GithubException
 
-# Import centralized environment management
+# Import centralized test infrastructure
 from tests.environment import get_test_environment
-
-# Import dependency management
 from tests.dependency_manager import check_dependencies, DependencyReporter
+
+# Import all shared fixtures from the fixtures package
+from tests.fixtures import (
+    # CLI fixtures
+    cli_runner,
+    subprocess_runner,
+    typer_runner,
+    mock_cli_runner,
+    
+    # GitHub fixtures
+    github_client,
+    test_repo,
+    mock_github_client,
+    mock_repository,
+    
+    # Mock fixtures
+    mock_environment,
+    mock_filesystem,
+    mock_subprocess,
+    mock_api_responses
+)
 
 
 @pytest.fixture(scope="session")
@@ -49,103 +61,15 @@ def test_environment(dependency_check):
     return get_test_environment()
 
 
-@pytest.fixture
-def github_client(test_environment):
-    """GitHub API client using centralized environment management."""
-    if test_environment.config.is_live_mode():
-        return Github(test_environment.config.github_token)
-    else:
-        # Return mock client instead of skipping
-        from tests.integration.test_utils import MockGitHubClient
-        return MockGitHubClient("mock_token")
-
+# GitHub and CLI fixtures are now imported from tests.fixtures
+# Keeping only session-scoped and special fixtures here
 
 @pytest.fixture
-def test_repo(github_client, test_environment):
-    """Get the test repository using centralized environment management."""
-    repo_info = test_environment.get_test_repo_info()
-    repo_name = repo_info["repo"]
-    
-    try:
-        return github_client.get_repo(repo_name)
-    except GithubException as e:
-        # For real clients, this is a legitimate failure
-        if hasattr(github_client, '_is_mock'):
-            # For mock clients, should always work
-            return github_client.get_repo(repo_name)  # Mock will handle it
-        else:
-            pytest.fail(f"Could not access test repository {repo_name}: {e}")
-
-
-@pytest.fixture
-def cli_runner(test_environment):
-    """Helper for running ghoo CLI commands."""
-    class CliRunner:
-        def __init__(self):
-            # Use centralized environment management
-            self.env = test_environment.get_github_client_env()
-            
-            # Ensure PYTHONPATH includes the source directory for subprocess calls
-            src_path = str(Path(__file__).parent.parent / "src")
-            existing_pythonpath = self.env.get('PYTHONPATH', '')
-            if existing_pythonpath:
-                self.env['PYTHONPATH'] = f"{src_path}:{existing_pythonpath}"
-            else:
-                self.env['PYTHONPATH'] = src_path
-            
-        def run(self, args: List[str], input: Optional[str] = None, 
-                cwd: Optional[str] = None, check: bool = False) -> subprocess.CompletedProcess:
-            """Run ghoo CLI command.
-            
-            Args:
-                args: Command arguments (e.g., ['init', '--help'])
-                input: Optional stdin input
-                cwd: Working directory for command
-                check: Whether to raise on non-zero exit code
-                
-            Returns:
-                CompletedProcess with stdout, stderr, and returncode
-            """
-            # Try to use uv if available, otherwise use python directly  
-            if shutil.which('uv'):
-                cmd = ['uv', 'run', 'ghoo'] + args
-            else:
-                # Use python directly with main module
-                import sys
-                cmd = [sys.executable, '-m', 'ghoo.main'] + args
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                input=input,
-                env=self.env,
-                cwd=cwd,
-                check=check
-            )
-            
-            # Add .output property for compatibility with tests
-            result.output = result.stdout
-            return result
-        
-        def invoke(self, args: List[str], input: Optional[str] = None, **kwargs) -> subprocess.CompletedProcess:
-            """Invoke CLI command (alias for run method for compatibility)."""
-            return self.run(args, input=input, **kwargs)
-            
-        def run_with_token(self, args: List[str], **kwargs) -> subprocess.CompletedProcess:
-            """Run ghoo CLI with GITHUB_TOKEN set from environment."""
-            # Token is already set by test_environment.get_github_client_env()
-            return self.run(args, **kwargs)
-    
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project_dir():
+def temp_project_dir(tmp_path):
     """Create a temporary directory for project testing."""
-    temp_dir = tempfile.mkdtemp(prefix="ghoo_test_")
-    yield Path(temp_dir)
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    return project_dir
 
 
 @pytest.fixture
