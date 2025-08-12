@@ -15,20 +15,15 @@ class TestCreationAndGetE2E:
     """Comprehensive E2E tests for full issue hierarchy creation and verification."""
     
     @pytest.fixture
-    def github_env(self):
-        """Setup GitHub testing environment."""
-        token = os.getenv('TESTING_GITHUB_TOKEN')
-        repo = os.getenv('TESTING_GH_REPO', '').replace('https://github.com/', '')
-        
-        if not repo:
-            pytest.skip("TESTING_GH_REPO not set - cannot run E2E tests")
+    def github_env(self, test_environment):
+        """Setup GitHub testing environment using centralized management."""
+        repo_info = test_environment.get_test_repo_info()
         
         return {
-            'token': token,
-            'repo': repo,
+            'token': repo_info['token'],
+            'repo': repo_info['repo'],
             'env': {
-                **os.environ,
-                'GITHUB_TOKEN': token or '',
+                **repo_info['env'],
                 'PATH': f"{os.path.expanduser('~/.local/bin')}:{os.environ.get('PATH', '')}"
             }
         }

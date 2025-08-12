@@ -9,22 +9,32 @@ import pytest
 from github import Github, Repository
 from github.GithubException import GithubException
 
+# Import centralized environment management
+from tests.environment import get_test_environment
+
+
+@pytest.fixture(scope="session")
+def test_environment():
+    """Initialize test environment at session start."""
+    return get_test_environment()
+
 
 @pytest.fixture
-def github_client():
-    """GitHub API client using TESTING_GITHUB_TOKEN or mock client."""
-    token = os.environ.get("TESTING_GITHUB_TOKEN")
-    if not token:
+def github_client(test_environment):
+    """GitHub API client using centralized environment management."""
+    if test_environment.config.is_live_mode():
+        return Github(test_environment.config.github_token)
+    else:
         # Return mock client instead of skipping
         from tests.integration.test_utils import MockGitHubClient
         return MockGitHubClient("mock_token")
-    return Github(token)
 
 
 @pytest.fixture
-def test_repo(github_client):
-    """Get the test repository using TESTING_GITHUB_REPO or default mock repo."""
-    repo_name = os.environ.get("TESTING_GH_REPO", "mock/test-repo")
+def test_repo(github_client, test_environment):
+    """Get the test repository using centralized environment management."""
+    repo_info = test_environment.get_test_repo_info()
+    repo_name = repo_info["repo"]
     
     try:
         return github_client.get_repo(repo_name)
@@ -38,14 +48,12 @@ def test_repo(github_client):
 
 
 @pytest.fixture
-def cli_runner():
+def cli_runner(test_environment):
     """Helper for running ghoo CLI commands."""
     class CliRunner:
         def __init__(self):
-            self.env = os.environ.copy()
-            # Map testing environment variables to CLI expected variables
-            if 'TESTING_GITHUB_TOKEN' in self.env:
-                self.env['GITHUB_TOKEN'] = self.env['TESTING_GITHUB_TOKEN']
+            # Use centralized environment management
+            self.env = test_environment.get_github_client_env()
             
         def run(self, args: List[str], input: Optional[str] = None, 
                 cwd: Optional[str] = None, check: bool = False) -> subprocess.CompletedProcess:
@@ -87,9 +95,8 @@ def cli_runner():
             return self.run(args, input=input, **kwargs)
             
         def run_with_token(self, args: List[str], **kwargs) -> subprocess.CompletedProcess:
-            """Run ghoo CLI with GITHUB_TOKEN set from TESTING_GITHUB_TOKEN or mock token."""
-            token = os.environ.get('TESTING_GITHUB_TOKEN', 'mock_token_for_cli_testing')
-            self.env['GITHUB_TOKEN'] = token
+            """Run ghoo CLI with GITHUB_TOKEN set from environment."""
+            # Token is already set by test_environment.get_github_client_env()
             return self.run(args, **kwargs)
     
     return CliRunner()
@@ -124,13 +131,32 @@ def github_test_issue_cleanup(test_repo):
 
 
 @pytest.fixture(autouse=True)
-def test_mode_reporter(request):
+def validate_environment(request, test_environment):
+    """Validate environment configuration with helpful diagnostics."""
+    # Check if test requires live credentials
+    markers = [mark.name for mark in request.node.iter_markers()]
+    require_live = 'require_live' in markers or 'live_only' in markers
+    
+    if require_live:
+        try:
+            test_environment.require_live_mode()
+        except EnvironmentError as e:
+            pytest.skip(f"Skipping test requiring live credentials: {e}")
+    
+    # Validate environment and show warnings if needed
+    errors = test_environment.validate_environment(require_credentials=require_live)
+    if errors and not require_live:
+        # Show warnings but don't fail
+        print(f"\n⚠️  Environment warnings (running in mock mode):")
+        for error in errors:
+            print(f"  • {error}")
+        print("  Tests will use mock data. Set up credentials for live testing.")
+
+
+@pytest.fixture(autouse=True)
+def test_mode_reporter(request, test_environment):
     """Report which mode tests are running in (live vs mock)."""
     markers = [mark.name for mark in request.node.iter_markers()]
     if 'e2e' in markers:
-        token = os.environ.get('TESTING_GITHUB_TOKEN')
-        repo = os.environ.get('TESTING_GH_REPO')
-        if token and repo:
-            print(f"\n[E2E TEST MODE: LIVE] Using real GitHub API with {repo}")
-        else:
-            print(f"\n[E2E TEST MODE: MOCK] Using mock infrastructure")
+        # Environment status is already logged by TestEnvironment.load_environment()
+        pass

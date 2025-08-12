@@ -12,6 +12,23 @@ class TestCliLogDisplayE2E:
     """E2E tests for CLI log display functionality."""
 
     @pytest.fixture
+    def github_env(self, test_environment):
+        """Setup GitHub testing environment using centralized management."""
+        repo_info = test_environment.get_test_repo_info()
+        
+        # For these CLI tests, we need live mode or they'll fail
+        if test_environment.config.is_mock_mode():
+            pytest.skip("CLI log display tests require live GitHub API access")
+        
+        return {
+            'token': repo_info['token'],
+            'repo': repo_info['repo'],
+            'env': {
+                **repo_info['env']
+            }
+        }
+
+    @pytest.fixture
     def temp_config(self):
         """Create a temporary configuration file for testing."""
         repo = os.getenv('TESTING_GH_REPO', 'owner/repo')
@@ -42,21 +59,9 @@ required_sections:
         # Cleanup
         os.unlink(temp_config_path)
 
-    def test_get_command_displays_workflow_logs_e2e(self, temp_config):
+    def test_get_command_displays_workflow_logs_e2e(self, temp_config, github_env):
         """Test that get command displays log entries created by workflow commands."""
-        # Use dual-mode approach: real GitHub API or mocks
-        testing_token = os.getenv('TESTING_GITHUB_TOKEN')
-        if not testing_token:
-            # Fall back to mock mode - skip subprocess tests for now
-            pytest.skip("CLI E2E tests require TESTING_GITHUB_TOKEN")
-        
-        repo = os.getenv('TESTING_GH_REPO')
-        if not repo:
-            pytest.skip("TESTING_GH_REPO not set")
-            
-        # Extract owner/repo from URL if needed
-        if repo.startswith('https://github.com/'):
-            repo = repo.replace('https://github.com/', '')
+        repo = github_env['repo']
         
         try:
             # Step 1: Create a test epic with logging enabled
