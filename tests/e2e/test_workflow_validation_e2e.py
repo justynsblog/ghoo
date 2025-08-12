@@ -26,12 +26,16 @@ class TestWorkflowValidationE2E:
     @pytest.fixture
     def setup_test_environment(self, temp_project_dir):
         """Set up test environment with live GitHub repository."""
-        # Skip if no testing credentials
+        # Use dual-mode approach: real GitHub API or mocks
         testing_token = os.getenv("TESTING_GITHUB_TOKEN")
         testing_repo = os.getenv("TESTING_GH_REPO")
         
         if not testing_token or not testing_repo:
-            pytest.skip("TESTING_GITHUB_TOKEN and TESTING_GH_REPO must be set for E2E tests")
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            self._mock_env = MockE2EEnvironment()
+            testing_token = "mock_token"
+            testing_repo = "mock/repo"
         
         # Set environment
         os.environ['GITHUB_TOKEN'] = testing_token

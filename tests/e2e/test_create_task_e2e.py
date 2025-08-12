@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+import shutil
 from pathlib import Path
 from datetime import datetime
 
@@ -20,7 +21,10 @@ class TestCreateTaskE2E:
         repo = os.getenv('TESTING_GH_REPO', '').replace('https://github.com/', '')
         
         if not repo:
-            pytest.skip("TESTING_GH_REPO not set - cannot run E2E tests")
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            self._mock_env = MockE2EEnvironment()
+            return "mock/repo"
         
         return {
             'token': token,
@@ -46,11 +50,15 @@ class TestCreateTaskE2E:
     
     def _create_parent_epic(self, github_env, epic_title):
         """Helper to create a parent epic for task testing."""
+        import shutil
+        
         # Create epic first
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title
-        ], capture_output=True, text=True, env=github_env['env'], timeout=30)
+        if shutil.which('uv'):
+            cmd = ['uv', 'run', 'ghoo', 'create-epic', github_env['repo'], epic_title]
+        else:
+            cmd = [sys.executable, '-m', 'ghoo.main', 'create-epic', github_env['repo'], epic_title]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, env=github_env['env'], timeout=30)
         
         if result.returncode != 0:
             pytest.fail(f"Failed to create parent epic: {result.stderr}")
@@ -61,22 +69,34 @@ class TestCreateTaskE2E:
         if not match:
             pytest.fail(f"Could not extract epic issue number from output: {result.stdout}")
         
-        return int(match.group(1))
+        epic_number = int(match.group(1))
+        
+        # Move epic to planning state so tasks can be created under it
+        if shutil.which('uv'):
+            plan_cmd = ['uv', 'run', 'ghoo', 'start-plan', github_env['repo'], str(epic_number)]
+        else:
+            plan_cmd = [sys.executable, '-m', 'ghoo.main', 'start-plan', github_env['repo'], str(epic_number)]
+            
+        plan_result = subprocess.run(plan_cmd, capture_output=True, text=True, env=github_env['env'], timeout=30)
+        
+        if plan_result.returncode != 0:
+            # Don't fail if start-plan fails - some epics might not need it
+            print(f"Warning: Could not move epic to planning state: {plan_result.stderr}")
+        
+        return epic_number
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_basic(self, github_env, unique_title, unique_epic_title):
         """Test creating a basic task issue linked to an epic."""
         # Create parent epic first
         parent_epic_number = self._create_parent_epic(github_env, unique_epic_title)
         
         # Create task
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-task',
-            github_env['repo'], str(parent_epic_number), unique_title
-        ], capture_output=True, text=True, env=github_env['env'], timeout=30)
+        if shutil.which('uv'):
+            cmd = ['uv', 'run', 'ghoo', 'create-task', github_env['repo'], str(parent_epic_number), unique_title]
+        else:
+            cmd = [sys.executable, '-m', 'ghoo.main', 'create-task', github_env['repo'], str(parent_epic_number), unique_title]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, env=github_env['env'], timeout=30)
         
         print(f"STDOUT: {result.stdout}")
         print(f"STDERR: {result.stderr}")
@@ -89,10 +109,6 @@ class TestCreateTaskE2E:
         assert "status:backlog" in result.stdout
         assert "https://github.com/" in result.stdout
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_with_labels(self, github_env, unique_title, unique_epic_title):
         """Test creating task with additional labels."""
         # Create parent epic first
@@ -115,10 +131,6 @@ class TestCreateTaskE2E:
         assert "status:backlog" in result.stdout
         assert "type:task" in result.stdout
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_with_custom_body(self, github_env, unique_title, unique_epic_title):
         """Test creating task with custom body content."""
         # Create parent epic first
@@ -152,10 +164,6 @@ Custom task for E2E testing.
         assert "Task created successfully!" in result.stdout
         assert unique_title in result.stdout
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_and_get_task(self, github_env, unique_title, unique_epic_title):
         """Test creating a task and then retrieving it with get command."""
         # Create parent epic first
@@ -189,10 +197,6 @@ Custom task for E2E testing.
         assert "task" in get_result.stdout.lower()
         assert f"#{parent_epic_number}" in get_result.stdout
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_nonexistent_parent_epic(self, github_env, unique_title):
         """Test creating task with non-existent parent epic."""
         # Use a very high issue number that likely doesn't exist
@@ -209,10 +213,6 @@ Custom task for E2E testing.
         assert result.returncode == 1
         assert "not found" in result.stderr.lower() or "404" in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_api_fallback_behavior(self, github_env, unique_title, unique_epic_title):
         """Test that task creation works with GraphQL -> REST API fallback."""
         # Create parent epic first
@@ -240,10 +240,6 @@ Custom task for E2E testing.
         ])
         assert has_type_indicator, "Task type not indicated in output"
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_invalid_repo(self, github_env, unique_title):
         """Test creating task in non-existent repository."""
         result = subprocess.run([
@@ -259,10 +255,6 @@ Custom task for E2E testing.
                 "404" in result.stderr or
                 "repository" in result.stderr.lower())
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_with_assignees(self, github_env, unique_title, unique_epic_title):
         """Test creating task with assignees (may fail if users don't exist, but should handle gracefully)."""
         # Create parent epic first
@@ -285,10 +277,6 @@ Custom task for E2E testing.
         assert "Task created successfully!" in result.stdout
         assert unique_title in result.stdout
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_task_includes_log_section(self, github_env, unique_title, unique_epic_title):
         """Test that created task includes Log section in body."""
         import time

@@ -20,7 +20,10 @@ class TestSetBodyE2E:
         repo = os.getenv('TESTING_GH_REPO', '').replace('https://github.com/', '')
         
         if not repo:
-            pytest.skip("TESTING_GH_REPO not set - cannot run E2E tests")
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            self._mock_env = MockE2EEnvironment()
+            return "mock/repo"
         
         return {
             'token': token,
@@ -116,10 +119,6 @@ class TestSetBodyE2E:
         # If the original body ended with a newline, preserve it
         return body
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_with_body_option(self, github_env, test_issue):
         """Test set-body command with --body option."""
         new_body = "Updated body content from E2E test"
@@ -142,10 +141,6 @@ class TestSetBodyE2E:
         # Normalize whitespace for comparison
         assert updated_body.strip() == new_body.strip()
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_with_body_file(self, github_env, test_issue, tmp_path):
         """Test set-body command with --body-file option."""
         # Create temporary file with body content
@@ -180,10 +175,6 @@ Testing file input for set-body command.
         # Normalize whitespace for comparison
         assert updated_body.strip() == new_body.strip()
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_empty_content(self, github_env, test_issue):
         """Test set-body command with empty body content."""
         # Update issue body with empty content
@@ -200,10 +191,6 @@ Testing file input for set-body command.
         updated_body = self._get_issue_body(github_env, test_issue['number'])
         assert updated_body == ""
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_markdown_content(self, github_env, test_issue):
         """Test set-body command with complex markdown content."""
         markdown_body = """# Complex Markdown Test
@@ -246,10 +233,6 @@ This content includes various markdown features to ensure proper handling.
         # Normalize whitespace for comparison
         assert updated_body.strip() == markdown_body.strip()
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_invalid_issue_number(self, github_env):
         """Test set-body command with non-existent issue number."""
         # Try to update non-existent issue
@@ -262,10 +245,6 @@ This content includes various markdown features to ensure proper handling.
         assert result.returncode != 0
         assert "not found" in result.stderr.lower() or "not found" in result.stdout.lower()
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_invalid_repo_format(self, github_env):
         """Test set-body command with invalid repository format."""
         invalid_repos = ["invalid", "owner", "owner/repo/extra"]
@@ -279,10 +258,6 @@ This content includes various markdown features to ensure proper handling.
             assert result.returncode != 0
             assert "Invalid repository format" in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_no_content_provided(self, github_env, test_issue):
         """Test set-body command with no body content provided via STDIN."""
         # In non-TTY environments (like tests), the command reads from STDIN
@@ -300,10 +275,6 @@ This content includes various markdown features to ensure proper handling.
         updated_body = self._get_issue_body(github_env, test_issue['number'])
         assert updated_body == ""
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_nonexistent_file(self, github_env, test_issue):
         """Test set-body command with non-existent body file."""
         # Try to update with non-existent file
@@ -316,10 +287,6 @@ This content includes various markdown features to ensure proper handling.
         assert result.returncode != 0
         assert "Body file not found" in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_set_body_preserves_other_properties(self, github_env, test_issue):
         """Test that set-body preserves other issue properties."""
         # Get original issue data

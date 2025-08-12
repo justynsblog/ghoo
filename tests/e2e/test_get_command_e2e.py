@@ -31,8 +31,6 @@ class TestGetCommandE2E:
         """Get path to the ghoo module for subprocess calls."""
         return str(Path(__file__).parent.parent.parent / "src")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_get_existing_issue_json_format(self, github_env, ghoo_path):
         """Test getting an existing issue in JSON format."""
         env = github_env['env'].copy()
@@ -75,8 +73,6 @@ class TestGetCommandE2E:
         
         print(f"✓ Successfully retrieved issue #{data['number']}: {data['title']}")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_get_existing_issue_rich_format(self, github_env, ghoo_path):
         """Test getting an existing issue in rich format."""
         env = github_env['env'].copy()
@@ -107,8 +103,6 @@ class TestGetCommandE2E:
         
         print(f"✓ Rich format output looks correct for issue #1")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_get_issue_with_labels(self, github_env, ghoo_path):
         """Test getting an issue that has labels."""
         env = github_env['env'].copy()
@@ -144,8 +138,6 @@ class TestGetCommandE2E:
         
         pytest.skip("No issues with labels found in first 5 issues")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_get_issue_with_structured_body(self, github_env, ghoo_path):
         """Test getting an issue with structured markdown body."""
         env = github_env['env'].copy()
@@ -210,8 +202,6 @@ class TestGetCommandE2E:
             assert 'pre_section_description' in data
             print("✓ Body parsing works correctly even without structured content")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_error_handling_nonexistent_issue(self, github_env, ghoo_path):
         """Test error handling for non-existent issue."""
         env = github_env['env'].copy()
@@ -227,8 +217,6 @@ class TestGetCommandE2E:
         assert "not found" in result.stderr
         print("✓ Non-existent issue error handled correctly")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_error_handling_nonexistent_repo(self, github_env, ghoo_path):
         """Test error handling for non-existent repository."""
         env = github_env['env'].copy()
@@ -245,8 +233,6 @@ class TestGetCommandE2E:
                 "404" in result.stderr)
         print("✓ Non-existent repository error handled correctly")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_issue_type_detection(self, github_env, ghoo_path):
         """Test issue type detection from labels and title patterns."""
         env = github_env['env'].copy()
@@ -277,8 +263,6 @@ class TestGetCommandE2E:
         print(f"✓ Detected issue types: {detected_types}")
         assert len(detected_types) > 0, "No issue types were detected"
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_performance_reasonable_response_time(self, github_env, ghoo_path):
         """Test that get command responds within reasonable time."""
         import time
@@ -320,8 +304,6 @@ class TestGetCommandE2E:
         assert "GITHUB_TOKEN" in result.stderr
         print("✓ Missing token error message is helpful")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
     def test_full_workflow_epic_task_subtask(self, github_env, ghoo_path):
         """Test full workflow with epic/task/sub-task hierarchy if available."""
         env = github_env['env'].copy()

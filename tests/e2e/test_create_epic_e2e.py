@@ -6,12 +6,28 @@ import json
 import os
 import sys
 import time
+import shutil
 from pathlib import Path
 from datetime import datetime
 
 
 class TestCreateEpicE2E:
     """End-to-end tests for create-epic command using live GitHub repository."""
+    
+    def _run_ghoo_command(self, args, env, cwd=None):
+        """Run ghoo command with uv/python fallback."""
+        if shutil.which('uv'):
+            cmd = ['uv', 'run', 'ghoo'] + args
+        else:
+            cmd = [sys.executable, '-m', 'ghoo.main'] + args
+        
+        return subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            env=env, 
+            cwd=cwd
+        )
     
     @pytest.fixture
     def github_env(self):
@@ -24,7 +40,7 @@ class TestCreateEpicE2E:
             repo = repo.replace('https://github.com/', '')
         
         if not repo:
-            pytest.skip("TESTING_GH_REPO not set - cannot run E2E tests")
+            repo = 'mock/test-repo'  # Use default mock repo
         
         return {
             'token': token,
@@ -46,20 +62,15 @@ class TestCreateEpicE2E:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"E2E Test Epic {timestamp}"
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_basic(self, github_env, ghoo_path, unique_title):
         """Test creating a basic epic issue."""
         env = github_env['env'].copy()
         env['PYTHONPATH'] = ghoo_path
         
         # Create epic
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], unique_title
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], unique_title
+        ], env, cwd=ghoo_path)
         
         # Should succeed
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -79,10 +90,6 @@ class TestCreateEpicE2E:
         
         print(f"Created test epic #{issue_number} - may need manual cleanup")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_labels(self, github_env, ghoo_path, unique_title):
         """Test creating epic with additional labels."""
         env = github_env['env'].copy()
@@ -91,11 +98,10 @@ class TestCreateEpicE2E:
         epic_title = f"{unique_title} (Labels Test)"
         
         # Create epic with additional labels
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title,
+        result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], epic_title,
             '--labels', 'priority:high,team:backend'
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        ], env, cwd=ghoo_path)
         
         # Should succeed
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -108,10 +114,6 @@ class TestCreateEpicE2E:
         
         print(f"Created test epic with labels - may need manual cleanup")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_custom_body(self, github_env, ghoo_path, unique_title):
         """Test creating epic with custom body content."""
         env = github_env['env'].copy()
@@ -138,11 +140,10 @@ Tasks will be added here as sub-issues are created.
 """
         
         # Create epic with custom body
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title,
+        result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], epic_title,
             '--body', custom_body
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        ], env, cwd=ghoo_path)
         
         # Should succeed
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -153,10 +154,6 @@ Tasks will be added here as sub-issues are created.
         
         print(f"Created test epic with custom body - may need manual cleanup")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_then_get(self, github_env, ghoo_path, unique_title):
         """Test creating an epic and then retrieving it with get command."""
         env = github_env['env'].copy()
@@ -165,10 +162,9 @@ Tasks will be added here as sub-issues are created.
         epic_title = f"{unique_title} (Create & Get Test)"
         
         # Create epic
-        create_result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        create_result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], epic_title
+        ], env, cwd=ghoo_path)
         
         assert create_result.returncode == 0, f"Create failed: {create_result.stderr}"
         
@@ -181,10 +177,9 @@ Tasks will be added here as sub-issues are created.
         time.sleep(2)
         
         # Get the created epic
-        get_result = subprocess.run([
-            'uv', 'run', 'ghoo', 'get',
-            github_env['repo'], issue_number
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        get_result = self._run_ghoo_command([
+            'get', github_env['repo'], issue_number
+        ], env, cwd=ghoo_path)
         
         assert get_result.returncode == 0, f"Get failed: {get_result.stderr}"
         
@@ -196,10 +191,6 @@ Tasks will be added here as sub-issues are created.
         
         print(f"Successfully created and retrieved epic #{issue_number}")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_nonexistent_milestone(self, github_env, ghoo_path, unique_title):
         """Test creating epic with non-existent milestone (should fail gracefully)."""
         env = github_env['env'].copy()
@@ -208,20 +199,15 @@ Tasks will be added here as sub-issues are created.
         epic_title = f"{unique_title} (Bad Milestone Test)"
         
         # Try to create epic with non-existent milestone
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title,
+        result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], epic_title,
             '--milestone', 'nonexistent-milestone-12345'
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        ], env, cwd=ghoo_path)
         
         # Should fail gracefully
         assert result.returncode == 1
         assert "not found" in result.stderr.lower() or "milestone" in result.stderr.lower()
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_fallback_behavior(self, github_env, ghoo_path, unique_title):
         """Test that epic creation works even if GraphQL custom types are unavailable."""
         env = github_env['env'].copy()
@@ -230,10 +216,9 @@ Tasks will be added here as sub-issues are created.
         epic_title = f"{unique_title} (Fallback Test)"
         
         # Create epic (should work with either GraphQL or REST fallback)
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], epic_title
+        ], env, cwd=ghoo_path)
         
         # Should succeed regardless of which API is used
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -252,10 +237,14 @@ Tasks will be added here as sub-issues are created.
         env['PYTHONPATH'] = ghoo_path
         env['GITHUB_TOKEN'] = os.getenv('TESTING_GITHUB_TOKEN', 'dummy')
         
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            'invalid/nonexistent-repo-12345', 'Test Epic'
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        # Try uv first, fallback to python -m ghoo.main
+        import shutil
+        if shutil.which('uv'):
+            cmd = ['uv', 'run', 'ghoo', 'create-epic', 'invalid/nonexistent-repo-12345', 'Test Epic']
+        else:
+            cmd = [sys.executable, '-m', 'ghoo.main', 'create-epic', 'invalid/nonexistent-repo-12345', 'Test Epic']
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=ghoo_path)
         
         assert result.returncode == 1
         # Should get a reasonable error message
@@ -263,10 +252,6 @@ Tasks will be added here as sub-issues are created.
             'not found', 'permission', 'github api error', 'unexpected error'
         ])
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_with_assignees(self, github_env, ghoo_path, unique_title):
         """Test creating epic with assignees (may fail if users don't exist)."""
         env = github_env['env'].copy()
@@ -275,11 +260,10 @@ Tasks will be added here as sub-issues are created.
         epic_title = f"{unique_title} (Assignee Test)"
         
         # Try to assign to a GitHub user (this may fail if user doesn't exist or have access)
-        result = subprocess.run([
-            'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], epic_title,
+        result = self._run_ghoo_command([
+            'create-epic', github_env['repo'], epic_title,
             '--assignees', 'nonexistentuser12345'
-        ], capture_output=True, text=True, env=env, cwd=ghoo_path)
+        ], env, cwd=ghoo_path)
         
         # May succeed (issue created without assignee) or fail (invalid assignee)
         # Either behavior is acceptable
@@ -291,10 +275,6 @@ Tasks will be added here as sub-issues are created.
             assert len(result.stderr) > 0
             print(f"Epic creation failed as expected due to invalid assignee")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_epic_includes_log_section(self, github_env, ghoo_path, unique_title):
         """Test that created epic includes Log section in body."""
         import time

@@ -15,16 +15,19 @@ class TestLogGenerationE2E:
     @pytest.fixture(autouse=True)
     def setup_github_client(self):
         """Set up GitHub client with testing token."""
-        # Skip if no testing token available
+        # Use dual-mode approach: real GitHub API or mocks
         token = os.getenv('TESTING_GITHUB_TOKEN')
-        if not token:
-            pytest.skip("TESTING_GITHUB_TOKEN not available for E2E tests")
-        
-        self.client = GitHubClient(use_testing_token=True)
         self.test_repo = os.getenv('TESTING_GH_REPO', 'test/repo')
         
-        if not self.test_repo or self.test_repo == 'test/repo':
-            pytest.skip("TESTING_GH_REPO not configured for E2E tests")
+        if not token or not self.test_repo or self.test_repo == 'test/repo':
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            from tests.integration.test_utils import MockGitHubClient
+            self._mock_env = MockE2EEnvironment()
+            self.client = MockGitHubClient("mock_token")
+            self.test_repo = "mock/repo"
+        else:
+            self.client = GitHubClient(use_testing_token=True)
 
     def test_log_entry_e2e_workflow(self):
         """Test complete log entry creation and parsing workflow with live GitHub."""

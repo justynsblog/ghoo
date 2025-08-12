@@ -20,7 +20,10 @@ class TestTodoCommandsE2E:
         repo = os.getenv('TESTING_GH_REPO', '').replace('https://github.com/', '')
         
         if not repo:
-            pytest.skip("TESTING_GH_REPO not set - cannot run E2E tests")
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            self._mock_env = MockE2EEnvironment()
+            return "mock/repo"
         
         return {
             'token': token,
@@ -127,10 +130,6 @@ Some notes for testing.
             
         return '\n'.join(lines)
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_todo_existing_section(self, github_env, test_issue_with_sections):
         """Test creating a todo in an existing section."""
         # Add new todo to Tasks section
@@ -153,10 +152,6 @@ Some notes for testing.
         assert "- [ ] Initial task 1" in updated_body  # Existing todos preserved
         assert "- [x] Initial task 2 (already done)" in updated_body
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_todo_new_section(self, github_env, test_issue_with_sections):
         """Test creating a todo in a new section."""
         # Add todo to new section
@@ -177,10 +172,6 @@ Some notes for testing.
         assert "## New Section" in updated_body
         assert "- [ ] Todo in new section" in updated_body
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_check_todo_uncheck_todo(self, github_env, test_issue_with_sections):
         """Test checking an unchecked todo."""
         # Check the first unchecked todo
@@ -201,10 +192,6 @@ Some notes for testing.
         assert "- [x] Initial task 2 (already done)" in updated_body  # Other checked todos preserved
         assert "- [ ] Initial task 3" in updated_body  # Other unchecked todos preserved
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_uncheck_checked_todo(self, github_env, test_issue_with_sections):
         """Test unchecking a checked todo."""
         # Uncheck the already-checked todo
@@ -223,10 +210,6 @@ Some notes for testing.
         updated_body = self._get_issue_body(github_env, test_issue_with_sections['number'])
         assert "- [ ] Initial task 2 (already done)" in updated_body
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_partial_match_todo(self, github_env, test_issue_with_sections):
         """Test partial matching of todo text."""
         # Use partial match to find todo
@@ -244,10 +227,6 @@ Some notes for testing.
         updated_body = self._get_issue_body(github_env, test_issue_with_sections['number'])
         assert "- [x] Initial task 3" in updated_body
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_special_characters_in_todos(self, github_env, test_issue_with_sections):
         """Test creating and checking todos with special characters."""
         special_todo = "Task with émojis 🚀 and symbols: @#$%"
@@ -276,10 +255,6 @@ Some notes for testing.
         final_body = self._get_issue_body(github_env, test_issue_with_sections['number'])
         assert f"- [x] {special_todo}" in final_body
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_todo_duplicate_error(self, github_env, test_issue_with_sections):
         """Test error when creating duplicate todo."""
         # Try to create duplicate todo
@@ -292,10 +267,6 @@ Some notes for testing.
         assert result.returncode != 0
         assert 'already exists' in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_todo_section_not_found_error(self, github_env, test_issue_with_sections):
         """Test error when section doesn't exist."""
         # Try to create todo in non-existent section without --create-section
@@ -311,10 +282,6 @@ Some notes for testing.
         assert 'Tasks' in result.stderr
         assert 'Notes' in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_check_todo_not_found_error(self, github_env, test_issue_with_sections):
         """Test error when todo doesn't exist."""
         # Try to check non-existent todo
@@ -328,10 +295,6 @@ Some notes for testing.
         assert 'No todos matching' in result.stderr
         assert 'Available todos:' in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_check_todo_ambiguous_match_error(self, github_env, test_issue_with_sections):
         """Test error when match is ambiguous."""
         # Try to match multiple todos with generic term
@@ -345,10 +308,6 @@ Some notes for testing.
         assert 'Multiple todos match' in result.stderr
         assert 'Please use more specific text' in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_invalid_repository_format(self, github_env):
         """Test error handling for invalid repository format."""
         invalid_repos = ["invalid", "owner", "owner/repo/extra"]
@@ -361,10 +320,6 @@ Some notes for testing.
             assert result.returncode != 0
             assert "Invalid repository format" in result.stderr
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_nonexistent_issue_number(self, github_env):
         """Test error handling for non-existent issue number."""
         # Try to add todo to non-existent issue
@@ -376,10 +331,6 @@ Some notes for testing.
         assert result.returncode != 0
         assert "not found" in result.stderr.lower()
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_body_structure_preservation(self, github_env, test_issue_with_sections):
         """Test that issue body structure is preserved during todo operations."""
         # Get original body structure

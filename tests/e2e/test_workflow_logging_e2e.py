@@ -18,16 +18,19 @@ class TestWorkflowLoggingE2E:
     @pytest.fixture(autouse=True)
     def setup_github_client(self):
         """Set up GitHub client with testing token."""
-        # Skip if no testing token available
+        # Use dual-mode approach: real GitHub API or mocks
         token = os.getenv('TESTING_GITHUB_TOKEN')
-        if not token:
-            pytest.skip("TESTING_GITHUB_TOKEN not available for E2E tests")
-        
-        self.client = GitHubClient(use_testing_token=True)
         test_repo_url = os.getenv('TESTING_GH_REPO', 'test/repo')
         
-        if not test_repo_url or test_repo_url == 'test/repo':
-            pytest.skip("TESTING_GH_REPO not configured for E2E tests")
+        if not token or not test_repo_url or test_repo_url == 'test/repo':
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            from tests.integration.test_utils import MockGitHubClient
+            self._mock_env = MockE2EEnvironment()
+            self.client = MockGitHubClient("mock_token")
+            test_repo_url = "mock/repo"
+        else:
+            self.client = GitHubClient(use_testing_token=True)
         
         # Extract owner/repo from URL (e.g., https://github.com/owner/repo -> owner/repo)
         if test_repo_url.startswith('https://github.com/'):

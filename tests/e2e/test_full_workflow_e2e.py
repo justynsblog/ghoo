@@ -26,16 +26,17 @@ class TestFullWorkflowE2E:
         """Set up test environment with live GitHub repository."""
         # Skip if no testing credentials
         testing_token = os.getenv("TESTING_GITHUB_TOKEN")
-        testing_repo_url = os.getenv("TESTING_GH_REPO")
+        testing_repo = os.getenv("TESTING_GH_REPO")
         
-        if not testing_token or not testing_repo_url:
+        if not testing_token or not testing_repo:
             pytest.skip("TESTING_GITHUB_TOKEN and TESTING_GH_REPO must be set for E2E tests")
         
-        # Extract repo name from URL if needed
-        if testing_repo_url.startswith('https://github.com/'):
-            testing_repo = testing_repo_url.replace('https://github.com/', '')
+        # Construct full URL from repo name
+        if testing_repo.startswith('https://github.com/'):
+            testing_repo_url = testing_repo
+            testing_repo = testing_repo.replace('https://github.com/', '')
         else:
-            testing_repo = testing_repo_url
+            testing_repo_url = f"https://github.com/{testing_repo}"
         
         # Set environment
         os.environ['GITHUB_TOKEN'] = testing_token

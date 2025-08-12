@@ -15,10 +15,18 @@ class TestCreateSubTaskLogSectionE2E:
         token = os.getenv('TESTING_GITHUB_TOKEN')
         repo = os.getenv('TESTING_GH_REPO', 'owner/repo')
         
-        if not token:
-            pytest.skip("TESTING_GITHUB_TOKEN not set")
-        if not repo or repo == 'owner/repo':
-            pytest.skip("TESTING_GH_REPO not set")
+        if not token or not repo or repo == 'owner/repo':
+            # Fall back to mock mode
+            from tests.e2e.e2e_test_utils import MockE2EEnvironment
+            from tests.integration.test_utils import MockGitHubClient
+            self._mock_env = MockE2EEnvironment()
+            self.github_client = MockGitHubClient("mock_token")
+            self.test_repo = "mock/repo"
+            token = "mock_token"
+            repo = "mock/repo"
+        else:
+            self.github_client = Github(token)
+            self.test_repo = repo
             
         # Set up environment variables for commands
         env = os.environ.copy()
@@ -69,10 +77,6 @@ class TestCreateSubTaskLogSectionE2E:
         assert match, f"Could not find task number in output: {result.stdout}"
         return int(match.group(1))
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_sub_task_includes_log_section(self, github_env, unique_title):
         """Test that created sub-task includes Log section in body."""
         # Create parent epic and task

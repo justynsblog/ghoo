@@ -139,10 +139,6 @@ class TestCreationAndGetE2E:
         else:
             return result.stdout
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_create_full_hierarchy_and_verify(self, github_env, unique_titles, created_issues):
         """Test creating a complete hierarchy and verifying with get command."""
         # Create the hierarchy
@@ -175,10 +171,6 @@ class TestCreationAndGetE2E:
         
         print("✅ Full hierarchy created and verified successfully!")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_hierarchy_with_custom_content(self, github_env, unique_titles, created_issues):
         """Test hierarchy creation with custom body content and verify sections are preserved."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -236,10 +228,6 @@ class TestCreationAndGetE2E:
         
         print("✅ Custom content preserved and parent references injected correctly!")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_parent_child_relationships(self, github_env, unique_titles, created_issues):
         """Test that parent-child relationships are correctly established and retrievable."""
         # Create hierarchy
@@ -277,10 +265,6 @@ class TestCreationAndGetE2E:
         
         print("✅ Parent-child relationships verified!")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_json_format_hierarchy(self, github_env, unique_titles, created_issues):
         """Test JSON format output provides all necessary data fields."""
         # Create hierarchy
@@ -315,10 +299,6 @@ class TestCreationAndGetE2E:
         
         print("✅ JSON format provides complete data for all issues!")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_rich_format_hierarchy(self, github_env, unique_titles, created_issues):
         """Test rich format output is properly formatted and readable."""
         # Create hierarchy
@@ -344,10 +324,6 @@ class TestCreationAndGetE2E:
         
         print("✅ Rich format output is properly formatted!")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_error_handling_invalid_parent(self, github_env, unique_titles):
         """Test error handling for invalid parent issue numbers."""
         # Try to create task with non-existent parent
@@ -368,10 +344,6 @@ class TestCreationAndGetE2E:
         
         print("✅ Error handling works correctly for invalid parents!")
     
-    @pytest.mark.skipif(not os.getenv('TESTING_GITHUB_TOKEN'), 
-                       reason="TESTING_GITHUB_TOKEN not set")
-    @pytest.mark.skipif(not os.getenv('TESTING_GH_REPO'), 
-                       reason="TESTING_GH_REPO not set")
     def test_hierarchy_creation_performance(self, github_env, unique_titles, created_issues):
         """Test that hierarchy creation completes within reasonable time limits."""
         start_time = time.time()
