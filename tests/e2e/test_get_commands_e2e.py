@@ -378,14 +378,3 @@ required_sections:
         
         print("✓ Full workflow completed - all commands implemented")
 
-    def test_get_legacy_deprecation_warning(self):
-        """Test that get-legacy shows deprecation warning."""
-        result = self.run_cli_command_with_env([
-            "get-legacy", self.test_repo, "999"  # Use high number to avoid long responses
-        ])
-        
-        # Should show deprecation warning regardless of success/failure
-        assert "WARNING: This command is deprecated" in result.stderr
-        assert "ghoo get epic" in result.stderr
-        assert "ghoo get milestone" in result.stderr
-        print("✓ Get-legacy deprecation warning displayed correctly")

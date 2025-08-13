@@ -94,31 +94,32 @@ class TestGetSubcommandsE2E:
             assert any(error in result.stderr for error in expected_errors)
             print(f"✓ Get milestone command properly handled error: {result.stderr[:100]}")
 
-    def test_get_section_placeholder_with_real_env(self):
-        """Test get section placeholder works in real environment."""
+    def test_get_section_implementation_with_real_env(self):
+        """Test get section implementation works in real environment."""
         result = self.run_cli_command_with_env([
             "get", "section",
             "--issue-id", "3",
             "--title", "Implementation Plan"
         ])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get section --issue-id 3" in result.stdout
-        assert "Implementation Plan" in result.stdout
+        # Should fail with authentication error since we have real implementation now
+        assert result.returncode == 1
+        assert ("GitHub token not found" in result.stderr or 
+                "GitHub authentication failed" in result.stderr or
+                "authentication" in result.stderr)
 
-    def test_get_todo_placeholder_with_real_env(self):
-        """Test get todo placeholder works in real environment."""
+    def test_get_todo_implementation_with_real_env(self):
+        """Test get todo implementation works in real environment."""
         result = self.run_cli_command_with_env([
             "get", "todo",
             "--issue-id", "4", 
             "--section", "Sub-tasks",
             "--match", "write unit tests"
         ])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get todo --issue-id 4" in result.stdout
-        assert "Sub-tasks" in result.stdout
-        assert "write unit tests" in result.stdout
+        # Should fail with authentication error since we have real implementation now
+        assert result.returncode == 1
+        assert ("GitHub token not found" in result.stderr or 
+                "GitHub authentication failed" in result.stderr or
+                "authentication" in result.stderr)
 
     def test_get_commands_with_json_format(self):
         """Test get commands work with JSON format parameter."""
@@ -140,37 +141,22 @@ class TestGetSubcommandsE2E:
         assert "get section --issue-id 6" in result.stdout
         assert "format json" in result.stdout
 
-    def test_get_legacy_still_works_with_deprecation(self):
-        """Test get-legacy still works but shows deprecation warning."""
-        # This will try to connect to GitHub but will show deprecation warning first
-        result = self.run_cli_command_with_env([
-            "get-legacy", 
-            "justynsblog/ghoo-test", 
-            "999"  # Use issue that likely doesn't exist to avoid long responses
-        ])
-        
-        # Should show deprecation warning regardless of whether issue exists
-        assert "WARNING: This command is deprecated" in result.stderr
-        assert "ghoo get epic --id 999" in result.stderr
-        assert "ghoo get milestone --id 999" in result.stderr
-        
-        # May succeed or fail depending on if issue 999 exists, but deprecation should show
 
-    def test_get_subcommands_maintain_cli_patterns(self):
-        """Test get subcommands follow existing CLI patterns."""
-        # All commands should exit 0 with placeholder responses
+    def test_get_subcommands_have_implementations(self):
+        """Test get subcommands have real implementations, not placeholders."""
         test_cases = [
-            (["get", "epic", "--id", "10"], "epic --id 10"),
-            (["get", "milestone", "--id", "11"], "milestone --id 11"),
-            (["get", "section", "--issue-id", "12", "--title", "Tasks"], "section --issue-id 12"),
-            (["get", "todo", "--issue-id", "13", "--section", "Plan", "--match", "test"], "todo --issue-id 13")
+            ["get", "epic", "--id", "10"],
+            ["get", "milestone", "--id", "11"],
+            ["get", "section", "--issue-id", "12", "--title", "Tasks"],
+            ["get", "todo", "--issue-id", "13", "--section", "Plan", "--match", "test"]
         ]
         
-        for args, expected_in_output in test_cases:
+        for args in test_cases:
             result = self.run_cli_command_with_env(args)
-            assert result.returncode == 0, f"Command {args} should exit 0"
-            assert "Not yet implemented" in result.stdout, f"Command {args} should show placeholder"
-            assert expected_in_output in result.stdout, f"Command {args} should show parsed args"
+            # All should fail with authentication error, not show placeholders
+            assert result.returncode == 1, f"Command {args} should fail with auth error"
+            auth_errors = ["GitHub token not found", "GitHub authentication failed", "authentication"]
+            assert any(error in result.stderr for error in auth_errors), f"Command {args} should show auth error"
 
     @pytest.mark.skipif(
         not os.getenv('TESTING_GITHUB_TOKEN'), 
@@ -188,7 +174,8 @@ class TestGetSubcommandsE2E:
         result = self.run_cli_command_with_env(["get", "--help"]) 
         assert result.returncode == 0
         
-        # Test that placeholder commands work
+        # Test that implemented commands work (fail with auth error, not placeholder)
         result = self.run_cli_command_with_env(["get", "epic", "--id", "1"])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
+        assert result.returncode == 1
+        auth_errors = ["GitHub token not found", "GitHub authentication failed", "authentication"]
+        assert any(error in result.stderr for error in auth_errors), "Should show auth error"

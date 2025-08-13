@@ -45,45 +45,50 @@ class TestGetSubcommandsIntegration:
         assert "section" in result.stdout
         assert "todo" in result.stdout
 
-    def test_get_epic_placeholder_via_subprocess(self):
-        """Test get epic placeholder through subprocess."""
+    def test_get_epic_implementation_via_subprocess(self):
+        """Test get epic implementation through subprocess."""
         result = self.run_cli_command(["get", "epic", "--id", "123"])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get epic --id 123" in result.stdout
+        assert result.returncode == 1
+        # Should fail with authentication error (real implementation), not placeholder
+        assert ("GitHub token not found" in result.stderr or 
+                "GitHub authentication failed" in result.stderr or
+                "authentication" in result.stderr)
 
-    def test_get_milestone_placeholder_via_subprocess(self):
-        """Test get milestone placeholder through subprocess."""
+    def test_get_milestone_implementation_via_subprocess(self):
+        """Test get milestone implementation through subprocess."""
         result = self.run_cli_command(["get", "milestone", "--id", "456"])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get milestone --id 456" in result.stdout
+        assert result.returncode == 1
+        # Should fail with authentication error (real implementation), not placeholder
+        assert ("GitHub token not found" in result.stderr or 
+                "GitHub authentication failed" in result.stderr or
+                "authentication" in result.stderr)
 
-    def test_get_section_placeholder_via_subprocess(self):
-        """Test get section placeholder through subprocess."""
+    def test_get_section_implementation_via_subprocess(self):
+        """Test get section implementation through subprocess."""
         result = self.run_cli_command([
             "get", "section", 
             "--issue-id", "123", 
             "--title", "Implementation Plan"
         ])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get section --issue-id 123" in result.stdout
-        assert "Implementation Plan" in result.stdout
+        assert result.returncode == 1
+        # Should fail with authentication error (real implementation), not placeholder
+        assert ("GitHub token not found" in result.stderr or 
+                "GitHub authentication failed" in result.stderr or
+                "authentication" in result.stderr)
 
-    def test_get_todo_placeholder_via_subprocess(self):
-        """Test get todo placeholder through subprocess."""
+    def test_get_todo_implementation_via_subprocess(self):
+        """Test get todo implementation through subprocess."""
         result = self.run_cli_command([
             "get", "todo",
             "--issue-id", "123",
             "--section", "Tasks",
             "--match", "implement feature"
         ])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get todo --issue-id 123" in result.stdout
-        assert "Tasks" in result.stdout
-        assert "implement feature" in result.stdout
+        assert result.returncode == 1
+        # Should fail with authentication error (real implementation), not placeholder
+        assert ("GitHub token not found" in result.stderr or 
+                "GitHub authentication failed" in result.stderr or
+                "authentication" in result.stderr)
 
     def test_get_epic_with_json_format_via_subprocess(self):
         """Test get epic with json format through subprocess."""
@@ -95,14 +100,6 @@ class TestGetSubcommandsIntegration:
         assert result.returncode == 0
         assert "get epic --id 123 --format json" in result.stdout
 
-    def test_get_legacy_deprecation_via_subprocess(self):
-        """Test get-legacy deprecation warning through subprocess."""
-        result = self.run_cli_command(["get-legacy", "owner/repo", "123"])
-        # Command will fail due to missing token, but should show deprecation
-        assert result.returncode != 0
-        assert "WARNING: This command is deprecated" in result.stderr
-        assert "ghoo get epic --id 123" in result.stderr
-        assert "ghoo get milestone --id 123" in result.stderr
 
     def test_get_epic_missing_id_parameter_via_subprocess(self):
         """Test get epic fails when --id parameter is missing."""
@@ -167,9 +164,6 @@ class TestGetSubcommandsIntegration:
         assert result.returncode == 0
         assert "get" in result.stdout
         assert "Get various resources from GitHub issues and repositories" in result.stdout
-        # Should also still show get-legacy
-        assert "get-legacy" in result.stdout
-        assert "DEPRECATED" in result.stdout
 
     def test_get_epic_with_config_repo_via_subprocess(self, tmp_path):
         """Test get epic using repository from config."""

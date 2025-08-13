@@ -42,7 +42,7 @@ class TestGetSubcommands:
         assert result.exit_code == 0
         assert "--id" in result.stdout
         assert "--format" in result.stdout
-        assert "Milestone issue number to retrieve" in result.stdout
+        assert "Milestone number to retrieve" in result.stdout
 
     def test_get_section_help(self):
         """Test get section help shows correct parameters."""
@@ -61,50 +61,36 @@ class TestGetSubcommands:
         assert "--match" in result.stdout
         assert "--format" in result.stdout
 
-    def test_get_epic_placeholder_response(self):
-        """Test get epic returns placeholder response."""
+    def test_get_epic_fails_without_token(self):
+        """Test get epic fails appropriately without GitHub token."""
         result = self.runner.invoke(app, ["get", "epic", "--id", "123"])
-        assert result.exit_code == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get epic --id 123" in result.stdout
+        assert result.exit_code == 1
+        assert "GitHub token not found" in result.stderr
 
-    def test_get_milestone_placeholder_response(self):
-        """Test get milestone returns placeholder response."""
+    def test_get_milestone_fails_without_token(self):
+        """Test get milestone fails appropriately without GitHub token."""
         result = self.runner.invoke(app, ["get", "milestone", "--id", "456"])
-        assert result.exit_code == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get milestone --id 456" in result.stdout
+        assert result.exit_code == 1
+        assert "GitHub token not found" in result.stderr
 
-    def test_get_section_placeholder_response(self):
-        """Test get section returns placeholder response."""
+    def test_get_section_fails_without_token(self):
+        """Test get section fails appropriately without GitHub token."""
         result = self.runner.invoke(app, ["get", "section", "--issue-id", "123", "--title", "Implementation"])
-        assert result.exit_code == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get section --issue-id 123" in result.stdout
-        assert "Implementation" in result.stdout
+        assert result.exit_code == 1
+        assert "GitHub token not found" in result.stderr
 
-    def test_get_todo_placeholder_response(self):
-        """Test get todo returns placeholder response."""
+    def test_get_todo_fails_without_token(self):
+        """Test get todo fails appropriately without GitHub token."""
         result = self.runner.invoke(app, ["get", "todo", "--issue-id", "123", "--section", "Tasks", "--match", "test"])
-        assert result.exit_code == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get todo --issue-id 123" in result.stdout
-        assert "Tasks" in result.stdout
-        assert "test" in result.stdout
+        assert result.exit_code == 1
+        assert "GitHub token not found" in result.stderr
 
-    def test_get_epic_with_json_format(self):
-        """Test get epic accepts json format parameter."""
+    def test_get_epic_with_json_format_fails_without_token(self):
+        """Test get epic with JSON format fails appropriately without GitHub token."""
         result = self.runner.invoke(app, ["get", "epic", "--id", "123", "--format", "json"])
-        assert result.exit_code == 0
-        assert "get epic --id 123 --format json" in result.stdout
+        assert result.exit_code == 1
+        assert "GitHub token not found" in result.stderr
 
-    def test_get_legacy_shows_deprecation_warning(self):
-        """Test get-legacy shows deprecation warning."""
-        result = self.runner.invoke(app, ["get-legacy", "owner/repo", "123"])
-        # Command will fail due to missing token, but we check the warning was shown
-        assert "WARNING: This command is deprecated" in result.stderr
-        assert "ghoo get epic --id 123" in result.stderr
-        assert "ghoo get milestone --id 123" in result.stderr
 
     def test_get_epic_requires_id_parameter(self):
         """Test get epic fails without required --id parameter."""
