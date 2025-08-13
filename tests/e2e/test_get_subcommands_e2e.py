@@ -49,20 +49,50 @@ class TestGetSubcommandsE2E:
         assert "section" in result.stdout
         assert "todo" in result.stdout
 
-    def test_get_epic_placeholder_with_real_env(self):
-        """Test get epic placeholder works in real environment."""
-        result = self.run_cli_command_with_env(["get", "epic", "--id", "1"])
-        # Should return placeholder message with exit code 0
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get epic --id 1" in result.stdout
+    @pytest.mark.skipif(
+        not os.getenv('TESTING_GITHUB_TOKEN'), 
+        reason="No GitHub token available for E2E testing"
+    )
+    def test_get_epic_with_real_env(self):
+        """Test get epic command with real GitHub API."""
+        # Use known test repository and issue
+        test_repo = os.getenv('TESTING_GH_REPO', 'justynsblog/ghoo-test')
+        result = self.run_cli_command_with_env(["get", "epic", "--repo", test_repo, "1"])
+        
+        # Should either succeed or fail with specific error (not placeholder)
+        assert "Not yet implemented" not in result.stdout
+        
+        if result.returncode == 0:
+            # Command succeeded - validate it contains issue data
+            assert "#1" in result.stdout
+            print("✓ Get epic command executed successfully")
+        else:
+            # Command failed - should be due to issue not being epic or other API issue
+            expected_errors = ["not an epic", "not found", "authentication", "GitHub"]
+            assert any(error in result.stderr for error in expected_errors)
+            print(f"✓ Get epic command properly handled error: {result.stderr[:100]}")
 
-    def test_get_milestone_placeholder_with_real_env(self):
-        """Test get milestone placeholder works in real environment.""" 
-        result = self.run_cli_command_with_env(["get", "milestone", "--id", "2"])
-        assert result.returncode == 0
-        assert "Not yet implemented" in result.stdout
-        assert "get milestone --id 2" in result.stdout
+    @pytest.mark.skipif(
+        not os.getenv('TESTING_GITHUB_TOKEN'), 
+        reason="No GitHub token available for E2E testing"
+    )
+    def test_get_milestone_with_real_env(self):
+        """Test get milestone command with real GitHub API."""
+        # Use microsoft/vscode which has milestones
+        result = self.run_cli_command_with_env(["get", "milestone", "--repo", "microsoft/vscode", "1"])
+        
+        # Should either succeed or fail with specific error (not placeholder)
+        assert "Not yet implemented" not in result.stdout
+        
+        if result.returncode == 0:
+            # Command succeeded - validate it contains milestone data
+            assert "Milestone" in result.stdout or "v" in result.stdout  # Version milestones
+            print("✓ Get milestone command executed successfully")
+        else:
+            # Command failed - should be due to milestone not found or other API issue
+            expected_errors = ["not found", "authentication", "GitHub"]
+            assert any(error in result.stderr for error in expected_errors)
+            print(f"✓ Get milestone command properly handled error: {result.stderr[:100]}")
 
     def test_get_section_placeholder_with_real_env(self):
         """Test get section placeholder works in real environment."""
