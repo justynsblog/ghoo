@@ -12,6 +12,7 @@ from ..exceptions import (
     GraphQLError,
 )
 from .get_epic import GetEpicCommand
+from .get_milestone import GetMilestoneCommand
 
 # Create the get subcommand group
 get_app = typer.Typer(
@@ -79,18 +80,58 @@ def epic(
 
 @get_app.command()
 def milestone(
-    id: int = typer.Option(..., "--id", help="Milestone issue number to retrieve"),
+    id: int = typer.Option(..., "--id", help="Milestone number to retrieve"),
     format: str = typer.Option(
         "rich", 
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
-    """Get and display a Milestone issue with parsed body content."""
-    typer.echo(f"🔧 Not yet implemented: get milestone --id {id} --format {format}")
-    typer.echo("This command will retrieve and display a Milestone issue.")
-    sys.exit(0)
+    """Get and display a Milestone with associated issues."""
+    try:
+        # Initialize GitHub client and config loader
+        github_client = GitHubClient()
+        config_loader = ConfigLoader() if not repo else None
+        
+        # Execute get milestone command
+        get_milestone_command = GetMilestoneCommand(github_client, config_loader)
+        milestone_data = get_milestone_command.execute(repo, id, format)
+        
+        # Display results based on format
+        if format.lower() == 'json':
+            typer.echo(json.dumps(milestone_data, indent=2))
+        else:
+            _display_milestone(milestone_data)
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except GraphQLError as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            sys.exit(1)
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 @get_app.command()
@@ -273,3 +314,72 @@ def _display_log_entry(log_entry):
                 if title or content:
                     display_text = f"{title}: {content}" if title and content else (title or content)
                     typer.echo(f"    • {display_text}", color=typer.colors.YELLOW)
+
+
+def _display_milestone(milestone_data):
+    """Display milestone data with rich formatting including associated issues.
+    
+    Args:
+        milestone_data: Milestone data dictionary from GetMilestoneCommand
+    """
+    import datetime
+    
+    # Header with milestone info
+    milestone_emoji = "🎯"
+    state_color = typer.colors.GREEN if milestone_data['state'] == 'open' else typer.colors.RED
+    
+    typer.echo(f"\n{milestone_emoji} Milestone #{milestone_data['number']}: {milestone_data['title']}", color=typer.colors.BRIGHT_WHITE)
+    typer.echo(f"State: ", nl=False)
+    typer.echo(milestone_data['state'].upper(), color=state_color, nl=False)
+    typer.echo(f" | Repository: {milestone_data['repository']}")
+    typer.echo(f"Creator: {milestone_data['creator']} | URL: {milestone_data['html_url']}")
+    
+    # Timestamps
+    created = datetime.datetime.fromisoformat(milestone_data['created_at'].replace('Z', '+00:00'))
+    updated = datetime.datetime.fromisoformat(milestone_data['updated_at'].replace('Z', '+00:00'))
+    typer.echo(f"Created: {created.strftime('%Y-%m-%d %H:%M')} | Updated: {updated.strftime('%Y-%m-%d %H:%M')}")
+    
+    # Due date
+    if milestone_data['due_on']:
+        due_date = datetime.datetime.fromisoformat(milestone_data['due_on'].replace('Z', '+00:00'))
+        typer.echo(f"Due: {due_date.strftime('%Y-%m-%d %H:%M')}")
+    
+    # Issue counts
+    total_issues = milestone_data['open_issues'] + milestone_data['closed_issues']
+    completion = (milestone_data['closed_issues'] / total_issues * 100) if total_issues > 0 else 0
+    typer.echo(f"Issues: {milestone_data['closed_issues']}/{total_issues} completed ({completion:.0f}%)")
+    
+    # Description
+    if milestone_data['description']:
+        typer.echo(f"\n📝 Description:")
+        typer.echo(milestone_data['description'])
+    
+    # Associated issues
+    if 'issues' in milestone_data and milestone_data['issues']:
+        issues = milestone_data['issues']
+        typer.echo(f"\n📋 Associated Issues ({len(issues)}):")
+        
+        # Group issues by type for better organization
+        issues_by_type = {'epic': [], 'task': [], 'sub-task': []}
+        for issue in issues:
+            issue_type = issue.get('type', 'task')
+            if issue_type in issues_by_type:
+                issues_by_type[issue_type].append(issue)
+            else:
+                issues_by_type['task'].append(issue)
+        
+        # Display issues by type
+        type_emojis = {'epic': '🏔️', 'task': '📋', 'sub-task': '🔧'}
+        for issue_type, type_issues in issues_by_type.items():
+            if type_issues:
+                typer.echo(f"\n{type_emojis[issue_type]} {issue_type.title()}s:")
+                for issue in type_issues:
+                    state_emoji = "✅" if issue['state'] == 'closed' else "🔲"
+                    typer.echo(f"  {state_emoji} #{issue['number']}: {issue['title']} (@{issue['author']})")
+    
+    elif milestone_data.get('total_issues', 0) == 0:
+        typer.echo(f"\n📋 No issues associated with this milestone")
+    
+    # Show issues error if any
+    if milestone_data.get('issues_error'):
+        typer.echo(f"\n⚠️  {milestone_data['issues_error']}", color=typer.colors.YELLOW)
