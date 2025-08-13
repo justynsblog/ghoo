@@ -14,6 +14,7 @@ from ..exceptions import (
 from .get_epic import GetEpicCommand
 from .get_milestone import GetMilestoneCommand
 from .get_section import GetSectionCommand
+from .get_todo import GetTodoCommand
 
 # Create the get subcommand group
 get_app = typer.Typer(
@@ -202,12 +203,52 @@ def todo(
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a specific todo item from an issue section."""
-    typer.echo(f"🔧 Not yet implemented: get todo --issue-id {issue_id} --section '{section}' --match '{match}' --format {format}")
-    typer.echo("This command will retrieve and display a specific todo item from an issue section.")
-    sys.exit(0)
+    try:
+        # Initialize GitHub client and config loader
+        github_client = GitHubClient()
+        config_loader = ConfigLoader() if not repo else None
+        
+        # Execute get todo command
+        get_todo_command = GetTodoCommand(github_client, config_loader)
+        todo_data = get_todo_command.execute(repo, issue_id, section, match, format)
+        
+        # Display results based on format
+        if format.lower() == 'json':
+            typer.echo(json.dumps(todo_data, indent=2))
+        else:
+            _display_todo(todo_data)
+        
+    except ValueError as e:
+        typer.echo(f"{str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except GraphQLError as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            sys.exit(1)
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 def _display_epic_issue(issue_data):
@@ -472,5 +513,45 @@ def _display_section(section_data):
             typer.echo(f"{check_mark} {todo_text}")
     elif section_data.get('total_todos', 0) == 0 and not body:
         typer.echo("(Section is empty)", color=typer.colors.BRIGHT_BLACK)
+    
+    typer.echo("")  # Add final spacing
+
+
+def _display_todo(todo_data):
+    """Display todo data with rich formatting including section context and metadata.
+    
+    Args:
+        todo_data: Todo data dictionary from GetTodoCommand
+    """
+    # Header with issue and section context
+    issue_type = todo_data.get('issue_type', 'issue')
+    type_emoji = {"epic": "🏔️", "task": "📋", "sub-task": "🔧"}.get(issue_type, "📄")
+    state_color = typer.colors.GREEN if todo_data.get('issue_state') == 'open' else typer.colors.RED
+    
+    # Todo check status
+    check_mark = "✅" if todo_data.get('checked', False) else "⬜"
+    
+    typer.echo(f"\n{check_mark} {todo_data.get('text', 'No text available')}", color=typer.colors.BRIGHT_WHITE)
+    
+    # Section and issue context
+    typer.echo(f"From section: {todo_data.get('section_title', 'Unknown')}", color=typer.colors.BRIGHT_BLACK)
+    typer.echo(f"Issue: {type_emoji} #{todo_data.get('issue_number', '?')}: {todo_data.get('issue_title', 'Unknown')}", color=typer.colors.BRIGHT_BLACK)
+    typer.echo(f"Issue State: ", nl=False)
+    typer.echo(todo_data.get('issue_state', 'unknown').upper(), color=state_color, nl=False)
+    typer.echo(f" | Line: {todo_data.get('line_number', '?')} | URL: {todo_data.get('issue_url', 'N/A')}")
+    
+    # Section completion context
+    section_completed = todo_data.get('section_completed_todos', 0)
+    section_total = todo_data.get('section_total_todos', 0)
+    section_percentage = todo_data.get('section_completion_percentage', 0)
+    
+    if section_total > 0:
+        progress_bar = "█" * (section_percentage // 10) + "░" * (10 - section_percentage // 10)
+        typer.echo(f"Section Progress: {progress_bar} {section_percentage}% ({section_completed}/{section_total})")
+    
+    # Match information
+    match_type = todo_data.get('match_type', 'unknown')
+    if match_type != 'exact':
+        typer.echo(f"Match Type: {match_type}", color=typer.colors.YELLOW)
     
     typer.echo("")  # Add final spacing
