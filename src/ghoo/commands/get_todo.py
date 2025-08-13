@@ -5,12 +5,11 @@ from typing import Dict, Any, Optional, List, Tuple
 
 from ..core import GitHubClient, ConfigLoader
 from ..services import IssueService
+from ..utils.repository import resolve_repository
 from ..exceptions import (
     MissingTokenError,
     InvalidTokenError,
     GraphQLError,
-    ConfigNotFoundError,
-    InvalidYAMLError,
 )
 
 
@@ -21,12 +20,12 @@ class GetTodoCommand:
     and matches a todo by text pattern using flexible matching strategies.
     """
     
-    def __init__(self, github_client: GitHubClient, config_loader: Optional[ConfigLoader] = None):
-        """Initialize the command with GitHub client and optional config loader.
+    def __init__(self, github_client: GitHubClient, config_loader: ConfigLoader):
+        """Initialize the command with GitHub client and config loader.
         
         Args:
             github_client: Authenticated GitHubClient instance
-            config_loader: Optional ConfigLoader for repository resolution
+            config_loader: ConfigLoader for repository resolution
         """
         self.github = github_client
         self.config_loader = config_loader
@@ -53,7 +52,7 @@ class GetTodoCommand:
             GraphQLError: If GraphQL operations fail
         """
         # Resolve repository from parameter or config
-        resolved_repo = self._resolve_repository(repo)
+        resolved_repo = resolve_repository(repo, self.config_loader)
         
         # Retrieve issue data using IssueService
         issue_data = self.issue_service.get_issue_with_details(resolved_repo, issue_id)
@@ -69,53 +68,6 @@ class GetTodoCommand:
             return self._format_json_output(todo_data)
         else:
             return self._format_rich_output(todo_data)
-    
-    def _resolve_repository(self, repo: Optional[str]) -> str:
-        """Resolve repository from parameter or configuration.
-        
-        Args:
-            repo: Repository parameter ('owner/repo') or None
-            
-        Returns:
-            Repository in format 'owner/repo'
-            
-        Raises:
-            ValueError: If repository format is invalid or cannot be resolved
-        """
-        if repo:
-            # Use explicit repo parameter
-            if '/' not in repo or len(repo.split('/')) != 2:
-                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
-            return repo
-        
-        # Try to load from config
-        if not self.config_loader:
-            raise ValueError("No repository specified and no config loader available. Use --repo parameter")
-        
-        try:
-            config = self.config_loader.load()
-            project_url = config.project_url
-            
-            # Extract owner/repo from project_url (e.g., https://github.com/owner/repo)
-            if '//' not in project_url:
-                raise ValueError(f"Invalid project_url in config: {project_url}")
-            
-            # Parse URL to extract owner/repo
-            url_parts = project_url.rstrip('/').split('/')
-            if len(url_parts) < 2:
-                raise ValueError(f"Cannot extract owner/repo from project_url: {project_url}")
-            
-            owner = url_parts[-2]
-            repo_name = url_parts[-1]
-            
-            if not owner or not repo_name:
-                raise ValueError(f"Cannot extract valid owner/repo from project_url: {project_url}")
-            
-            return f"{owner}/{repo_name}"
-            
-        except (ConfigNotFoundError, InvalidYAMLError) as e:
-            raise ValueError(f"Cannot load repository from config: {str(e)}. Use --repo parameter")
-    
     def _find_section(self, issue_data: Dict[str, Any], section_title: str) -> Dict[str, Any]:
         """Find and extract the specified section from issue data.
         

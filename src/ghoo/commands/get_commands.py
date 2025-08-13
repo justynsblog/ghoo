@@ -43,7 +43,7 @@ def epic(
     try:
         # Initialize GitHub client and config loader
         github_client = GitHubClient()
-        config_loader = ConfigLoader() if not repo else None
+        config_loader = ConfigLoader()
         
         # Execute get epic command
         get_epic_command = GetEpicCommand(github_client, config_loader)
@@ -99,7 +99,7 @@ def milestone(
     try:
         # Initialize GitHub client and config loader
         github_client = GitHubClient()
-        config_loader = ConfigLoader() if not repo else None
+        config_loader = ConfigLoader()
         
         # Execute get milestone command
         get_milestone_command = GetMilestoneCommand(github_client, config_loader)
@@ -156,7 +156,7 @@ def section(
     try:
         # Initialize GitHub client and config loader
         github_client = GitHubClient()
-        config_loader = ConfigLoader() if not repo else None
+        config_loader = ConfigLoader()
         
         # Execute get section command
         get_section_command = GetSectionCommand(github_client, config_loader)
@@ -214,7 +214,7 @@ def todo(
     try:
         # Initialize GitHub client and config loader
         github_client = GitHubClient()
-        config_loader = ConfigLoader() if not repo else None
+        config_loader = ConfigLoader()
         
         # Execute get todo command
         get_todo_command = GetTodoCommand(github_client, config_loader)
