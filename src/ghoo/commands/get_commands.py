@@ -13,6 +13,7 @@ from ..exceptions import (
 )
 from .get_epic import GetEpicCommand
 from .get_milestone import GetMilestoneCommand
+from .get_section import GetSectionCommand
 
 # Create the get subcommand group
 get_app = typer.Typer(
@@ -143,12 +144,52 @@ def section(
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a specific section from an issue."""
-    typer.echo(f"🔧 Not yet implemented: get section --issue-id {issue_id} --title '{title}' --format {format}")
-    typer.echo("This command will retrieve and display a specific section from an issue.")
-    sys.exit(0)
+    try:
+        # Initialize GitHub client and config loader
+        github_client = GitHubClient()
+        config_loader = ConfigLoader() if not repo else None
+        
+        # Execute get section command
+        get_section_command = GetSectionCommand(github_client, config_loader)
+        section_data = get_section_command.execute(repo, issue_id, title, format)
+        
+        # Display results based on format
+        if format.lower() == 'json':
+            typer.echo(json.dumps(section_data, indent=2))
+        else:
+            _display_section(section_data)
+        
+    except ValueError as e:
+        typer.echo(f"{str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except GraphQLError as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            sys.exit(1)
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 @get_app.command()
@@ -383,3 +424,53 @@ def _display_milestone(milestone_data):
     # Show issues error if any
     if milestone_data.get('issues_error'):
         typer.echo(f"\n⚠️  {milestone_data['issues_error']}", color=typer.colors.YELLOW)
+
+
+def _display_section(section_data):
+    """Display section data with rich formatting including todos and completion stats.
+    
+    Args:
+        section_data: Section data dictionary from GetSectionCommand
+    """
+    import datetime
+    
+    # Header with section and issue info
+    issue_type = section_data.get('issue_type', 'issue')
+    type_emoji = {"epic": "🏔️", "task": "📋", "sub-task": "🔧"}.get(issue_type, "📄")
+    state_color = typer.colors.GREEN if section_data.get('issue_state') == 'open' else typer.colors.RED
+    
+    typer.echo(f"\n## {section_data['title']}", color=typer.colors.BRIGHT_WHITE)
+    typer.echo(f"From {type_emoji} #{section_data['issue_number']}: {section_data['issue_title']}", color=typer.colors.BRIGHT_BLACK)
+    typer.echo(f"Issue State: ", nl=False)
+    typer.echo(section_data.get('issue_state', 'unknown').upper(), color=state_color, nl=False)
+    typer.echo(f" | URL: {section_data.get('issue_url', 'N/A')}")
+    
+    # Show completion stats if there are todos
+    if section_data.get('total_todos', 0) > 0:
+        percentage = section_data.get('completion_percentage', 0)
+        completed = section_data.get('completed_todos', 0)
+        total = section_data.get('total_todos', 0)
+        
+        # Progress bar visualization
+        progress_bar = "█" * (percentage // 10) + "░" * (10 - percentage // 10)
+        typer.echo(f"Progress: {progress_bar} {percentage}% ({completed}/{total})")
+        typer.echo("")  # Add spacing
+    
+    # Show body content
+    body = section_data.get('body', '').strip()
+    if body:
+        typer.echo(body)
+        if section_data.get('todos'):
+            typer.echo("")  # Add spacing before todos
+    
+    # Show todos with checkmarks
+    todos = section_data.get('todos', [])
+    if todos:
+        for todo in todos:
+            check_mark = "✅" if todo.get('checked', False) else "⬜"
+            todo_text = todo.get('text', '')
+            typer.echo(f"{check_mark} {todo_text}")
+    elif section_data.get('total_todos', 0) == 0 and not body:
+        typer.echo("(Section is empty)", color=typer.colors.BRIGHT_BLACK)
+    
+    typer.echo("")  # Add final spacing
