@@ -22,7 +22,10 @@ class TestGetCommandValidationE2E:
         """Helper to run CLI commands and validate execution."""
         cmd = [sys.executable, "-m", "ghoo.main"] + args
         
-        env = os.environ.copy()
+        # Use TestEnvironment to properly handle token mapping
+        from tests.environment import TestEnvironment
+        test_env = TestEnvironment()
+        env = test_env.get_github_client_env()
         env['PYTHONPATH'] = self.python_path
         
         result = subprocess.run(

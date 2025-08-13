@@ -60,7 +60,7 @@ class TestGetCommandsE2E:
     def test_get_epic_with_live_api(self):
         """Test get epic command with live GitHub API."""
         result = self.run_cli_command_with_env([
-            "get", "epic", "--repo", self.test_repo, "1", "--format", "json"
+            "get", "epic", "--repo", self.test_repo, "--id", "1", "--format", "json"
         ])
         
         # Should not show placeholder message
@@ -92,7 +92,7 @@ class TestGetCommandsE2E:
         """Test get milestone command with live GitHub API."""
         # Use microsoft/vscode which is known to have milestones
         result = self.run_cli_command_with_env([
-            "get", "milestone", "--repo", "microsoft/vscode", "1", "--format", "json"
+            "get", "milestone", "--repo", "microsoft/vscode", "--id", "1", "--format", "json"
         ])
         
         assert "Not yet implemented" not in result.stdout
@@ -104,7 +104,8 @@ class TestGetCommandsE2E:
                 assert isinstance(data, dict)
                 assert 'number' in data
                 assert 'title' in data
-                assert 'issues_by_type' in data
+                assert 'issues' in data
+                assert 'total_issues' in data
                 print(f"✓ Get milestone command successful: {data['title']}")
             except json.JSONDecodeError:
                 pytest.fail("Invalid JSON output from get milestone command")
@@ -121,7 +122,7 @@ class TestGetCommandsE2E:
     def test_get_section_with_live_api(self):
         """Test get section command with live GitHub API."""
         result = self.run_cli_command_with_env([
-            "get", "section", "--repo", self.test_repo, "1", "Summary", "--format", "json"
+            "get", "section", "--repo", self.test_repo, "--issue-id", "1", "--title", "Summary", "--format", "json"
         ])
         
         assert "Not yet implemented" not in result.stdout
@@ -151,7 +152,7 @@ class TestGetCommandsE2E:
     def test_get_todo_with_live_api(self):
         """Test get todo command with live GitHub API."""
         result = self.run_cli_command_with_env([
-            "get", "todo", "--repo", self.test_repo, "1", "Tasks", "test", "--format", "json"
+            "get", "todo", "--repo", self.test_repo, "--issue-id", "1", "--section", "Tasks", "--match", "test", "--format", "json"
         ])
         
         assert "Not yet implemented" not in result.stdout
@@ -224,11 +225,11 @@ required_sections:
         """Test that JSON and rich formats contain consistent core data."""
         # Test with epic command
         json_result = self.run_cli_command_with_env([
-            "get", "epic", "--repo", self.test_repo, "1", "--format", "json"
+            "get", "epic", "--repo", self.test_repo, "--id", "1", "--format", "json"
         ])
         
         rich_result = self.run_cli_command_with_env([
-            "get", "epic", "--repo", self.test_repo, "1", "--format", "rich"
+            "get", "epic", "--repo", self.test_repo, "--id", "1", "--format", "rich"
         ])
         
         assert "Not yet implemented" not in json_result.stdout
@@ -289,7 +290,7 @@ required_sections:
         """Test that commands respond within reasonable time."""
         start_time = time.time()
         result = self.run_cli_command_with_env([
-            "get", "epic", "--repo", self.test_repo, "1", "--format", "json"
+            "get", "epic", "--repo", self.test_repo, "--id", "1", "--format", "json"
         ])
         end_time = time.time()
         
@@ -330,7 +331,7 @@ required_sections:
         
         # Step 1: Get epic details
         epic_result = self.run_cli_command_with_env([
-            "get", "epic", "--repo", self.test_repo, "1", "--format", "json"
+            "get", "epic", "--repo", self.test_repo, "--id", "1", "--format", "json"
         ])
         
         if epic_result.returncode == 0:
@@ -352,7 +353,7 @@ required_sections:
         
         # Step 3: Try to get a section
         section_result = self.run_cli_command_with_env([
-            "get", "section", "--repo", self.test_repo, "1", "Summary", "--format", "json"
+            "get", "section", "--repo", self.test_repo, "--issue-id", "1", "--title", "Summary", "--format", "json"
         ])
         
         if section_result.returncode == 0:
@@ -363,7 +364,7 @@ required_sections:
         
         # Step 4: Try to get a todo
         todo_result = self.run_cli_command_with_env([
-            "get", "todo", "--repo", self.test_repo, "1", "Tasks", "implement", "--format", "json"
+            "get", "todo", "--repo", self.test_repo, "--issue-id", "1", "--section", "Tasks", "--match", "implement", "--format", "json"
         ])
         
         if todo_result.returncode == 0:
