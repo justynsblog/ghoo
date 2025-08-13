@@ -12,6 +12,7 @@ from .core import (
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
     GitHubClient, ConfigLoader
 )
+from .commands import get_app
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -29,6 +30,9 @@ app = typer.Typer(
     help="A prescriptive CLI tool for GitHub repository and project management.",
     add_completion=False,
 )
+
+# Add the new get subcommand group
+app.add_typer(get_app, name="get")
 
 
 def display_audit_trail_info(result: dict) -> None:
@@ -146,8 +150,8 @@ def _display_init_results(results: dict):
         typer.echo(f"\n⚠️  Initialization completed with {total_failed} failures. Created {total_created} items, {total_existed} already existed.", color=typer.colors.YELLOW)
 
 
-@app.command()
-def get(
+@app.command(name="get-legacy")
+def get_legacy(
     repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to retrieve"),
     format: str = typer.Option(
@@ -157,7 +161,13 @@ def get(
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
     )
 ):
-    """Get and display a GitHub issue with parsed body content."""
+    """[DEPRECATED] Get and display a GitHub issue with parsed body content. Use 'ghoo get epic --id <number>' instead."""
+    # Show deprecation warning
+    typer.echo("⚠️  WARNING: This command is deprecated. Use the new subcommand structure instead:", err=True, color=typer.colors.YELLOW)
+    typer.echo(f"   For epics: ghoo get epic --id {issue_number}", err=True, color=typer.colors.YELLOW)
+    typer.echo(f"   For other issue types: ghoo get milestone --id {issue_number}", err=True, color=typer.colors.YELLOW)
+    typer.echo("", err=True)
+    
     try:
         # Validate repository format
         if '/' not in repo or len(repo.split('/')) != 2:
