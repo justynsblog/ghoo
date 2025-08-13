@@ -29,10 +29,11 @@ class TestGetEpicCommand:
         self.config_loader = Mock(spec=ConfigLoader)
         self.command = GetEpicCommand(self.github_client, self.config_loader)
 
-    def test_init_without_config_loader(self):
-        """Test initialization without config loader."""
-        command = GetEpicCommand(self.github_client)
-        assert command.config_loader is None
+    def test_init_with_required_config_loader(self):
+        """Test initialization with required config loader."""
+        config_loader = Mock(spec=ConfigLoader)
+        command = GetEpicCommand(self.github_client, config_loader)
+        assert command.config_loader == config_loader
         assert command.github == self.github_client
         assert isinstance(command.issue_service, IssueService)
 

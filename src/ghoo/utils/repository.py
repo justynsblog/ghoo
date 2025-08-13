@@ -34,6 +34,15 @@ def resolve_repository(repo: Optional[str], config_loader: ConfigLoader) -> str:
                 f"Invalid repository format '{repo}'. Expected 'owner/repo'\n"
                 f"   Examples: 'microsoft/vscode', 'facebook/react', 'nodejs/node'"
             )
+        
+        # Additional validation: ensure both owner and repo parts are non-empty
+        parts = repo.split('/')
+        if not parts[0] or not parts[1]:
+            raise ValueError(
+                f"Invalid repository format '{repo}'. Expected 'owner/repo'\n"
+                f"   Examples: 'microsoft/vscode', 'facebook/react', 'nodejs/node'"
+            )
+        
         return repo
     
     # Priority 2: Try to load repository from configuration
@@ -41,12 +50,20 @@ def resolve_repository(repo: Optional[str], config_loader: ConfigLoader) -> str:
         config = config_loader.load()
         project_url = config.project_url
         
-        # Extract owner/repo from project_url (e.g., https://github.com/owner/repo)
-        if '//' not in project_url:
+        # Extract owner/repo from various URL formats
+        # Support: https://github.com/owner/repo, git@github.com:owner/repo.git, etc.
+        
+        if project_url.startswith('git@'):
+            # SSH format: git@github.com:owner/repo.git
+            if ':' not in project_url:
+                raise ValueError(f"Invalid SSH URL format in config: {project_url}")
+            url_parts = project_url.split(':')[1].rstrip('/').split('/')
+        elif '//' in project_url:
+            # HTTP/HTTPS format: https://github.com/owner/repo
+            url_parts = project_url.rstrip('/').split('/')
+        else:
             raise ValueError(f"Invalid project_url in config: {project_url}")
         
-        # Parse URL to extract owner/repo
-        url_parts = project_url.rstrip('/').split('/')
         if len(url_parts) < 2:
             raise ValueError(f"Cannot extract owner/repo from project_url: {project_url}")
         
