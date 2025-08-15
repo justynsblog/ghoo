@@ -48,7 +48,7 @@ class GraphQLClient:
         self.session.headers.update({
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json',
-            'GraphQL-Features': 'sub_issues',  # Enable sub-issues beta feature
+            'GraphQL-Features': 'issue_types,sub_issues',  # Enable issue types and sub-issues preview features
         })
         
         # Cache for feature detection to avoid repeated checks
@@ -202,14 +202,16 @@ class GraphQLClient:
             FeatureUnavailableError: If sub-issues are not available
         """
         mutation = """
-        mutation AddSubIssue($parentId: ID!, $childId: ID!) {
-            addSubIssue(input: {parentId: $parentId, childId: $childId}) {
-                parentIssue {
+        mutation AddSubIssue($issueId: ID!, $subIssueId: ID!) {
+            addSubIssue(input: {issueId: $issueId, subIssueId: $subIssueId}) {
+                issue {
                     id
+                    number
                     title
                 }
-                childIssue {
+                subIssue {
                     id
+                    number
                     title
                 }
             }
@@ -217,8 +219,8 @@ class GraphQLClient:
         """
         
         variables = {
-            'parentId': parent_node_id,
-            'childId': child_node_id
+            'issueId': parent_node_id,
+            'subIssueId': child_node_id
         }
         
         try:
@@ -246,14 +248,16 @@ class GraphQLClient:
             FeatureUnavailableError: If sub-issues are not available
         """
         mutation = """
-        mutation RemoveSubIssue($parentId: ID!, $childId: ID!) {
-            removeSubIssue(input: {parentId: $parentId, childId: $childId}) {
-                parentIssue {
+        mutation RemoveSubIssue($issueId: ID!, $subIssueId: ID!) {
+            removeSubIssue(input: {issueId: $issueId, subIssueId: $subIssueId}) {
+                issue {
                     id
+                    number
                     title
                 }
-                childIssue {
+                subIssue {
                     id
+                    number
                     title
                 }
             }
@@ -261,8 +265,8 @@ class GraphQLClient:
         """
         
         variables = {
-            'parentId': parent_node_id,
-            'childId': child_node_id
+            'issueId': parent_node_id,
+            'subIssueId': child_node_id
         }
         
         try:
@@ -887,6 +891,59 @@ class GraphQLClient:
         self._feature_cache[cache_key] = available
         return available
     
+    def get_repository_issue_types(self, repo_owner: str, repo_name: str) -> Dict[str, str]:
+        """Get all issue types configured for a repository.
+        
+        Args:
+            repo_owner: Repository owner (user or organization)
+            repo_name: Repository name
+            
+        Returns:
+            Dictionary mapping issue type names to their IDs
+            
+        Raises:
+            GraphQLError: If the query fails or issue types aren't available
+        """
+        cache_key = f"issue_type_ids_{repo_owner}/{repo_name}"
+        
+        # Check cache first
+        if cache_key in self._feature_cache:
+            return self._feature_cache[cache_key]
+        
+        # Query repository issue types
+        query = """
+        query GetRepositoryIssueTypes($owner: String!, $repo: String!) {
+            repository(owner: $owner, name: $repo) {
+                issueTypes(first: 20) {
+                    nodes {
+                        id
+                        name
+                        description
+                        isEnabled
+                    }
+                }
+            }
+        }
+        """
+        
+        variables = {
+            'owner': repo_owner,
+            'repo': repo_name
+        }
+        
+        result = self._execute(query, variables)
+        
+        # Extract issue types from response
+        issue_types = {}
+        if result.get('repository', {}).get('issueTypes', {}).get('nodes'):
+            for issue_type in result['repository']['issueTypes']['nodes']:
+                if issue_type.get('isEnabled', False):
+                    issue_types[issue_type['name']] = issue_type['id']
+        
+        # Cache the result
+        self._feature_cache[cache_key] = issue_types
+        return issue_types
+    
     def create_project_status_field_options(self, project_id: str, field_name: str, options: List[Dict[str, str]]) -> Dict[str, Any]:
         """Create or update status field options in a GitHub Project V2.
         
@@ -1387,6 +1444,44 @@ class GitHubClient:
         owner, repo_name = repo.split('/')
         return self.graphql.check_custom_issue_types_available(owner, repo_name)
     
+    def discover_issue_types(self, repo: str) -> Dict[str, str]:
+        """Discover available issue types for a repository and return name to ID mapping.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            
+        Returns:
+            Dictionary mapping issue type names to their IDs
+            Example: {'Epic': 'IT_kwDOCKJFjs4BsQn6', 'Task': 'IT_kwDOCKJFjs4BN0cv'}
+            
+        Raises:
+            GraphQLError: If discovery fails or issue types aren't available
+        """
+        owner, repo_name = repo.split('/')
+        return self.graphql.get_repository_issue_types(owner, repo_name)
+    
+    def get_issue_type_id(self, repo: str, type_name: str) -> Optional[str]:
+        """Get the ID for a specific issue type name.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            type_name: Issue type name (case-insensitive, e.g. 'epic', 'Epic', 'EPIC')
+            
+        Returns:
+            Issue type ID if found, None otherwise
+        """
+        try:
+            issue_types = self.discover_issue_types(repo)
+            
+            # Try case-insensitive matching
+            for name, type_id in issue_types.items():
+                if name.lower() == type_name.lower():
+                    return type_id
+            
+            return None
+        except GraphQLError:
+            return None
+    
     def create_issue_with_type(
         self, 
         repo: str, 
@@ -1403,7 +1498,7 @@ class GitHubClient:
             repo: Repository in format 'owner/repo'
             title: Issue title
             body: Issue body
-            issue_type: Custom issue type ('epic', 'task', 'sub-task')
+            issue_type: Custom issue type name ('epic', 'task', 'sub-task')
             labels: Optional list of label names
             assignees: Optional list of GitHub usernames
             milestone: Optional milestone object from PyGithub
@@ -1417,17 +1512,41 @@ class GitHubClient:
         """
         owner, repo_name = repo.split('/')
         
-        # First, get the repository ID
+        # Try to discover issue types and get the ID
+        issue_type_id = self.get_issue_type_id(repo, issue_type)
+        
+        if issue_type_id:
+            # Create issue with native issue type
+            return self._create_issue_with_type_id(repo, title, body, issue_type_id, issue_type, labels, assignees, milestone)
+        else:
+            # Fallback to label-based creation
+            return self._create_issue_with_label_fallback(repo, title, body, issue_type, labels, assignees, milestone)
+    
+    def _create_issue_with_type_id(
+        self, 
+        repo: str, 
+        title: str, 
+        body: str, 
+        issue_type_id: str, 
+        issue_type_name: str,
+        labels: Optional[List[str]] = None, 
+        assignees: Optional[List[str]] = None, 
+        milestone = None
+    ) -> Dict[str, Any]:
+        """Create an issue using native issue type ID."""
+        owner, repo_name = repo.split('/')
+        
+        # Get the repository ID
         repo_id = self.graphql._get_repository_id(owner, repo_name)
         
-        # Create issue using GraphQL mutation
+        # Create issue using GraphQL mutation with correct parameter name
         mutation = """
-        mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String, $issueType: String) {
+        mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String, $issueTypeId: ID) {
           createIssue(input: {
             repositoryId: $repositoryId
             title: $title
             body: $body
-            issueType: $issueType
+            issueTypeId: $issueTypeId
           }) {
             issue {
               id
@@ -1435,6 +1554,11 @@ class GitHubClient:
               title
               url
               state
+              issueType {
+                id
+                name
+                description
+              }
               labels(first: 100) {
                 nodes {
                   name
@@ -1458,12 +1582,12 @@ class GitHubClient:
             'repositoryId': repo_id,
             'title': title,
             'body': body,
-            'issueType': issue_type
+            'issueTypeId': issue_type_id
         }
         
         try:
             result = self.graphql._execute(mutation, variables)
-            issue_data = result['data']['createIssue']['issue']
+            issue_data = result['createIssue']['issue']
             
             # Post-process to add labels, assignees, milestone if needed
             if labels or assignees or milestone:
@@ -1490,6 +1614,7 @@ class GitHubClient:
                 'title': issue_data['title'],
                 'url': issue_data['url'],
                 'state': issue_data['state'].lower(),
+                'issue_type': issue_data.get('issueType', {}).get('name', 'unknown') if issue_data.get('issueType') else None,
                 'labels': [label['name'] for label in issue_data['labels']['nodes']],
                 'assignees': [assignee['login'] for assignee in issue_data['assignees']['nodes']],
                 'milestone': {
@@ -1499,9 +1624,60 @@ class GitHubClient:
             }
             
         except GraphQLError as e:
-            if 'custom issue types' in str(e).lower():
-                raise FeatureUnavailableError("Custom issue types not available for this repository")
-            raise e
+            # If creating with issue type fails, try fallback
+            print(f"Warning: Creating issue with type ID failed ({str(e)}), falling back to labels")
+            return self._create_issue_with_label_fallback(repo, title, body, issue_type_name, labels, assignees, milestone)
+    
+    def _create_issue_with_label_fallback(
+        self, 
+        repo: str, 
+        title: str, 
+        body: str, 
+        issue_type: str, 
+        labels: Optional[List[str]] = None, 
+        assignees: Optional[List[str]] = None, 
+        milestone = None
+    ) -> Dict[str, Any]:
+        """Create an issue using label-based types as fallback."""
+        # Add type label to the labels list
+        if labels is None:
+            labels = []
+        
+        type_label = f"type:{issue_type.lower()}"
+        if type_label not in labels:
+            labels.append(type_label)
+        
+        print(f"Info: Using label-based fallback for issue type '{issue_type}'")
+        
+        # Create issue using REST API
+        github_repo = self.github.get_repo(repo)
+        
+        kwargs = {
+            'title': title,
+            'body': body,
+            'labels': labels,
+        }
+        
+        if assignees:
+            kwargs['assignees'] = assignees
+        
+        if milestone:
+            kwargs['milestone'] = milestone
+        
+        created_issue = github_repo.create_issue(**kwargs)
+        
+        return {
+            'number': created_issue.number,
+            'title': created_issue.title,
+            'url': created_issue.html_url,
+            'state': created_issue.state,
+            'labels': [label.name for label in created_issue.labels],
+            'assignees': [assignee.login for assignee in created_issue.assignees],
+            'milestone': {
+                'title': created_issue.milestone.title,
+                'number': created_issue.milestone.number
+            } if created_issue.milestone else None
+        }
     
     def _post_process_created_issue(
         self, 
