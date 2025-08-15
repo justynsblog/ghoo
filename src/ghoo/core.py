@@ -1518,7 +1518,15 @@ class GitHubClient:
         
         # Check configuration for issue type method
         if self.config and self.config.issue_type_method == "labels":
-            # Use label-based creation when explicitly configured
+            # SPEC COMPLIANCE: Only epics can use label-based creation
+            # Tasks and sub-tasks MUST use native types for sub-issue relationships
+            if issue_type in ['task', 'subtask', 'sub-task']:
+                raise ValueError(
+                    f"Cannot create {issue_type} with issue_type_method: 'labels' configuration. "
+                    f"Tasks and sub-tasks require native GitHub issue types for sub-issue relationships. "
+                    f"Either enable custom issue types in repository settings or use epics only with labels configuration."
+                )
+            # Use label-based creation only for epics
             return self._create_issue_with_label_fallback(repo, title, body, issue_type, labels, assignees, milestone)
         
         # Default to native issue types (SPEC compliance)
@@ -3381,8 +3389,7 @@ class CreateTaskCommand(BaseCreateCommand):
         """
         sections = []
         
-        # Add parent epic reference at the top
-        sections.append(f"**Parent Epic:** #{parent_epic}\n")
+        # Note: Parent relationship established via native sub-issue, not body reference
         
         if self.config and 'task' in self.config.required_sections:
             required_sections = self.config.required_sections['task']
@@ -3420,8 +3427,8 @@ class CreateTaskCommand(BaseCreateCommand):
         )
         
         if not has_reference:
-            # Add parent reference at the top
-            body = f"**Parent Epic:** #{parent_epic}\n\n{body}"
+            # Note: Parent relationship established via native sub-issue, not body reference
+            pass
         
         return body
     
@@ -3733,7 +3740,8 @@ class CreateSubTaskCommand(BaseCreateCommand):
         Returns:
             Generated sub-task body template
         """
-        body = f"**Parent Task:** #{parent_task}\n\n"
+        # Note: Parent relationship established via native sub-issue, not body reference
+        body = ""
         
         # Add standard sub-task sections
         body += "## Summary\n\n"
@@ -3773,8 +3781,8 @@ class CreateSubTaskCommand(BaseCreateCommand):
         )
         
         if not has_reference:
-            # Add parent reference at the top
-            body = f"**Parent Task:** #{parent_task}\n\n{body}"
+            # Note: Parent relationship established via native sub-issue, not body reference
+            pass
         
         return body
     
