@@ -48,6 +48,43 @@ class TestCreateTaskE2E:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"E2E Parent Epic {timestamp}"
     
+    def _verify_native_subissue_relationship(self, github_env, parent_number: int, child_number: int):
+        """Helper to verify native sub-issue relationship exists."""
+        if isinstance(github_env, str):  # Mock mode
+            return True
+            
+        try:
+            # Import here to avoid dependency issues
+            from ghoo.core import GitHubClient
+            
+            client = GitHubClient(github_env['token'])
+            repo_owner, repo_name = github_env['repo'].split('/')
+            
+            # Get parent issue node ID
+            parent_node_id = client.graphql.get_issue_node_id(repo_owner, repo_name, parent_number)
+            if not parent_node_id:
+                pytest.fail(f"Could not get node ID for parent issue #{parent_number}")
+            
+            # Get sub-issues via GraphQL
+            sub_issues_data = client.graphql.get_issue_with_sub_issues(parent_node_id)
+            if not sub_issues_data.get('node', {}).get('subIssues'):
+                pytest.fail("Invalid sub-issues data structure")
+            
+            sub_issues = sub_issues_data['node']['subIssues']['nodes']
+            child_numbers = [sub['number'] for sub in sub_issues]
+            
+            if child_number not in child_numbers:
+                pytest.fail(
+                    f"Child issue #{child_number} not found as native sub-issue of #{parent_number}. "
+                    f"Found sub-issues: {child_numbers}. "
+                    f"This violates SPEC requirement for native sub-issue relationships."
+                )
+                
+            return True
+            
+        except Exception as e:
+            pytest.fail(f"Failed to verify native sub-issue relationship: {e}")
+    
     def _create_parent_epic(self, github_env, epic_title):
         """Helper to create a parent epic for task testing."""
         import shutil
@@ -108,6 +145,13 @@ class TestCreateTaskE2E:
         assert "type:task" in result.stdout or "Type: task" in result.stdout
         assert "status:backlog" in result.stdout
         assert "https://github.com/" in result.stdout
+        
+        # CRITICAL: Verify native sub-issue relationship exists (SPEC compliance)
+        import re
+        task_match = re.search(r'Issue #(\d+):', result.stdout)
+        if task_match:
+            task_number = int(task_match.group(1))
+            self._verify_native_subissue_relationship(github_env, parent_epic_number, task_number)
     
     def test_create_task_with_labels(self, github_env, unique_title, unique_epic_title):
         """Test creating task with additional labels."""
