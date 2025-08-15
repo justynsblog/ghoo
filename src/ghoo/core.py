@@ -2908,6 +2908,34 @@ class BaseCreateCommand(ABC):
             } if issue.milestone else None
         }
     
+    def _rollback_failed_issue(self, repo: str, issue_number: int, reason: str) -> None:
+        """Delete/close issue when sub-issue relationship creation fails.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to rollback
+            reason: Reason for rollback
+            
+        Raises:
+            GithubException: If rollback operations fail
+        """
+        try:
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            issue.edit(state='closed')
+            issue.create_comment(
+                f"Issue closed: {reason}\n\n"
+                f"Failed to establish required sub-issue relationship. "
+                f"Enable custom issue types in repository settings to create "
+                f"tasks and sub-tasks with proper parent relationships."
+            )
+        except Exception as rollback_error:
+            # If rollback fails, log but don't hide original error
+            raise ValueError(
+                f"Critical failure: {reason} AND rollback failed: {str(rollback_error)}. "
+                f"Manual cleanup required for issue #{issue_number}."
+            )
+    
     def _post_graphql_create(self, repo: str, issue_data: Dict[str, Any], **kwargs):
         """Hook for post-creation actions in GraphQL mode. Override in subclasses.
         
@@ -3147,8 +3175,8 @@ class CreateTaskCommand(BaseCreateCommand):
     This class handles:
     - Task body template processing with required sections
     - Parent epic validation and linking
-    - Sub-issue relationship creation (GraphQL with REST fallback)
-    - Hybrid GitHub issue creation (GraphQL types with REST fallback)
+    - Mandatory sub-issue relationship creation (GraphQL only)
+    - Native GitHub issue type creation (requires repository support)
     - Status label assignment (status:backlog by default)
     """
     
@@ -3181,7 +3209,7 @@ class CreateTaskCommand(BaseCreateCommand):
             parent_epic: Issue number of the parent epic
             title: Task title
             body: Optional custom body (uses template if not provided)
-            labels: Optional additional labels beyond type:task and status:backlog
+            labels: Optional additional labels beyond status:backlog (type labels added based on config)
             assignees: Optional list of GitHub usernames to assign
             milestone: Optional milestone title to assign
             
@@ -3222,15 +3250,17 @@ class CreateTaskCommand(BaseCreateCommand):
         if milestone:
             milestone_obj = self._find_milestone(github_repo, milestone)
         
-        # Try to create task and establish sub-issue relationship
+        # Create task with mandatory sub-issue relationship (GraphQL only)
         try:
             issue_data = self._create_with_graphql(
                 repo, title, body, issue_labels, assignees, milestone_obj, parent_epic
             )
-        except (GraphQLError, FeatureUnavailableError):
-            # Fallback to REST API with type:task label
-            issue_data = self._create_with_rest(
-                github_repo, title, body, issue_labels, assignees, milestone_obj
+        except (GraphQLError, FeatureUnavailableError) as e:
+            # Tasks MUST have sub-issue relationships - no fallback allowed
+            raise ValueError(
+                f"Failed to create task with required sub-issue relationship to epic #{parent_epic}. "
+                f"Error: {str(e)}. Repository must support sub-issues for task creation. "
+                f"Enable custom issue types in repository settings."
             )
         
         # Create consistent return format
@@ -3424,8 +3454,18 @@ class CreateTaskCommand(BaseCreateCommand):
         if parent_epic and isinstance(issue_data, dict) and 'id' in issue_data:
             try:
                 self._create_sub_issue_relationship(repo, issue_data['id'], parent_epic)
-            except GraphQLError:
-                pass  # Relationship creation failed but issue exists
+            except GraphQLError as e:
+                # Rollback the created issue since we can't establish relationship
+                self._rollback_failed_issue(
+                    repo, 
+                    issue_data['number'], 
+                    f"Failed to create required sub-issue relationship to epic #{parent_epic}"
+                )
+                raise ValueError(
+                    f"Failed to create task with required sub-issue relationship to epic #{parent_epic}. "
+                    f"Issue #{issue_data['number']} has been closed. Error: {str(e)}. "
+                    f"Ensure repository has custom issue types enabled and supports sub-issues."
+                )
     
     def _create_with_graphql(
         self, 
@@ -3491,52 +3531,6 @@ class CreateTaskCommand(BaseCreateCommand):
             # Create the sub-issue relationship
             self.github.graphql.add_sub_issue(parent_id, task_id)
     
-    def _create_with_rest(
-        self, 
-        github_repo, 
-        title: str, 
-        body: str, 
-        labels: List[str], 
-        assignees: Optional[List[str]], 
-        milestone
-    ) -> Dict[str, Any]:
-        """Create task using REST API with type:task label fallback.
-        
-        Args:
-            github_repo: PyGithub repository object
-            title: Issue title
-            body: Issue body
-            labels: List of label names
-            assignees: Optional list of assignees
-            milestone: Optional milestone object
-            
-        Returns:
-            Issue data dictionary
-            
-        Raises:
-            GithubException: If REST API operations fail
-        """
-        # Add type label for fallback
-        final_labels = labels + [f'type:{self.get_issue_type()}']
-        
-        try:
-            # Create the issue
-            kwargs = {
-                'title': title,
-                'body': body,
-                'labels': final_labels,
-                'assignees': assignees or []
-            }
-            # Only add milestone if it's not None
-            if milestone is not None:
-                kwargs['milestone'] = milestone
-                
-            issue = github_repo.create_issue(**kwargs)
-            
-            return self._format_rest_response(issue)
-            
-        except GithubException as e:
-            raise GithubException(f"Failed to create {self.get_issue_type()} issue: {str(e)}")
 
 class CreateSubTaskCommand(BaseCreateCommand):
     """Command for creating Sub-task issues linked to parent Tasks.
@@ -3544,8 +3538,8 @@ class CreateSubTaskCommand(BaseCreateCommand):
     This class handles:
     - Sub-task body template processing with required sections
     - Parent task validation and linking
-    - Sub-issue relationship creation (GraphQL with REST fallback)
-    - Hybrid GitHub issue creation (GraphQL types with REST fallback)
+    - Mandatory sub-issue relationship creation (GraphQL only)
+    - Native GitHub issue type creation (requires repository support)
     - Status label assignment (status:backlog by default)
     """
     
@@ -3578,7 +3572,7 @@ class CreateSubTaskCommand(BaseCreateCommand):
             parent_task: Issue number of the parent task
             title: Sub-task title
             body: Optional custom body (uses template if not provided)
-            labels: Optional additional labels beyond type:sub-task and status:backlog
+            labels: Optional additional labels beyond status:backlog (type labels added based on config)
             assignees: Optional list of GitHub usernames to assign
             milestone: Optional milestone title to assign
             
@@ -3619,15 +3613,17 @@ class CreateSubTaskCommand(BaseCreateCommand):
         if milestone:
             milestone_obj = self._find_milestone(github_repo, milestone)
         
-        # Try to create sub-task and establish sub-issue relationship
+        # Create sub-task with mandatory sub-issue relationship (GraphQL only)
         try:
             issue_data = self._create_with_graphql(
                 repo, title, body, issue_labels, assignees, milestone_obj, parent_task
             )
-        except (GraphQLError, FeatureUnavailableError):
-            # Fall back to REST API creation
-            issue_data = self._create_with_rest(
-                github_repo, title, body, issue_labels, assignees, milestone_obj
+        except (GraphQLError, FeatureUnavailableError) as e:
+            # Sub-tasks MUST have sub-issue relationships - no fallback allowed
+            raise ValueError(
+                f"Failed to create sub-task with required sub-issue relationship to task #{parent_task}. "
+                f"Error: {str(e)}. Repository must support sub-issues for sub-task creation. "
+                f"Enable custom issue types in repository settings."
             )
         
         # Create consistent return format with parent_task field
@@ -3811,8 +3807,18 @@ class CreateSubTaskCommand(BaseCreateCommand):
         if parent_task and isinstance(issue_data, dict) and 'id' in issue_data:
             try:
                 self._create_sub_issue_relationship(repo, issue_data['id'], parent_task)
-            except GraphQLError:
-                pass  # Relationship creation failed but issue exists
+            except GraphQLError as e:
+                # Rollback the created issue since we can't establish relationship
+                self._rollback_failed_issue(
+                    repo, 
+                    issue_data['number'], 
+                    f"Failed to create required sub-issue relationship to task #{parent_task}"
+                )
+                raise ValueError(
+                    f"Failed to create sub-task with required sub-issue relationship to task #{parent_task}. "
+                    f"Issue #{issue_data['number']} has been closed. Error: {str(e)}. "
+                    f"Ensure repository has custom issue types enabled and supports sub-issues."
+                )
     
     def _create_with_graphql(
         self, 
@@ -3878,52 +3884,6 @@ class CreateSubTaskCommand(BaseCreateCommand):
         if parent_node_id:
             self.github.graphql.add_sub_issue(parent_node_id, sub_task_id)
     
-    def _create_with_rest(
-        self, 
-        github_repo, 
-        title: str, 
-        body: str, 
-        labels: List[str], 
-        assignees: Optional[List[str]], 
-        milestone
-    ) -> Dict[str, Any]:
-        """Create sub-task using REST API with type:sub-task label fallback.
-        
-        Args:
-            github_repo: PyGithub repository object
-            title: Issue title
-            body: Issue body
-            labels: List of label names
-            assignees: Optional list of assignees
-            milestone: Optional milestone object
-            
-        Returns:
-            Issue data dictionary
-            
-        Raises:
-            GithubException: If REST API operations fail
-        """
-        # Add type label for fallback
-        final_labels = labels + [f'type:{self.get_issue_type()}']
-        
-        try:
-            # Create the issue
-            kwargs = {
-                'title': title,
-                'body': body,
-                'labels': final_labels,
-                'assignees': assignees or []
-            }
-            # Only add milestone if it's not None
-            if milestone is not None:
-                kwargs['milestone'] = milestone
-                
-            issue = github_repo.create_issue(**kwargs)
-            
-            return self._format_rest_response(issue)
-            
-        except GithubException as e:
-            raise GithubException(f"Failed to create {self.get_issue_type()} issue: {str(e)}")
 
 
 class TodoCommand:
@@ -4537,8 +4497,15 @@ class SubmitPlanCommand(BaseWorkflowCommand):
         
         # Validate required sections exist (if config available)
         if self.config and self.config.required_sections:
-            # Determine issue type from labels
-            issue_type = self._get_issue_type(issue)
+            # Determine issue type using native types only
+            try:
+                issue_type = self._get_native_issue_type(issue)
+            except FeatureUnavailableError:
+                # Block validation if we can't determine native type
+                raise ValueError(
+                    "Cannot validate transition: Native issue types required but not available. "
+                    "Enable custom issue types in repository settings."
+                )
             if issue_type and issue_type in self.config.required_sections:
                 required_sections = self.config.required_sections[issue_type]
                 parser = IssueParser()
@@ -4569,25 +4536,33 @@ class SubmitPlanCommand(BaseWorkflowCommand):
                 if missing_sections:
                     raise ValueError(f"Cannot submit plan: missing required sections: {', '.join(missing_sections)}")
     
-    def _get_issue_type(self, issue) -> Optional[str]:
-        """Get the issue type from labels.
+    def _get_native_issue_type(self, issue) -> Optional[str]:
+        """Get the native issue type via GraphQL.
         
         Args:
             issue: GitHub issue object
             
         Returns:
-            Issue type ('epic', 'task', 'sub-task') or None if not found
+            Native issue type or None if not available/supported
+            
+        Raises:
+            FeatureUnavailableError: If native types not supported
         """
-        for label in issue.labels:
-            if label.name == "type:epic":
-                return "epic"
-            elif label.name == "type:task":
-                return "task"
-            elif label.name == "type:sub-task":
-                return "subtask"  # Return new standard
-            elif label.name == "type:subtask":
-                return "subtask"  # Support new label
-        return None
+        repo_owner, repo_name = issue.repository.full_name.split('/')
+        
+        try:
+            # Get issue details including native type information
+            issue_node_id = self.github.graphql.get_issue_node_id(repo_owner, repo_name, issue.number)
+            if not issue_node_id:
+                raise FeatureUnavailableError("Cannot determine native issue type")
+                
+            issue_data = self.github.graphql.get_issue_with_type(issue_node_id)
+            return issue_data.get('issueType', {}).get('name')
+            
+        except Exception:
+            raise FeatureUnavailableError(
+                "Native issue types not available. Workflow validation blocked for safety."
+            )
 
 
 class ApprovePlanCommand(BaseWorkflowCommand):
@@ -4838,125 +4813,10 @@ class ApproveWorkCommand(BaseWorkflowCommand):
             # Re-raise validation errors
             raise
         except Exception:
-            # GraphQL failed, fall back to body parsing
-            pass
-        
-        # Fallback: Parse issue body for sub-issue references
-        self._validate_sub_issues_from_body_parsing(issue)
-    
-    def _validate_sub_issues_from_body_parsing(self, issue) -> None:
-        """Validate sub-issues using fallback body parsing method.
-        
-        This method provides a fallback when GraphQL sub-issues API is unavailable.
-        It includes performance optimizations and edge case handling:
-        
-        - Batched API calls when possible
-        - Timeout protection for large issue sets
-        - Cross-repository reference detection
-        - Circular reference prevention
-        - Deleted/inaccessible issue handling
-        
-        Args:
-            issue: GitHub issue object to validate
-            
-        Raises:
-            ValueError: If open sub-issues are found that block closure
-        """
-        import re
-        import time
-        from typing import Set
-        
-        # Enhanced regex to capture both same-repo (#123) and cross-repo (owner/repo#123) references
-        issue_ref_pattern = re.compile(r'(?:([a-zA-Z0-9\-_.]+/[a-zA-Z0-9\-_.]+))?#(\d+)')
-        matches = issue_ref_pattern.findall(issue.body or '')
-        
-        if not matches:
-            return
-        
-        # Organize references by repository to minimize API calls
-        repo_refs = {}
-        current_repo = issue.repository
-        current_repo_name = current_repo.full_name
-        
-        # Process references and group by repository
-        processed_refs: Set[str] = set()
-        for repo_part, issue_num in matches:
-            # Determine target repository
-            target_repo_name = repo_part if repo_part else current_repo_name
-            issue_number = int(issue_num)
-            
-            # Prevent circular references (issue referencing itself)
-            ref_key = f"{target_repo_name}#{issue_number}"
-            if ref_key == f"{current_repo_name}#{issue.number}":
-                continue  # Skip self-reference
-                
-            if ref_key in processed_refs:
-                continue  # Skip duplicates
-            processed_refs.add(ref_key)
-            
-            if target_repo_name not in repo_refs:
-                repo_refs[target_repo_name] = []
-            repo_refs[target_repo_name].append(issue_number)
-        
-        # Process each repository's references
-        open_sub_issues = []
-        max_references = 50  # Limit to prevent excessive API calls
-        processed_count = 0
-        start_time = time.time()
-        timeout_seconds = 30
-        
-        for repo_name, issue_numbers in repo_refs.items():
-            # Check timeout
-            if time.time() - start_time > timeout_seconds:
-                # If we've hit timeout, add a warning message and break
-                if processed_count < len(processed_refs):
-                    open_sub_issues.append("... timeout checking remaining references")
-                break
-            
-            try:
-                # Get repository object
-                if repo_name == current_repo_name:
-                    target_repo = current_repo
-                else:
-                    # Cross-repository reference - try to access it
-                    target_repo = self.github.github.get_repo(repo_name)
-                
-                # Check each issue in this repository
-                for issue_num in issue_numbers[:max_references - processed_count]:
-                    if processed_count >= max_references:
-                        open_sub_issues.append(f"... and more (limited to {max_references} references)")
-                        break
-                    
-                    try:
-                        ref_issue = target_repo.get_issue(issue_num)
-                        if ref_issue.state == 'open':
-                            if repo_name == current_repo_name:
-                                open_sub_issues.append(f"#{issue_num}: {ref_issue.title}")
-                            else:
-                                open_sub_issues.append(f"{repo_name}#{issue_num}: {ref_issue.title}")
-                        processed_count += 1
-                        
-                    except Exception:
-                        # Issue might not exist, be private, or be deleted - skip it
-                        processed_count += 1
-                        continue
-                        
-            except Exception:
-                # Repository might not exist or be accessible - skip all issues in this repo
-                processed_count += len(issue_numbers)
-                continue
-            
-            if processed_count >= max_references:
-                break
-        
-        # Raise error if we found any open sub-issues
-        if open_sub_issues:
-            sub_issues_str = "\n  - " + "\n  - ".join(open_sub_issues[:5])  # Show first 5
-            if len(open_sub_issues) > 5:
-                sub_issues_str += f"\n  - ... and {len(open_sub_issues) - 5} more"
+            # Native sub-issue validation failed - block approval for safety
             raise ValueError(
-                f"Cannot approve work: issue has open sub-issues that must be completed first:{sub_issues_str}\n\n"
-                f"Please complete or close these sub-issues before approving this work."
+                "Cannot validate sub-issue completion: Native sub-issue relationships required. "
+                "Enable custom issue types in repository settings to use approval workflow."
             )
 
     def execute_transition(self, repo: str, issue_number: int, message: Optional[str] = None) -> Dict[str, Any]:
