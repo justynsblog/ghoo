@@ -51,7 +51,7 @@ class TestCreateSubTaskCommand:
             'title': 'Test Sub-task',
             'url': 'https://github.com/owner/repo/issues/125',
             'state': 'open',
-            'labels': ['status:backlog', 'type:sub-task'],
+            'labels': ['status:backlog', 'type:subtask'],
             'assignees': [],
             'milestone': None
         }
@@ -70,12 +70,12 @@ class TestCreateSubTaskCommand:
         return task
 
     def test_get_issue_type(self, create_command):
-        """Test that get_issue_type returns 'sub-task'."""
-        assert create_command.get_issue_type() == 'sub-task'
+        """Test that get_issue_type returns 'subtask'."""
+        assert create_command.get_issue_type() == 'subtask'
     
     def test_get_required_sections_key(self, create_command):
-        """Test that get_required_sections_key returns 'sub-task'."""
-        assert create_command.get_required_sections_key() == 'sub-task'
+        """Test that get_required_sections_key returns 'subtask'."""
+        assert create_command.get_required_sections_key() == 'subtask'
     
     def test_generate_body(self, create_command):
         """Test body generation with parent task reference."""
@@ -128,7 +128,7 @@ class TestCreateSubTaskCommand:
         # Extract label names from mock objects
         label_names = [label.name for label in mock_issue.labels]
         assert 'status:backlog' in label_names
-        assert 'type:sub-task' in label_names
+        assert 'type:subtask' in label_names
 
     def test_execute_with_custom_body(self, create_command, mock_parent_task):
         """Test sub-task creation with custom body that gets parent reference."""
@@ -145,9 +145,9 @@ class TestCreateSubTaskCommand:
         mock_issue.title = "Test Sub-task"
         mock_issue.html_url = "https://github.com/owner/repo/issues/125"
         mock_issue.state = "open"
-        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:sub-task')]
+        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:subtask')]
         mock_issue.labels[0].name = 'status:backlog'
-        mock_issue.labels[1].name = 'type:sub-task'
+        mock_issue.labels[1].name = 'type:subtask'
         mock_issue.assignees = []
         mock_issue.milestone = None
         
@@ -182,11 +182,11 @@ class TestCreateSubTaskCommand:
         mock_issue.state = "open"
         mock_issue.labels = [
             Mock(name='status:backlog'),
-            Mock(name='type:sub-task'),
+            Mock(name='type:subtask'),
             Mock(name='priority:high'),
             Mock(name='bug')
         ]
-        for i, name in enumerate(['status:backlog', 'type:sub-task', 'priority:high', 'bug']):
+        for i, name in enumerate(['status:backlog', 'type:subtask', 'priority:high', 'bug']):
             mock_issue.labels[i].name = name
         mock_issue.assignees = []
         mock_issue.milestone = None
@@ -205,7 +205,7 @@ class TestCreateSubTaskCommand:
         create_call_args = mock_repo.create_issue.call_args
         actual_labels = create_call_args[1]['labels']
         assert 'status:backlog' in actual_labels
-        assert 'type:sub-task' in actual_labels
+        assert 'type:subtask' in actual_labels
         assert 'priority:high' in actual_labels
         assert 'bug' in actual_labels
 
@@ -234,9 +234,9 @@ class TestCreateSubTaskCommand:
         mock_issue.title = "Test Sub-task"
         mock_issue.html_url = "https://github.com/owner/repo/issues/125"
         mock_issue.state = "open"
-        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:sub-task')]
+        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:subtask')]
         mock_issue.labels[0].name = 'status:backlog'
-        mock_issue.labels[1].name = 'type:sub-task'
+        mock_issue.labels[1].name = 'type:subtask'
         mock_issue.assignees = [mock_assignee]
         mock_issue.milestone = mock_milestone
         
@@ -313,9 +313,9 @@ class TestCreateSubTaskCommand:
         mock_issue.title = "Test Sub-task"
         mock_issue.html_url = "https://github.com/owner/repo/issues/125"
         mock_issue.state = "open"
-        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:sub-task')]
+        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:subtask')]
         mock_issue.labels[0].name = 'status:backlog'
-        mock_issue.labels[1].name = 'type:sub-task'
+        mock_issue.labels[1].name = 'type:subtask'
         mock_issue.assignees = []
         mock_issue.milestone = None
         
@@ -366,9 +366,9 @@ class TestCreateSubTaskCommand:
         mock_issue.title = "Test Sub-task"
         mock_issue.html_url = "https://github.com/owner/repo/issues/125"
         mock_issue.state = "open"
-        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:sub-task')]
+        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:subtask')]
         mock_issue.labels[0].name = 'status:backlog'
-        mock_issue.labels[1].name = 'type:sub-task'
+        mock_issue.labels[1].name = 'type:subtask'
         mock_issue.assignees = []
         mock_issue.milestone = None
         

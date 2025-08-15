@@ -33,7 +33,7 @@ class TestBaseWorkflowCommand:
         config.required_sections = {
             "epic": ["Summary", "Acceptance Criteria", "Milestone Plan"],
             "task": ["Summary", "Acceptance Criteria", "Implementation Plan"],
-            "sub-task": ["Summary", "Acceptance Criteria"]
+            "subtask": ["Summary", "Acceptance Criteria"]
         }
         return config
     
@@ -294,8 +294,8 @@ class TestSubmitPlanCommand(TestBaseWorkflowCommand):
         assert submit_plan_command._get_issue_type(mock_issue) == "task"
         
         # Test sub-task type
-        mock_label.name = "type:sub-task"
-        assert submit_plan_command._get_issue_type(mock_issue) == "sub-task"
+        mock_label.name = "type:subtask"
+        assert submit_plan_command._get_issue_type(mock_issue) == "subtask"
         
         # Test no type
         mock_issue.labels = []

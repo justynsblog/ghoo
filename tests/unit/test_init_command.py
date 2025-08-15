@@ -183,7 +183,7 @@ class TestInitCommand:
         # Check label creation parameters
         assert calls[0][1] == {"name": "type:epic", "color": "7057ff"}
         assert calls[1][1] == {"name": "type:task", "color": "0052cc"}
-        assert calls[2][1] == {"name": "type:sub-task", "color": "0e8a16"}
+        assert calls[2][1] == {"name": "type:subtask", "color": "0e8a16"}
         
         # Verify results
         assert len(init_command.results['created']) == 3
@@ -207,7 +207,7 @@ class TestInitCommand:
         # Verify results
         assert "Type label 'type:epic'" in init_command.results['existed']
         assert "Type label 'type:task'" in init_command.results['created']
-        assert "Type label 'type:sub-task'" in init_command.results['created']
+        assert "Type label 'type:subtask'" in init_command.results['created']
     
     def test_create_status_labels_success(self, init_command):
         """Test successful status label creation."""
@@ -356,4 +356,4 @@ class TestInitCommandConstants:
         labels_dict = dict(InitCommand.TYPE_LABELS)
         assert labels_dict['type:epic'] == '7057ff'
         assert labels_dict['type:task'] == '0052cc'
-        assert labels_dict['type:sub-task'] == '0e8a16'
+        assert labels_dict['type:subtask'] == '0e8a16'

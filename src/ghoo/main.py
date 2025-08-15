@@ -313,7 +313,7 @@ def _display_issue(issue_data: dict):
     import datetime
     
     # Header with issue info
-    type_emoji = {"epic": "🏔️", "task": "📋", "sub-task": "🔧"}.get(issue_data['type'], "📄")
+    type_emoji = {"epic": "🏔️", "task": "📋", "subtask": "🔧"}.get(issue_data['type'], "📄")
     state_color = typer.colors.GREEN if issue_data['state'] == 'open' else typer.colors.RED
     
     typer.echo(f"\n{type_emoji} #{issue_data['number']}: {issue_data['title']}", color=typer.colors.BRIGHT_WHITE)

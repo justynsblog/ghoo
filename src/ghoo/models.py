@@ -10,7 +10,7 @@ class IssueType(Enum):
     """Types of issues in the hierarchy."""
     EPIC = "epic"
     TASK = "task"
-    SUB_TASK = "sub-task"
+    SUB_TASK = "subtask"
 
 
 class WorkflowState(Enum):
@@ -262,5 +262,5 @@ class Config:
             self.required_sections = {
                 "epic": ["Summary", "Acceptance Criteria", "Milestone Plan"],
                 "task": ["Summary", "Acceptance Criteria", "Implementation Plan"],
-                "sub-task": ["Summary", "Acceptance Criteria"]
+                "subtask": ["Summary", "Acceptance Criteria"]
             }

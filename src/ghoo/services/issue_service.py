@@ -43,14 +43,16 @@ class IssueService:
             elif label.name == 'type:task':
                 return 'task'
             elif label.name == 'type:sub-task':
-                return 'sub-task'
+                return 'subtask'  # Return new standard
+            elif label.name == 'type:subtask':
+                return 'subtask'  # Support new label
         
         # Fallback: detect from title patterns
         title_lower = issue.title.lower()
         if any(keyword in title_lower for keyword in ['epic:', '[epic]', 'epic -']):
             return 'epic'
-        elif any(keyword in title_lower for keyword in ['sub-task:', '[sub-task]', 'subtask:']):
-            return 'sub-task'
+        elif any(keyword in title_lower for keyword in ['subtask:', '[subtask]', 'sub-task:']):
+            return 'subtask'
         else:
             return 'task'  # Default
     

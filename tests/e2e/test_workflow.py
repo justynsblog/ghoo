@@ -117,7 +117,7 @@ class TestE2EWorkflow:
             expected_type_labels = [
                 'type:epic',
                 'type:task',
-                'type:sub-task'
+                'type:subtask'
             ]
             
             for label_name in expected_type_labels:

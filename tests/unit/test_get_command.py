@@ -107,11 +107,11 @@ class TestGetCommand:
         
         # Test sub-task label
         subtask_label = Mock()
-        subtask_label.name = "type:sub-task"
+        subtask_label.name = "type:subtask"
         mock_issue.labels = [subtask_label]
         
         result = get_command._detect_issue_type(mock_issue)
-        assert result == "sub-task"
+        assert result == "subtask"
     
     def test_detect_issue_type_from_title(self, get_command, mock_issue):
         """Test issue type detection from title patterns."""
@@ -125,7 +125,7 @@ class TestGetCommand:
         # Test sub-task title
         mock_issue.title = "[Sub-task] Implement login form"
         result = get_command._detect_issue_type(mock_issue)
-        assert result == "sub-task"
+        assert result == "subtask"
         
         # Test default (task)
         mock_issue.title = "Regular task title"

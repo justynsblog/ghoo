@@ -347,7 +347,7 @@ class TestDataFactory:
         return [
             {'name': 'type:epic', 'color': '0052CC', 'description': 'Epic issue type'},
             {'name': 'type:task', 'color': '0052CC', 'description': 'Task issue type'},
-            {'name': 'type:sub-task', 'color': '0052CC', 'description': 'Sub-task issue type'},
+            {'name': 'type:subtask', 'color': '0052CC', 'description': 'Sub-task issue type'},
             {'name': 'status:backlog', 'color': 'FBCA04', 'description': 'Backlog status'},
             {'name': 'status:planning', 'color': 'FBCA04', 'description': 'Planning status'},
             {'name': 'status:in-progress', 'color': '0E8A16', 'description': 'In progress status'},
@@ -595,7 +595,7 @@ def create_test_subtask(repo: Repository, parent_task_number: int,
     """Create a complete test sub-task with proper structure."""
     body = TestDataFactory.create_subtask_body(title, parent_task_number)
     return GitHubTestUtils.create_test_issue(
-        repo, title, body, ['type:sub-task', 'status:backlog']
+        repo, title, body, ['type:subtask', 'status:backlog']
     )
 
 

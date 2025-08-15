@@ -35,7 +35,7 @@ class MockIssue:
         if "Epic:" in title or any(label.get('name', '').lower() == 'epic' for label in self.labels):
             self._issue_type = "epic"
         elif "Sub-task:" in title or any(label.get('name', '').lower() == 'sub-task' for label in self.labels):
-            self._issue_type = "sub-task"
+            self._issue_type = "subtask"
     
     def edit(self, **kwargs):
         """Mock edit method."""

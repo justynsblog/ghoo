@@ -32,7 +32,7 @@ As an organization administrator:
    |-----------|-------------|------------------|
    | Epic | Large work item that can be broken down into multiple tasks | Purple (#7057ff) |
    | Task | Standard work item that implements specific functionality | Blue (#0052cc) |
-   | Sub-task | Small work item that is part of a larger task | Green (#0e8a16) |
+   | Subtask | Small work item that is part of a larger task | Green (#0e8a16) |
 
 4. Save your configuration
 
@@ -42,7 +42,7 @@ Issue types are automatically available to all repositories in the organization 
 
 1. Create a new issue in any repository
 2. Check if the issue type selector appears in the right sidebar
-3. Verify that Epic, Task, and Sub-task options are available
+3. Verify that Epic, Task, and Subtask options are available
 
 ## API Access Requirements
 
@@ -85,7 +85,7 @@ If issue types are not available or accessible, `ghoo` will fall back to using l
 
 - `type:epic` - Epic issues
 - `type:task` - Task issues  
-- `type:sub-task` - Sub-task issues
+- `type:subtask` - Subtask issues
 
 ## Testing Your Setup
 
@@ -184,7 +184,7 @@ headers = {
 
 ## Best Practices
 
-1. **Consistent Naming**: Use exactly "Epic", "Task", and "Sub-task" as type names
+1. **Consistent Naming**: Use exactly "Epic", "Task", and "Subtask" as type names
 2. **Test First**: Verify setup with simple API calls before running ghoo
 3. **Monitor Preview Changes**: As these are preview features, stay updated on changes
 4. **Document Your Setup**: Keep track of your organization's configuration

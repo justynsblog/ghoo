@@ -3516,12 +3516,12 @@ class CreateSubTaskCommand(BaseCreateCommand):
     """
     
     def get_issue_type(self) -> str:
-        """Return the issue type ('sub-task')."""
-        return 'sub-task'
+        """Return the issue type ('subtask')."""
+        return 'subtask'
     
     def get_required_sections_key(self) -> str:
-        """Return the config key for required sections ('sub-task')."""
-        return 'sub-task'
+        """Return the config key for required sections ('subtask')."""
+        return 'subtask'
     
     def generate_body(self, parent_task: int = None, **kwargs) -> str:
         """Generate the default body template for sub-task issues."""
@@ -4554,7 +4554,9 @@ class SubmitPlanCommand(BaseWorkflowCommand):
             elif label.name == "type:task":
                 return "task"
             elif label.name == "type:sub-task":
-                return "sub-task"
+                return "subtask"  # Return new standard
+            elif label.name == "type:subtask":
+                return "subtask"  # Support new label
         return None
 
 

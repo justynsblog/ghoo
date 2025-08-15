@@ -48,7 +48,7 @@ class TestWorkflowLoggingE2E:
             required_sections={
                 "epic": ["Summary", "Acceptance Criteria", "Milestone Plan"],
                 "task": ["Summary", "Acceptance Criteria", "Implementation Plan"],
-                "sub-task": ["Summary", "Acceptance Criteria"]
+                "subtask": ["Summary", "Acceptance Criteria"]
             }
         )
         return config

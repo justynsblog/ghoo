@@ -251,16 +251,16 @@ Relates to #1
         'subtask': {
             'title': 'TEST: Sample Sub-task',
             'body': '''## Overview
-This is a sample sub-task for testing.
+This is a sample subtask for testing.
 
 ## Acceptance Criteria
-- [ ] Sub-task criterion 1
-- [ ] Sub-task criterion 2
+- [ ] Subtask criterion 1
+- [ ] Subtask criterion 2
 
 ## Parent Task
 Relates to #2
 ''',
-            'labels': ['type:sub-task', 'status:backlog']
+            'labels': ['type:subtask', 'status:backlog']
         }
     }
 
@@ -314,14 +314,14 @@ Relates to #{parent_epic_number}
     
     @staticmethod
     def create_test_subtask(repo: Repository, parent_task_number: int,
-                           title: str = "TEST: Sample Sub-task") -> Issue:
-        """Create a test sub-task issue."""
+                           title: str = "TEST: Sample Subtask") -> Issue:
+        """Create a test subtask issue."""
         body = f'''## Overview
-This is a test sub-task for automated testing.
+This is a test subtask for automated testing.
 
 ## Acceptance Criteria
-- [ ] Sub-task acceptance criterion 1
-- [ ] Sub-task acceptance criterion 2
+- [ ] Subtask acceptance criterion 1
+- [ ] Subtask acceptance criterion 2
 
 ## Parent Task
 Relates to #{parent_task_number}
@@ -329,7 +329,7 @@ Relates to #{parent_task_number}
         return repo.create_issue(
             title=title,
             body=body,
-            labels=['type:sub-task', 'status:backlog']
+            labels=['type:subtask', 'status:backlog']
         )
     
     @staticmethod

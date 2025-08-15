@@ -260,7 +260,7 @@ def _display_epic_issue(issue_data):
     import datetime
     
     # Header with issue info
-    type_emoji = {"epic": "🏔️", "task": "📋", "sub-task": "🔧"}.get(issue_data['type'], "📄")
+    type_emoji = {"epic": "🏔️", "task": "📋", "subtask": "🔧"}.get(issue_data['type'], "📄")
     state_color = typer.colors.GREEN if issue_data['state'] == 'open' else typer.colors.RED
     
     typer.echo(f"\n{type_emoji} #{issue_data['number']}: {issue_data['title']}", color=typer.colors.BRIGHT_WHITE)
@@ -442,7 +442,7 @@ def _display_milestone(milestone_data):
         typer.echo(f"\n📋 Associated Issues ({len(issues)}):")
         
         # Group issues by type for better organization
-        issues_by_type = {'epic': [], 'task': [], 'sub-task': []}
+        issues_by_type = {'epic': [], 'task': [], 'subtask': []}
         for issue in issues:
             issue_type = issue.get('type', 'task')
             if issue_type in issues_by_type:
@@ -451,7 +451,7 @@ def _display_milestone(milestone_data):
                 issues_by_type['task'].append(issue)
         
         # Display issues by type
-        type_emojis = {'epic': '🏔️', 'task': '📋', 'sub-task': '🔧'}
+        type_emojis = {'epic': '🏔️', 'task': '📋', 'subtask': '🔧'}
         for issue_type, type_issues in issues_by_type.items():
             if type_issues:
                 typer.echo(f"\n{type_emojis[issue_type]} {issue_type.title()}s:")
@@ -477,7 +477,7 @@ def _display_section(section_data):
     
     # Header with section and issue info
     issue_type = section_data.get('issue_type', 'issue')
-    type_emoji = {"epic": "🏔️", "task": "📋", "sub-task": "🔧"}.get(issue_type, "📄")
+    type_emoji = {"epic": "🏔️", "task": "📋", "subtask": "🔧"}.get(issue_type, "📄")
     state_color = typer.colors.GREEN if section_data.get('issue_state') == 'open' else typer.colors.RED
     
     typer.echo(f"\n## {section_data['title']}", color=typer.colors.BRIGHT_WHITE)
@@ -525,7 +525,7 @@ def _display_todo(todo_data):
     """
     # Header with issue and section context
     issue_type = todo_data.get('issue_type', 'issue')
-    type_emoji = {"epic": "🏔️", "task": "📋", "sub-task": "🔧"}.get(issue_type, "📄")
+    type_emoji = {"epic": "🏔️", "task": "📋", "subtask": "🔧"}.get(issue_type, "📄")
     state_color = typer.colors.GREEN if todo_data.get('issue_state') == 'open' else typer.colors.RED
     
     # Todo check status

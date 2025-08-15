@@ -43,7 +43,7 @@ class TestIssueService:
         
         # Mock issue with sub-task label
         label_subtask = Mock()
-        label_subtask.name = 'type:sub-task'
+        label_subtask.name = 'type:subtask'
         issue.labels = [label_subtask]
         
         result = self.service.detect_issue_type(issue)

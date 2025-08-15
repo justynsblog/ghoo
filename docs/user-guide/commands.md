@@ -16,7 +16,7 @@ ghoo init-gh
 
 **What it does:**
 - Reads configuration from `ghoo.yaml`
-- Creates custom issue types (Epic, Task, Sub-task) if supported
+- Creates custom issue types (Epic, Task, Subtask) if supported
 - Creates status labels (status:backlog, status:planning, etc.)
 - Falls back to label-based approach if features unavailable
 
@@ -54,10 +54,10 @@ ghoo get my-org/my-repo 789 --format json | jq '.sub_issues'
 
 **Output includes:**
 - Issue metadata (title, state, labels, assignees)
-- Issue type detection (Epic/Task/Sub-task)
+- Issue type detection (Epic/Task/Subtask)
 - Status (from labels or Projects V2)
 - Body sections and todos
-- Parent issue (for Tasks and Sub-tasks)
+- Parent issue (for Tasks and Subtasks)
 - Sub-issues (for Epics, with progress tracking)
 - Task references (fallback when sub-issues unavailable)
 
@@ -177,21 +177,21 @@ Configure database connection with proper error handling.
 - Parent epic must exist and be accessible
 - Optional: ghoo.yaml for section validation
 
-### ghoo create-sub-task
+### ghoo create-subtask
 
-Create a new Sub-task issue linked to a parent Task.
+Create a new Subtask issue linked to a parent Task.
 
 ```bash
-ghoo create-sub-task <repository> <parent_task> <title> [options]
+ghoo create-subtask <repository> <parent_task> <title> [options]
 ```
 
 **Arguments:**
 - `repository`: Repository in format "owner/name"
 - `parent_task`: Issue number of the parent task
-- `title`: Sub-task title
+- `title`: Subtask title
 
 **Options:**
-- `--body, -b`: Custom sub-task body (uses template if not provided)
+- `--body, -b`: Custom subtask body (uses template if not provided)
 - `--labels, -l`: Comma-separated list of additional labels
 - `--assignees, -a`: Comma-separated list of GitHub usernames to assign
 - `--milestone, -m`: Milestone title to assign
@@ -199,17 +199,17 @@ ghoo create-sub-task <repository> <parent_task> <title> [options]
 
 **Examples:**
 ```bash
-# Create basic sub-task linked to task #42
-ghoo create-sub-task my-org/my-repo 42 "Add input validation tests"
+# Create basic subtask linked to task #42
+ghoo create-subtask my-org/my-repo 42 "Add input validation tests"
 
-# Create sub-task with additional labels and assignees
-ghoo create-sub-task my-org/my-repo 42 "Update API documentation" \
+# Create subtask with additional labels and assignees
+ghoo create-subtask my-org/my-repo 42 "Update API documentation" \
   --labels "priority:low,team:docs" \
   --assignees "charlie" \
   --milestone "Sprint 1"
 
-# Create sub-task with custom body
-ghoo create-sub-task my-org/my-repo 42 "Fix edge case in validation" \
+# Create subtask with custom body
+ghoo create-subtask my-org/my-repo 42 "Fix edge case in validation" \
   --body "**Parent Task:** #42
 
 ## Summary
@@ -225,7 +225,7 @@ Handle edge case where empty strings bypass validation.
 ```
 
 **Features:**
-- **Parent Validation**: Validates parent task exists, is open, and is actually a task (not epic or sub-task)
+- **Parent Validation**: Validates parent task exists, is open, and is actually a task (not epic or subtask)
 - **Hybrid API Support**: Uses GraphQL for custom issue types and sub-issue relationships, falls back to REST API with labels
 - **Template Generation**: Creates body with required sections (Summary, Acceptance Criteria, Implementation Notes) if no custom body provided
 - **Parent Reference**: Automatically includes parent task reference in body, even for custom bodies
@@ -562,7 +562,7 @@ status_method: "labels"  # or "status_field"
 required_sections:
   epic: ["Summary", "Acceptance Criteria"]
   task: ["Summary", "Implementation Plan"]
-  sub-task: ["Summary"]
+  subtask: ["Summary"]
 ```
 
 ## See Also
