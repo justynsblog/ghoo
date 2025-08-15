@@ -6,6 +6,10 @@ project_url: "https://github.com/justynbrt/ghoo"
 # Use labels for status tracking (default for repository URLs)
 status_method: "labels"
 
+# Use native GitHub issue types (recommended, default)
+# Alternative: "labels" for repositories without custom issue types configured
+issue_type_method: "native"
+
 # Define required sections per issue type
 required_sections:
   epic:
@@ -16,6 +20,6 @@ required_sections:
     - "Summary"
     - "Acceptance Criteria"
     - "Implementation Plan"
-  sub-task:
+  subtask:
     - "Summary"
     - "Acceptance Criteria"

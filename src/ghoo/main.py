@@ -19,6 +19,8 @@ from .exceptions import (
     InvalidGitHubURLError,
     MissingRequiredFieldError,
     InvalidFieldValueError,
+    IssueTypeMethodMismatchError,
+    NativeTypesNotConfiguredError,
     MissingTokenError,
     InvalidTokenError,
     GraphQLError,
@@ -66,8 +68,8 @@ def init_gh(
         
         typer.echo(f"🔧 Initializing repository from {config.project_url}")
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute initialization
         init_command = InitCommand(github_client, config)
@@ -618,8 +620,8 @@ def create_epic(
         if assignees:
             assignees_list = [assignee.strip() for assignee in assignees.split(',')]
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute create epic command
         create_command = CreateEpicCommand(github_client, config)
@@ -710,8 +712,8 @@ def create_task(
         if assignees:
             assignees_list = [assignee.strip() for assignee in assignees.split(',')]
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Create task command
         create_task_cmd = CreateTaskCommand(github_client, config)
@@ -804,8 +806,8 @@ def create_sub_task(
         if assignees:
             assignees_list = [assignee.strip() for assignee in assignees.split(',')]
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Create sub-task command
         create_sub_task_cmd = CreateSubTaskCommand(github_client, config)
@@ -882,8 +884,8 @@ def start_plan(
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute start-plan command
         start_plan_command = StartPlanCommand(github_client, config)
@@ -944,8 +946,8 @@ def submit_plan(
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute submit-plan command
         submit_plan_command = SubmitPlanCommand(github_client, config)
@@ -1006,8 +1008,8 @@ def approve_plan(
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute approve-plan command
         approve_plan_command = ApprovePlanCommand(github_client, config)
@@ -1068,8 +1070,8 @@ def start_work(
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute start-work command
         start_work_command = StartWorkCommand(github_client, config)
@@ -1130,8 +1132,8 @@ def submit_work(
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute submit-work command
         submit_work_command = SubmitWorkCommand(github_client, config)
@@ -1192,8 +1194,8 @@ def approve_work(
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
         
-        # Initialize GitHub client
-        github_client = GitHubClient()
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config)
         
         # Execute approve-work command
         approve_work_command = ApproveWorkCommand(github_client, config)

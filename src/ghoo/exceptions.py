@@ -110,6 +110,48 @@ class InvalidFieldValueError(ConfigValidationError):
         super().__init__(message)
 
 
+class IssueTypeMethodMismatchError(ConfigValidationError):
+    """Raised when issue_type_method config doesn't match repository capabilities."""
+    
+    def __init__(self, configured_method, repo, solution_guidance):
+        super().__init__(
+            f"❌ Issue Type Configuration Error\n"
+            f"\n"
+            f"Problem: Repository '{repo}' capabilities don't match configured method\n"
+            f"Configuration: issue_type_method: \"{configured_method}\"\n"
+            f"\n"
+            f"Solutions:\n"
+            f"{solution_guidance}\n"
+            f"\n"
+            f"For help: https://github.com/justynbrt/ghoo/docs/issue-types-setup.md"
+        )
+
+
+class NativeTypesNotConfiguredError(ConfigValidationError):
+    """Raised when native issue types are required but not configured in repository."""
+    
+    def __init__(self, repo, issue_type):
+        super().__init__(
+            f"❌ Native Issue Types Not Configured\n"
+            f"\n"
+            f"Problem: Repository '{repo}' doesn't have native issue type '{issue_type}' configured\n"
+            f"Configuration: issue_type_method: \"native\" (default)\n"
+            f"\n"
+            f"Solutions:\n"
+            f"1. Setup native issue types (recommended):\n"
+            f"   - Go to repository Settings > General > Features > Issues\n"
+            f"   - Enable custom issue types\n"
+            f"   - Create Epic, Task, and Subtask types\n"
+            f"   - See: https://docs.github.com/en/issues/planning-and-tracking-with-projects/managing-items-in-your-project/adding-items-to-your-project\n"
+            f"\n"
+            f"2. Use label-based approach:\n"
+            f"   - Add to ghoo.yaml: issue_type_method: \"labels\"\n"
+            f"   - Run: ghoo init-gh to create required labels\n"
+            f"\n"
+            f"For help: https://github.com/justynbrt/ghoo/docs/issue-types-setup.md"
+        )
+
+
 class GraphQLError(GhooError):
     """Base exception for GraphQL-related errors."""
     pass
@@ -118,8 +160,15 @@ class GraphQLError(GhooError):
 class FeatureUnavailableError(GraphQLError):
     """Raised when a GraphQL feature is not available for the repository."""
     
-    def __init__(self, feature_name, fallback_message=None):
-        message = f"GraphQL feature '{feature_name}' is not available for this repository."
-        if fallback_message:
-            message += f" {fallback_message}"
-        super().__init__(message)
+    def __init__(self, message=None, feature_name=None, fallback_message=None):
+        if message:
+            # Use custom message directly
+            super().__init__(message)
+        elif feature_name:
+            # Legacy behavior for backward compatibility
+            error_message = f"GraphQL feature '{feature_name}' is not available for this repository."
+            if fallback_message:
+                error_message += f" {fallback_message}"
+            super().__init__(error_message)
+        else:
+            super().__init__("Required feature is not available for this repository.")

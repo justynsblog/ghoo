@@ -1,7 +1,7 @@
 """Data models for ghoo."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -250,6 +250,7 @@ class Config:
     project_url: str
     status_method: str = "labels"  # or "status_field"
     audit_method: str = "log_entries"  # or "comments"
+    issue_type_method: Literal["native", "labels"] = "native"
     required_sections: Dict[str, List[str]] = field(default_factory=dict)
     
     def __post_init__(self):
@@ -257,6 +258,10 @@ class Config:
         # Validate audit_method
         if self.audit_method not in ["log_entries", "comments"]:
             raise ValueError(f"audit_method must be 'log_entries' or 'comments', got '{self.audit_method}'")
+        
+        # Validate issue_type_method
+        if self.issue_type_method not in ["native", "labels"]:
+            raise ValueError(f"issue_type_method must be 'native' or 'labels', got '{self.issue_type_method}'")
         
         if not self.required_sections:
             self.required_sections = {

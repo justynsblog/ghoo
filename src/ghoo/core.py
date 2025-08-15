@@ -1132,13 +1132,14 @@ class GitHubClient:
     - Direct GraphQL calls for advanced features (sub-issues, issue types)
     """
     
-    def __init__(self, token: Optional[str] = None, use_testing_token: bool = False):
+    def __init__(self, token: Optional[str] = None, use_testing_token: bool = False, config: Optional['Config'] = None):
         """Initialize GitHub client with authentication token.
         
         Args:
             token: GitHub personal access token. If not provided, will look for 
                    GITHUB_TOKEN or TESTING_GITHUB_TOKEN env var.
             use_testing_token: If True, use TESTING_GITHUB_TOKEN instead of GITHUB_TOKEN
+            config: Configuration object containing issue_type_method setting
         """
         # Determine which token to use
         if token:
@@ -1163,6 +1164,9 @@ class GitHubClient:
         
         # Initialize GraphQL client for advanced features
         self.graphql = GraphQLClient(self.token)
+        
+        # Store configuration for issue type method
+        self.config = config
     
     def _validate_token(self):
         """Validate that the token works by making a simple API call.
@@ -1512,15 +1516,21 @@ class GitHubClient:
         """
         owner, repo_name = repo.split('/')
         
-        # Try to discover issue types and get the ID
+        # Check configuration for issue type method
+        if self.config and self.config.issue_type_method == "labels":
+            # Use label-based creation when explicitly configured
+            return self._create_issue_with_label_fallback(repo, title, body, issue_type, labels, assignees, milestone)
+        
+        # Default to native issue types (SPEC compliance)
         issue_type_id = self.get_issue_type_id(repo, issue_type)
         
-        if issue_type_id:
-            # Create issue with native issue type
-            return self._create_issue_with_type_id(repo, title, body, issue_type_id, issue_type, labels, assignees, milestone)
-        else:
-            # Fallback to label-based creation
-            return self._create_issue_with_label_fallback(repo, title, body, issue_type, labels, assignees, milestone)
+        if not issue_type_id:
+            # Native types required but not available - fail with clear error
+            from .exceptions import NativeTypesNotConfiguredError
+            raise NativeTypesNotConfiguredError(repo, issue_type)
+        
+        # Create issue with native issue type
+        return self._create_issue_with_type_id(repo, title, body, issue_type_id, issue_type, labels, assignees, milestone)
     
     def _create_issue_with_type_id(
         self, 
@@ -1624,9 +1634,27 @@ class GitHubClient:
             }
             
         except GraphQLError as e:
-            # If creating with issue type fails, try fallback
-            print(f"Warning: Creating issue with type ID failed ({str(e)}), falling back to labels")
-            return self._create_issue_with_label_fallback(repo, title, body, issue_type_name, labels, assignees, milestone)
+            # Native issue type creation failed - do not fallback, raise clear error
+            from .exceptions import FeatureUnavailableError
+            raise FeatureUnavailableError(
+                f"❌ Native Issue Type Creation Failed\n"
+                f"\n"
+                f"Problem: Failed to create issue with native type '{issue_type_name}'\n"
+                f"Error: {str(e)}\n"
+                f"Configuration: issue_type_method: \"native\" (default)\n"
+                f"\n"
+                f"Solutions:\n"
+                f"1. Verify issue type configuration:\n"
+                f"   - Go to repository Settings > General > Features > Issues\n"
+                f"   - Ensure custom issue type '{issue_type_name}' exists\n"
+                f"   - Check issue type name matches exactly (case-sensitive)\n"
+                f"\n"
+                f"2. Use label-based approach:\n"
+                f"   - Add to ghoo.yaml: issue_type_method: \"labels\"\n"
+                f"   - Run: ghoo init-gh to create required labels\n"
+                f"\n"
+                f"For help: https://github.com/justynbrt/ghoo/docs/issue-types-setup.md"
+            )
     
     def _create_issue_with_label_fallback(
         self, 
@@ -1638,7 +1666,7 @@ class GitHubClient:
         assignees: Optional[List[str]] = None, 
         milestone = None
     ) -> Dict[str, Any]:
-        """Create an issue using label-based types as fallback."""
+        """Create an issue using label-based types (when explicitly configured)."""
         # Add type label to the labels list
         if labels is None:
             labels = []
@@ -1909,6 +1937,19 @@ class ConfigLoader:
             # Auto-detect based on URL type
             status_method = 'status_field' if url_type == 'project' else 'labels'
         
+        # Set or validate issue_type_method
+        if 'issue_type_method' in data:
+            issue_type_method = data['issue_type_method']
+            if issue_type_method not in ['native', 'labels']:
+                raise InvalidFieldValueError(
+                    'issue_type_method', 
+                    issue_type_method, 
+                    ['native', 'labels']
+                )
+        else:
+            # Default to native to enforce SPEC compliance
+            issue_type_method = 'native'
+        
         # Validate required_sections if provided
         required_sections = data.get('required_sections', {})
         if required_sections and not isinstance(required_sections, dict):
@@ -1939,6 +1980,7 @@ class ConfigLoader:
         config = Config(
             project_url=project_url,
             status_method=status_method,
+            issue_type_method=issue_type_method,
             required_sections=required_sections if required_sections else {}
         )
         
@@ -3044,11 +3086,7 @@ class CreateEpicCommand(BaseCreateCommand):
         """
         owner, repo_name = repo.split('/')
         
-        # First check if custom issue types are available
-        if not self.github.supports_custom_issue_types(repo):
-            raise FeatureUnavailableError("Custom issue types not available")
-        
-        # Create issue with epic type using GraphQL
+        # Create issue with epic type (GitHubClient handles configuration)
         issue_data = self.github.create_issue_with_type(
             repo, title, body, 'epic', labels, assignees, milestone
         )
@@ -3417,11 +3455,7 @@ class CreateTaskCommand(BaseCreateCommand):
             GraphQLError: If GraphQL operations fail
             FeatureUnavailableError: If GraphQL features are unavailable
         """
-        # Check if custom issue types are available
-        if not self.github.supports_custom_issue_types(repo):
-            raise FeatureUnavailableError("Custom issue types not available")
-        
-        # Create issue with task type
+        # Create issue with task type (GitHubClient handles configuration)
         issue_data = self.github.create_issue_with_type(
             repo=repo,
             title=title,
@@ -3808,11 +3842,7 @@ class CreateSubTaskCommand(BaseCreateCommand):
             GraphQLError: If GraphQL operations fail
             FeatureUnavailableError: If GraphQL features are unavailable
         """
-        # Check if custom issue types are available
-        if not self.github.supports_custom_issue_types(repo):
-            raise FeatureUnavailableError("Custom issue types not available")
-        
-        # Create issue with sub-task type
+        # Create issue with sub-task type (GitHubClient handles configuration)
         issue_data = self.github.create_issue_with_type(
             repo=repo,
             title=title,

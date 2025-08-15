@@ -279,3 +279,70 @@ class TestConfigLoader:
         
         assert config.required_sections["epic"] == []
         assert config.required_sections["task"] == ["Summary"]
+    
+    def test_issue_type_method_default(self, temp_dir):
+        """Test that issue_type_method defaults to 'native'."""
+        config_path = temp_dir / "ghoo.yaml"
+        config_data = {
+            "project_url": "https://github.com/owner/repo"
+        }
+        
+        with open(config_path, 'w') as f:
+            yaml.dump(config_data, f)
+        
+        loader = ConfigLoader(config_path)
+        config = loader.load()
+        
+        assert config.issue_type_method == "native"
+    
+    def test_issue_type_method_explicit_native(self, temp_dir):
+        """Test explicit issue_type_method set to 'native'."""
+        config_path = temp_dir / "ghoo.yaml"
+        config_data = {
+            "project_url": "https://github.com/owner/repo",
+            "issue_type_method": "native"
+        }
+        
+        with open(config_path, 'w') as f:
+            yaml.dump(config_data, f)
+        
+        loader = ConfigLoader(config_path)
+        config = loader.load()
+        
+        assert config.issue_type_method == "native"
+    
+    def test_issue_type_method_explicit_labels(self, temp_dir):
+        """Test explicit issue_type_method set to 'labels'."""
+        config_path = temp_dir / "ghoo.yaml"
+        config_data = {
+            "project_url": "https://github.com/owner/repo",
+            "issue_type_method": "labels"
+        }
+        
+        with open(config_path, 'w') as f:
+            yaml.dump(config_data, f)
+        
+        loader = ConfigLoader(config_path)
+        config = loader.load()
+        
+        assert config.issue_type_method == "labels"
+    
+    def test_invalid_issue_type_method(self, temp_dir):
+        """Test error when issue_type_method has invalid value."""
+        config_path = temp_dir / "ghoo.yaml"
+        config_data = {
+            "project_url": "https://github.com/owner/repo",
+            "issue_type_method": "invalid_method"
+        }
+        
+        with open(config_path, 'w') as f:
+            yaml.dump(config_data, f)
+        
+        loader = ConfigLoader(config_path)
+        
+        with pytest.raises(InvalidFieldValueError) as exc_info:
+            loader.load()
+        
+        assert "issue_type_method" in str(exc_info.value)
+        assert "native" in str(exc_info.value)
+        assert "labels" in str(exc_info.value)
