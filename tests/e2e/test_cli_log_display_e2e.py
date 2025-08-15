@@ -71,7 +71,7 @@ required_sections:
                 '--config', temp_config
             ], 
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to create epic: {result.stderr}"
@@ -88,7 +88,7 @@ required_sections:
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to start planning: {result.stderr}"
@@ -99,17 +99,16 @@ required_sections:
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             # Note: This may fail due to validation, but should still create log entries
             
-            # Step 3: Use get command to retrieve the issue and verify log display
+            # Step 3: Use get epic command to retrieve the issue and verify log display
             result = subprocess.run([
-                sys.executable, '-m', 'ghoo.main', 'get', repo, str(epic_number),
-                '--config', temp_config
+                sys.executable, '-m', 'ghoo.main', 'get', 'epic', '--repo', repo, '--id', str(epic_number)
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to get issue: {result.stderr}"
@@ -172,7 +171,7 @@ required_sections:
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to create epic: {result.stderr}"
@@ -184,11 +183,10 @@ required_sections:
             
             # Get the issue immediately (should have no log entries)
             result = subprocess.run([
-                sys.executable, '-m', 'ghoo.main', 'get', repo, str(epic_number),
-                '--config', temp_config
+                sys.executable, '-m', 'ghoo.main', 'get', 'epic', '--repo', repo, '--id', str(epic_number)
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to get issue: {result.stderr}"
@@ -237,7 +235,7 @@ required_sections:
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to create parent epic: {result.stderr}"
@@ -253,7 +251,7 @@ required_sections:
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to create task: {result.stderr}"
@@ -275,7 +273,7 @@ required_sections:
                     '--config', temp_config
                 ],
                 cwd='/home/justyn/ghoo/src',
-                env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+                env=github_env['env'],
                 capture_output=True, text=True, timeout=30)
                 
                 # Some commands might fail due to validation, but they should still create log entries
@@ -283,11 +281,11 @@ required_sections:
                 
             # Step 3: Get the task and verify log entries
             result = subprocess.run([
-                sys.executable, '-m', 'ghoo.main', 'get', repo, str(task_number),
+                sys.executable, '-m', 'ghoo.main', 'get', 'epic', '--repo', repo, '--id', str(task_number),
                 '--config', temp_config
             ],
             cwd='/home/justyn/ghoo/src',
-            env={**os.environ, 'PYTHONPATH': '/home/justyn/ghoo/src', 'GITHUB_TOKEN': testing_token},
+            env=github_env['env'],
             capture_output=True, text=True, timeout=30)
             
             assert result.returncode == 0, f"Failed to get task: {result.stderr}"

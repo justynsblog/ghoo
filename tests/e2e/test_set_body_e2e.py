@@ -93,7 +93,7 @@ class TestSetBodyE2E:
     def _get_issue_body(self, github_env, issue_number):
         """Get issue body using the get command."""
         result = self._run_ghoo_command([
-            'get', github_env['repo'], str(issue_number), '--format', 'json'
+            'get', 'epic', '--repo', github_env['repo'], '--id', str(issue_number), '--format', 'json'
         ], github_env['env'])
         
         if result.returncode != 0:
@@ -291,7 +291,7 @@ This content includes various markdown features to ensure proper handling.
         """Test that set-body preserves other issue properties."""
         # Get original issue data
         original_result = self._run_ghoo_command([
-            'get', github_env['repo'], str(test_issue['number']), '--format', 'json'
+            'get', 'epic', '--repo', github_env['repo'], '--id', str(test_issue['number']), '--format', 'json'
         ], github_env['env'])
         original_data = json.loads(original_result.stdout)
         
@@ -306,7 +306,7 @@ This content includes various markdown features to ensure proper handling.
         
         # Get updated issue data
         updated_result = self._run_ghoo_command([
-            'get', github_env['repo'], str(test_issue['number']), '--format', 'json'
+            'get', 'epic', '--repo', github_env['repo'], '--id', str(test_issue['number']), '--format', 'json'
         ], github_env['env'])
         updated_data = json.loads(updated_result.stdout)
         

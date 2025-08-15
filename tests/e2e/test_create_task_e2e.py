@@ -229,8 +229,8 @@ Custom task for E2E testing.
         
         # Retrieve the task with get command
         get_result = subprocess.run([
-            'uv', 'run', 'ghoo', 'get',
-            github_env['repo'], task_number
+            'uv', 'run', 'ghoo', 'get', 'epic',
+            '--repo', github_env['repo'], '--id', task_number
         ], capture_output=True, text=True, env=github_env['env'], timeout=30)
         
         print(f"GET STDOUT: {get_result.stdout}")

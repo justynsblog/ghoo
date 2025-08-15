@@ -124,7 +124,7 @@ class TestCreationAndGetE2E:
     def _get_issue_data(self, github_env: Dict, issue_number: int, format_type: str = 'json') -> Any:
         """Get issue data using ghoo get command."""
         result = self._run_ghoo_command([
-            'get', github_env['repo'], str(issue_number), '--format', format_type
+            'get', 'epic', '--repo', github_env['repo'], '--id', str(issue_number), '--format', format_type
         ], github_env['env'])
         
         assert result.returncode == 0, f"Get command failed for issue #{issue_number}: {result.stderr}"

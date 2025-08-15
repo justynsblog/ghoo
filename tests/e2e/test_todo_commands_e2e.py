@@ -104,7 +104,7 @@ Some notes for testing.
     def _get_issue_body(self, github_env, issue_number):
         """Get issue body using the get command."""
         result = self._run_ghoo_command([
-            'get', github_env['repo'], str(issue_number), '--format', 'json'
+            'get', 'epic', '--repo', github_env['repo'], '--id', str(issue_number), '--format', 'json'
         ], github_env['env'])
         
         if result.returncode != 0:
