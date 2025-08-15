@@ -1518,15 +1518,7 @@ class GitHubClient:
         
         # Check configuration for issue type method
         if self.config and self.config.issue_type_method == "labels":
-            # SPEC COMPLIANCE: Only epics can use label-based creation
-            # Tasks and sub-tasks MUST use native types for sub-issue relationships
-            if issue_type in ['task', 'subtask', 'sub-task']:
-                raise ValueError(
-                    f"Cannot create {issue_type} with issue_type_method: 'labels' configuration. "
-                    f"Tasks and sub-tasks require native GitHub issue types for sub-issue relationships. "
-                    f"Either enable custom issue types in repository settings or use epics only with labels configuration."
-                )
-            # Use label-based creation only for epics
+            # Use label-based creation when explicitly configured
             return self._create_issue_with_label_fallback(repo, title, body, issue_type, labels, assignees, milestone)
         
         # Default to native issue types (SPEC compliance)
@@ -1702,7 +1694,16 @@ class GitHubClient:
         
         created_issue = github_repo.create_issue(**kwargs)
         
-        return {
+        # Get GraphQL node ID for sub-issue relationship support
+        repo_owner, repo_name = repo.split('/')
+        issue_node_id = None
+        try:
+            issue_node_id = self.graphql.get_issue_node_id(repo_owner, repo_name, created_issue.number)
+        except Exception:
+            # GraphQL might not be available, node ID will be None
+            pass
+        
+        result = {
             'number': created_issue.number,
             'title': created_issue.title,
             'url': created_issue.html_url,
@@ -1714,6 +1715,12 @@ class GitHubClient:
                 'number': created_issue.milestone.number
             } if created_issue.milestone else None
         }
+        
+        # Add GraphQL node ID if available (needed for sub-issue relationships)
+        if issue_node_id:
+            result['id'] = issue_node_id
+            
+        return result
     
     def _post_process_created_issue(
         self, 
