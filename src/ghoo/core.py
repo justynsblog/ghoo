@@ -2746,42 +2746,6 @@ class IssueParser:
         raise ValueError(f"Unable to parse timestamp: {timestamp_str}")
 
 
-class GetCommand:
-    """Command for retrieving and displaying GitHub issues with parsed body content.
-    
-    This class handles fetching issues using the hybrid REST/GraphQL approach and
-    displaying them with rich formatting including parsed sections and todos.
-    
-    Refactored to use IssueService for shared logic.
-    """
-    
-    def __init__(self, github_client: GitHubClient):
-        """Initialize the command with GitHub client.
-        
-        Args:
-            github_client: Authenticated GitHubClient instance
-        """
-        self.github = github_client
-        # Import IssueService locally to avoid circular imports
-        from .services import IssueService
-        self.issue_service = IssueService(github_client)
-    
-    def execute(self, repo: str, issue_number: int) -> Dict[str, Any]:
-        """Execute the get command to retrieve and format an issue.
-        
-        Args:
-            repo: Repository in format 'owner/repo'
-            issue_number: Issue number to retrieve
-            
-        Returns:
-            Dictionary containing formatted issue data
-            
-        Raises:
-            GraphQLError: If GraphQL operations fail
-            GithubException: If REST API operations fail
-        """
-        # Use the IssueService for all the heavy lifting
-        return self.issue_service.get_issue_with_details(repo, issue_number)
 
 
 class BaseCreateCommand(ABC):
