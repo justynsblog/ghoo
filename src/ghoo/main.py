@@ -48,7 +48,12 @@ def display_audit_trail_info(result: dict) -> None:
 @app.command()
 def version():
     """Show the version of ghoo."""
-    typer.echo("ghoo version 0.1.2")
+    try:
+        import importlib.metadata
+        version = importlib.metadata.version("ghoo")
+        typer.echo(f"ghoo version {version}")
+    except importlib.metadata.PackageNotFoundError:
+        typer.echo("ghoo version unknown (not installed)")
 
 
 @app.command()
