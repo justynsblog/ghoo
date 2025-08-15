@@ -1611,6 +1611,7 @@ class GitHubClient:
                     'title': updated_issue.title,
                     'url': updated_issue.html_url,
                     'state': updated_issue.state,
+                    'id': issue_data['id'],  # Preserve GraphQL node ID for sub-issue relationships
                     'labels': [label.name for label in updated_issue.labels],
                     'assignees': [assignee.login for assignee in updated_issue.assignees],
                     'milestone': {
@@ -1624,6 +1625,7 @@ class GitHubClient:
                 'title': issue_data['title'],
                 'url': issue_data['url'],
                 'state': issue_data['state'].lower(),
+                'id': issue_data['id'],  # GraphQL node ID for sub-issue relationships
                 'issue_type': issue_data.get('issueType', {}).get('name', 'unknown') if issue_data.get('issueType') else None,
                 'labels': [label['name'] for label in issue_data['labels']['nodes']],
                 'assignees': [assignee['login'] for assignee in issue_data['assignees']['nodes']],
