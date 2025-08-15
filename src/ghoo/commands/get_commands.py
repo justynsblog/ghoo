@@ -41,9 +41,15 @@ def epic(
 ):
     """Get and display an Epic issue with parsed body content."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config)
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient()
+            config_loader = ConfigLoader()
         
         # Execute get epic command
         get_epic_command = GetEpicCommand(github_client, config_loader)

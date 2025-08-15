@@ -27,34 +27,89 @@ class IssueService:
         """
         self.github = github_client
     
-    def detect_issue_type(self, issue) -> str:
-        """Detect issue type from labels or title patterns.
+    def detect_issue_type(self, issue, repo: str = None) -> str:
+        """Detect issue type based on configured method.
         
         Args:
             issue: PyGithub issue object
+            repo: Repository in 'owner/repo' format (for config lookup)
             
         Returns:
-            Issue type: 'epic', 'task', or 'sub-task'
+            Issue type: 'epic', 'task', or 'subtask'
         """
-        # Check for type labels first
+        # Check if we have config specifying the detection method
+        if self.github.config and hasattr(self.github.config, 'issue_type_method'):
+            if self.github.config.issue_type_method == "native":
+                return self._detect_via_native_types(issue)
+            elif self.github.config.issue_type_method == "labels":
+                return self._detect_via_labels(issue)
+        
+        # If no config, default to native for SPEC compliance
+        return self._detect_via_native_types(issue)
+    
+    def _detect_via_native_types(self, issue) -> str:
+        """Detect issue type via native GitHub issue types only."""
+        try:
+            # Extract repo info from issue URL
+            url_parts = issue.html_url.split('/')
+            if len(url_parts) >= 5:
+                repo_owner = url_parts[3]
+                repo_name = url_parts[4]
+                
+                # Query for native issue type
+                query = '''
+                query GetIssueType($owner: String!, $repo: String!, $number: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                        issue(number: $number) {
+                            issueType {
+                                name
+                            }
+                        }
+                    }
+                }
+                '''
+                
+                variables = {
+                    'owner': repo_owner,
+                    'repo': repo_name,
+                    'number': issue.number
+                }
+                
+                result = self.github.graphql._execute(query, variables)
+                issue_data = result.get('repository', {}).get('issue', {})
+                issue_type = issue_data.get('issueType')
+                
+                if issue_type and issue_type.get('name'):
+                    type_name = issue_type['name'].lower()
+                    if type_name == 'epic':
+                        return 'epic'
+                    elif type_name == 'task':
+                        return 'task'
+                    elif type_name in ['sub-task', 'subtask']:
+                        return 'subtask'
+                        
+        except Exception:
+            pass
+        
+        # If native type detection fails, this is an error condition
+        # Don't fallback - the configuration specifies native types
+        return 'unknown'
+    
+    def _detect_via_labels(self, issue) -> str:
+        """Detect issue type via labels only."""
         for label in issue.labels:
             if label.name == 'type:epic':
                 return 'epic'
             elif label.name == 'type:task':
                 return 'task'
             elif label.name == 'type:sub-task':
-                return 'subtask'  # Return new standard
+                return 'subtask'
             elif label.name == 'type:subtask':
-                return 'subtask'  # Support new label
+                return 'subtask'
         
-        # Fallback: detect from title patterns
-        title_lower = issue.title.lower()
-        if any(keyword in title_lower for keyword in ['epic:', '[epic]', 'epic -']):
-            return 'epic'
-        elif any(keyword in title_lower for keyword in ['subtask:', '[subtask]', 'sub-task:']):
-            return 'subtask'
-        else:
-            return 'task'  # Default
+        # If no type label found, this is an error condition
+        # Don't fallback - the configuration specifies labels
+        return 'unknown'
     
     def find_parent_issue(self, repo: str, issue_number: int) -> Optional[Dict[str, Any]]:
         """Find parent issue for a task or sub-task.
