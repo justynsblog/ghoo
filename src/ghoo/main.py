@@ -48,7 +48,7 @@ def display_audit_trail_info(result: dict) -> None:
 @app.command()
 def version():
     """Show the version of ghoo."""
-    typer.echo("ghoo version 0.1.0 (MVP)")
+    typer.echo("ghoo version 0.1.2")
 
 
 @app.command()
