@@ -59,27 +59,42 @@ PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/e2e/ -v
 - **Integration**: Mocked API tests (`tests/integration/`)
 - **Unit**: Isolated logic tests (`tests/unit/`)
 
-## Implemented Commands
+## Command Reference
 
-**Issue Creation**:
-- `init-gh`: Initialize repo with issue types and status labels
+### **Repository Arguments**
+- **Positional repo**: `<repo>` - Required first argument (workflow, creation, content commands)
+- **Optional repo**: `--repo <repo>` - Uses config file if omitted (get commands only)
+
+### **Issue Creation** (Positional repo)
+- `init-gh [--config <file>]`: Initialize repo with issue types and status labels
 - `create-epic <repo> <title>`: Create Epic with required sections
 - `create-task <repo> <parent_epic> <title>`: Create Task linked to Epic
-- `create-sub-task <repo> <parent_task> <title>`: Create Sub-task linked to Task
+- `create-sub-task <repo> <parent_task> <title>`: Create Sub-task linked to Task (parent must be in planning/in-progress)
 
-**Issue Management**:
-- `get <repo> <issue_number>`: Display issue with hierarchy
-- `set-body <repo> <issue_number>`: Replace issue body content
-- `create-todo <repo> <issue> <section> <text>`: Add todo to section
-- `check-todo <repo> <issue> <section> --match <text>`: Toggle todo state
+### **Issue Display** (Optional repo)
+- `get epic --id <number> [--repo <repo>]`: Display epic issue
+- `get task --id <number> [--repo <repo>]`: Display task issue  
+- `get subtask --id <number> [--repo <repo>]`: Display subtask issue
+- `get milestone --id <number> [--repo <repo>]`: Display milestone
+- `get section --issue-id <number> --title <title> [--repo <repo>]`: Display section
+- `get todo --issue-id <number> --section <section> --match <text> [--repo <repo>]`: Display todo
 
-**Workflow Commands**:
-- `start-plan`: backlog → planning
-- `submit-plan`: planning → awaiting-plan-approval (validates sections)
-- `approve-plan`: awaiting-plan-approval → plan-approved
-- `start-work`: plan-approved → in-progress
-- `submit-work`: in-progress → awaiting-completion-approval
-- `approve-work`: awaiting-completion-approval → closed (validates todos)
+### **Content Management** (Positional repo)
+- `set-body <repo> <issue_number> [--body <text>]`: Replace issue body content
+- `create-todo <repo> <issue_number> <section> <todo_text> [--create-section]`: Add todo to section
+- `check-todo <repo> <issue_number> <section> --match <text>`: Toggle todo completion
+
+### **Workflow Commands** (Positional repo)
+- `start-plan <repo> <issue_number>`: backlog → planning
+- `submit-plan <repo> <issue_number>`: planning → awaiting-plan-approval (validates required sections)
+- `approve-plan <repo> <issue_number>`: awaiting-plan-approval → plan-approved
+- `start-work <repo> <issue_number>`: plan-approved → in-progress
+- `submit-work <repo> <issue_number>`: in-progress → awaiting-completion-approval
+- `approve-work <repo> <issue_number>`: awaiting-completion-approval → closed (**requires all todos complete and all sub-issues closed**)
+
+### **Completion Requirements**
+- **All commands**: Work in any state except approve-work
+- **approve-work only**: Requires ALL todos checked AND ALL sub-issues closed
 
 ## Key References
 - `SPEC.md`: Technical specification
