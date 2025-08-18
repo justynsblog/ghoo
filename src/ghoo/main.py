@@ -972,7 +972,7 @@ def create_condition(
     repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to add condition to"),
     condition_text: str = typer.Argument(..., help="Text description of the condition"),
-    requirements: str = typer.Option("", "--requirements", "-r", help="Requirements that must be met"),
+    requirements: str = typer.Option(..., "--requirements", "-r", help="Requirements that must be met"),
     position: str = typer.Option("end", "--position", "-p", help="Position to place condition (default: end)")
 ):
     """Create a new verification condition in a GitHub issue."""
@@ -1023,7 +1023,7 @@ def update_condition(
     repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    new_requirements: str = typer.Argument(..., help="New requirements text")
+    requirements: str = typer.Option(..., "--requirements", "-r", help="New requirements text")
 ):
     """Update the requirements of an existing condition."""
     try:
@@ -1037,7 +1037,7 @@ def update_condition(
         
         # Execute update-condition command
         update_condition_command = UpdateConditionCommand(github_client)
-        result = update_condition_command.execute(repo, issue_number, condition_match, new_requirements)
+        result = update_condition_command.execute(repo, issue_number, condition_match, requirements)
         
         # Display success message
         typer.echo("✅ Condition updated successfully!")

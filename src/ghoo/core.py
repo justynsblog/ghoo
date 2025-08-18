@@ -1266,7 +1266,7 @@ class GitHubClient:
         # Placeholder implementation
         raise NotImplementedError("Repository initialization not yet implemented")
     
-    def get_issue(self, repo: str, issue_id: int) -> Dict[str, Any]:
+    def get_issue(self, repo: str, issue_id: int):
         """Get details for a specific issue.
         
         Args:
@@ -1274,10 +1274,10 @@ class GitHubClient:
             issue_id: Issue number
             
         Returns:
-            Dictionary with issue details
+            PyGithub Issue object
         """
-        # Placeholder implementation
-        raise NotImplementedError("Get issue not yet implemented")
+        github_repo = self.github.get_repo(repo)
+        return github_repo.get_issue(issue_id)
     
     # GraphQL delegation methods for sub-issues
     
@@ -4298,6 +4298,29 @@ class ConditionCommand:
         
         return matches[0]
     
+    def _strip_condition_blocks_from_text(self, text: str) -> str:
+        """Remove condition blocks from text content.
+        
+        Args:
+            text: Text that may contain condition blocks
+            
+        Returns:
+            Text with condition blocks removed
+        """
+        import re
+        
+        # Pattern to match condition blocks:
+        # ### CONDITION: ... followed by the 4 required fields
+        condition_pattern = r'### CONDITION:[^\n]*\n(?:- \[.\] VERIFIED\n|- \*\*Signed-off by:\*\*[^\n]*\n|- \*\*Requirements:\*\*[^\n]*\n|- \*\*Evidence:\*\*[^\n]*\n)*'
+        
+        # Remove condition blocks and clean up extra whitespace
+        cleaned_text = re.sub(condition_pattern, '', text, flags=re.MULTILINE | re.IGNORECASE)
+        
+        # Clean up multiple consecutive blank lines
+        cleaned_text = re.sub(r'\n\n\n+', '\n\n', cleaned_text)
+        
+        return cleaned_text.strip()
+
     def _reconstruct_body_with_conditions(self, parsed_body: Dict[str, Any], updated_conditions: List[Any]) -> str:
         """Reconstruct issue body with updated conditions.
         
@@ -4310,19 +4333,23 @@ class ConditionCommand:
         """
         lines = []
         
-        # Add pre-section description
+        # Add pre-section description (strip any condition blocks)
         pre_section = parsed_body.get('pre_section_description', '').strip()
         if pre_section:
-            lines.append(pre_section)
-            lines.append('')
+            pre_section = self._strip_condition_blocks_from_text(pre_section)
+            if pre_section:
+                lines.append(pre_section)
+                lines.append('')
         
-        # Add sections
+        # Add sections (strip any condition blocks from section bodies)
         sections = parsed_body.get('sections', [])
         for section_idx, section in enumerate(sections):
             lines.append(f'## {section.title}')
             
             if section.body.strip():
-                lines.append(section.body)
+                cleaned_body = self._strip_condition_blocks_from_text(section.body)
+                if cleaned_body:
+                    lines.append(cleaned_body)
             
             # Add todos if any
             if section.todos:
