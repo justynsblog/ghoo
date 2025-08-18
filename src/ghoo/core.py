@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 import json
 import requests
+import subprocess
 from time import sleep
 
 from github import Github, GithubException
@@ -4318,26 +4319,28 @@ class BaseWorkflowCommand(ABC):
         pass
     
     @abstractmethod
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, **kwargs) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            **kwargs: Additional arguments (subclasses may use specific parameters)
             
         Raises:
             ValueError: If transition validation fails
         """
         pass
     
-    def execute_transition(self, repo: str, issue_number: int, message: Optional[str] = None) -> Dict[str, Any]:
+    def execute_transition(self, repo: str, issue_number: int, message: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Execute the workflow state transition.
         
         Args:
             repo: Repository in format 'owner/repo'
             issue_number: GitHub issue number
             message: Optional message to include in audit trail
+            **kwargs: Additional arguments to pass to validate_transition (e.g., force_unclean_git)
             
         Returns:
             Dict with transition result information
@@ -4348,8 +4351,8 @@ class BaseWorkflowCommand(ABC):
         self._validate_repository_format(repo)
         repo_owner, repo_name = repo.split('/')
         
-        # Validate the transition
-        self.validate_transition(issue_number, repo_owner, repo_name)
+        # Validate the transition - pass any additional kwargs
+        self.validate_transition(issue_number, repo_owner, repo_name, **kwargs)
         
         # Get the issue
         repo_obj = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
@@ -4516,13 +4519,14 @@ class StartPlanCommand(BaseWorkflowCommand):
         """Return the target workflow state for this transition."""
         return "planning"
     
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, **kwargs) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            **kwargs: Additional arguments (unused in this command)
             
         Raises:
             ValueError: If transition validation fails
@@ -4552,13 +4556,14 @@ class SubmitPlanCommand(BaseWorkflowCommand):
         """Return the target workflow state for this transition."""
         return "awaiting-plan-approval"
     
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, **kwargs) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            **kwargs: Additional arguments (unused in this command)
             
         Raises:
             ValueError: If transition validation fails
@@ -4658,13 +4663,14 @@ class ApprovePlanCommand(BaseWorkflowCommand):
         """Return the target workflow state for this transition."""
         return "plan-approved"
     
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, **kwargs) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            **kwargs: Additional arguments (unused in this command)
             
         Raises:
             ValueError: If transition validation fails
@@ -4694,13 +4700,14 @@ class StartWorkCommand(BaseWorkflowCommand):
         """Return the target workflow state for this transition."""
         return "in-progress"
     
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, **kwargs) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            **kwargs: Additional arguments (unused in this command)
             
         Raises:
             ValueError: If transition validation fails
@@ -4730,17 +4737,68 @@ class SubmitWorkCommand(BaseWorkflowCommand):
         """Return the target workflow state for this transition."""
         return "awaiting-completion-approval"
     
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def check_git_status(self) -> tuple[bool, List[str]]:
+        """Check git working directory status.
+        
+        Returns:
+            tuple: (is_clean, list_of_changes)
+                - is_clean: True if working directory is clean, False otherwise
+                - list_of_changes: List of changed files/directories
+        """
+        try:
+            # Run git status --porcelain to get machine-readable output
+            result = subprocess.run(
+                ['git', 'status', '--porcelain'],
+                capture_output=True,
+                text=True,
+                cwd=os.getcwd()
+            )
+            
+            if result.returncode != 0:
+                # If git command fails, we're probably not in a git repository
+                # In this case, we'll allow the operation to proceed
+                return True, []
+            
+            # Parse the output
+            changes = []
+            if result.stdout.strip():
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        changes.append(line.strip())
+            
+            is_clean = len(changes) == 0
+            return is_clean, changes
+            
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # If git is not available or command fails, allow operation to proceed
+            return True, []
+    
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, force_unclean_git: bool = False) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            force_unclean_git: If True, skip git status check
             
         Raises:
             ValueError: If transition validation fails
         """
+        # Check git status first (unless forced to skip)
+        if not force_unclean_git:
+            is_clean, changes = self.check_git_status()
+            if not is_clean:
+                change_summary = '\n'.join(f'  {change}' for change in changes[:10])  # Show first 10 changes
+                if len(changes) > 10:
+                    change_summary += f'\n  ... and {len(changes) - 10} more changes'
+                
+                raise ValueError(
+                    f"Cannot submit work: git working directory has uncommitted changes:\n"
+                    f"{change_summary}\n\n"
+                    f"Please commit or stash your changes first, or use --force-submit-with-unclean-git to override."
+                )
+        
         # Get the issue to check current state
         repo = self.github.github.get_repo(f"{repo_owner}/{repo_name}")
         issue = repo.get_issue(issue_number)
@@ -4766,13 +4824,14 @@ class ApproveWorkCommand(BaseWorkflowCommand):
         """Return the target workflow state for this transition."""
         return "closed"
     
-    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str) -> None:
+    def validate_transition(self, issue_number: int, repo_owner: str, repo_name: str, **kwargs) -> None:
         """Validate that this transition is allowed for the given issue.
         
         Args:
             issue_number: GitHub issue number
             repo_owner: Repository owner
             repo_name: Repository name
+            **kwargs: Additional arguments (unused in this command)
             
         Raises:
             ValueError: If transition validation fails

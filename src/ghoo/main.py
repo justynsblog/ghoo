@@ -879,6 +879,7 @@ def submit_work(
     repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    force_submit_with_unclean_git: bool = typer.Option(False, "--force-submit-with-unclean-git", help="Submit work even with uncommitted git changes"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from in-progress to awaiting-completion-approval state."""
@@ -903,7 +904,7 @@ def submit_work(
         
         # Execute submit-work command
         submit_work_command = SubmitWorkCommand(github_client, config)
-        result = submit_work_command.execute_transition(repo, issue_number, message)
+        result = submit_work_command.execute_transition(repo, issue_number, message, force_unclean_git=force_submit_with_unclean_git)
         
         # Display success message
         typer.echo(f"✅ Work submitted for approval!", color=typer.colors.GREEN)

@@ -1,6 +1,6 @@
 [project]
 name = "ghoo"
-version = "0.1.13"
+version = "0.1.14"
 description = "A prescriptive CLI tool for GitHub repository and project management"
 readme = "README.md"
 authors = [

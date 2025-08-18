@@ -351,6 +351,147 @@ class TestSubmitWorkCommand(TestBaseWorkflowCommand):
     def test_get_to_state(self, submit_work_command):
         """Test get_to_state returns correct state."""
         assert submit_work_command.get_to_state() == "awaiting-completion-approval"
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_check_git_status_clean_repository(self, mock_subprocess_run, submit_work_command):
+        """Test git status check when repository is clean."""
+        # Mock subprocess to return clean status
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_subprocess_run.return_value = mock_result
+        
+        is_clean, changes = submit_work_command.check_git_status()
+        
+        assert is_clean is True
+        assert changes == []
+        mock_subprocess_run.assert_called_once_with(
+            ['git', 'status', '--porcelain'],
+            capture_output=True,
+            text=True,
+            cwd=mock_subprocess_run.call_args[1]['cwd']  # Any current working directory
+        )
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_check_git_status_dirty_repository(self, mock_subprocess_run, submit_work_command):
+        """Test git status check when repository has changes."""
+        # Mock subprocess to return dirty status
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = " M file1.py\n?? file2.py\nA  file3.py\n"
+        mock_subprocess_run.return_value = mock_result
+        
+        is_clean, changes = submit_work_command.check_git_status()
+        
+        assert is_clean is False
+        assert changes == ["M file1.py", "?? file2.py", "A  file3.py"]
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_check_git_status_git_not_available(self, mock_subprocess_run, submit_work_command):
+        """Test git status check when git is not available."""
+        # Mock subprocess to raise FileNotFoundError
+        mock_subprocess_run.side_effect = FileNotFoundError("git command not found")
+        
+        is_clean, changes = submit_work_command.check_git_status()
+        
+        # Should allow operation to proceed when git is not available
+        assert is_clean is True
+        assert changes == []
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_check_git_status_not_git_repository(self, mock_subprocess_run, submit_work_command):
+        """Test git status check when not in a git repository."""
+        # Mock subprocess to return non-zero exit code
+        mock_result = Mock()
+        mock_result.returncode = 128  # Common git error for not a repository
+        mock_subprocess_run.return_value = mock_result
+        
+        is_clean, changes = submit_work_command.check_git_status()
+        
+        # Should allow operation to proceed when not in a git repository
+        assert is_clean is True
+        assert changes == []
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_validate_transition_with_clean_git(self, mock_subprocess_run, submit_work_command, mock_issue):
+        """Test validate_transition passes with clean git repository."""
+        # Mock clean git status
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_subprocess_run.return_value = mock_result
+        
+        # Mock GitHub repo and issue
+        mock_repo = Mock()
+        mock_repo.get_issue.return_value = mock_issue
+        submit_work_command.github.github.get_repo.return_value = mock_repo
+        
+        # Mock issue with correct status
+        mock_label = Mock()
+        mock_label.name = "status:in-progress"
+        mock_issue.labels = [mock_label]
+        
+        # Should not raise any exception
+        submit_work_command.validate_transition(123, "owner", "repo")
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_validate_transition_with_dirty_git_fails(self, mock_subprocess_run, submit_work_command, mock_issue):
+        """Test validate_transition fails with dirty git repository."""
+        # Mock dirty git status
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "M file1.py\n?? file2.py\n"
+        mock_subprocess_run.return_value = mock_result
+        
+        with pytest.raises(ValueError) as exc_info:
+            submit_work_command.validate_transition(123, "owner", "repo")
+        
+        error_message = str(exc_info.value)
+        assert "Cannot submit work: git working directory has uncommitted changes" in error_message
+        assert "M file1.py" in error_message
+        assert "?? file2.py" in error_message
+        assert "--force-submit-with-unclean-git" in error_message
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_validate_transition_with_dirty_git_force_passes(self, mock_subprocess_run, submit_work_command, mock_issue):
+        """Test validate_transition passes with dirty git repository when forced."""
+        # Mock dirty git status
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "M file1.py\n?? file2.py\n"
+        mock_subprocess_run.return_value = mock_result
+        
+        # Mock GitHub repo and issue
+        mock_repo = Mock()
+        mock_repo.get_issue.return_value = mock_issue
+        submit_work_command.github.github.get_repo.return_value = mock_repo
+        
+        # Mock issue with correct status
+        mock_label = Mock()
+        mock_label.name = "status:in-progress"
+        mock_issue.labels = [mock_label]
+        
+        # Should not raise any exception when forced
+        submit_work_command.validate_transition(123, "owner", "repo", force_unclean_git=True)
+    
+    @patch('ghoo.core.subprocess.run')
+    def test_validate_transition_many_changes_truncated(self, mock_subprocess_run, submit_work_command, mock_issue):
+        """Test validate_transition error message is truncated for many changes."""
+        # Mock git status with many changes
+        changes = [f"M file{i}.py" for i in range(15)]
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "\n".join(changes) + "\n"
+        mock_subprocess_run.return_value = mock_result
+        
+        with pytest.raises(ValueError) as exc_info:
+            submit_work_command.validate_transition(123, "owner", "repo")
+        
+        error_message = str(exc_info.value)
+        # Should show first 10 and indicate there are more
+        assert "file0.py" in error_message
+        assert "file9.py" in error_message
+        assert "... and 5 more changes" in error_message
 
 
 class TestApproveWorkCommand(TestBaseWorkflowCommand):
