@@ -33,6 +33,30 @@ class Todo:
 
 
 @dataclass
+class Condition:
+    """A verification condition within an issue.
+    
+    Conditions represent requirements that must be verified before an issue
+    can be closed. Each condition has a structured format with requirements,
+    evidence, verification status, and sign-off.
+    
+    Attributes:
+        text: The condition description (after "CONDITION:")
+        verified: Whether the condition has been verified
+        signed_off_by: Username who verified the condition
+        requirements: Description of what must be done
+        evidence: Description of evidence that requirements were met
+        line_number: Line number in the issue body for editing
+    """
+    text: str
+    verified: bool = False
+    signed_off_by: Optional[str] = None
+    requirements: str = ""
+    evidence: Optional[str] = None
+    line_number: Optional[int] = None
+
+
+@dataclass
 class LogSubEntry:
     """A sub-entry within a log entry for future extensibility.
     
@@ -146,6 +170,7 @@ class Issue:
     sections: List[Section] = field(default_factory=list)
     comments: List[Comment] = field(default_factory=list)
     log_entries: List[LogEntry] = field(default_factory=list)
+    conditions: List[Condition] = field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -164,6 +189,11 @@ class Issue:
             for section in self.sections 
             for todo in section.todos
         )
+    
+    @property
+    def has_open_conditions(self) -> bool:
+        """Check if this issue has any unverified conditions."""
+        return any(not condition.verified for condition in self.conditions)
     
     def add_log_entry(self, to_state: str, author: str, message: Optional[str] = None) -> LogEntry:
         """Add a new log entry to this issue.

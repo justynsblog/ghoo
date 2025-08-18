@@ -7,6 +7,7 @@ import sys
 
 from .core import (
     InitCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, CreateSectionCommand, UpdateSectionCommand,
+    CreateConditionCommand, UpdateConditionCommand, CompleteConditionCommand, VerifyConditionCommand, GetConditionsCommand,
     CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
@@ -943,6 +944,277 @@ def create_sub_task(
         
         if result['milestone']:
             typer.echo(f"   🎯 Milestone: {result['milestone']['title']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="create-condition")
+def create_condition(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to add condition to"),
+    condition_text: str = typer.Argument(..., help="Text description of the condition"),
+    requirements: str = typer.Option("", "--requirements", "-r", help="Requirements that must be met"),
+    position: str = typer.Option("end", "--position", "-p", help="Position to place condition (default: end)")
+):
+    """Create a new verification condition in a GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute create-condition command
+        create_condition_command = CreateConditionCommand(github_client)
+        result = create_condition_command.execute(repo, issue_number, condition_text, requirements, position)
+        
+        # Display success message
+        typer.echo("✅ Condition created successfully!")
+        typer.echo(f"Issue: #{result['issue_number']}")
+        typer.echo(f"Condition: {result['condition_text']}")
+        typer.echo(f"Requirements: {result['requirements']}")
+        typer.echo(f"Position: {result['position']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="update-condition")
+def update_condition(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to update"),
+    condition_match: str = typer.Argument(..., help="Text to match against condition text"),
+    new_requirements: str = typer.Argument(..., help="New requirements text")
+):
+    """Update the requirements of an existing condition."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute update-condition command
+        update_condition_command = UpdateConditionCommand(github_client)
+        result = update_condition_command.execute(repo, issue_number, condition_match, new_requirements)
+        
+        # Display success message
+        typer.echo("✅ Condition updated successfully!")
+        typer.echo(f"Issue: #{result['issue_number']}")
+        typer.echo(f"Condition: {result['condition_text']}")
+        typer.echo(f"Old requirements: {result['old_requirements']}")
+        typer.echo(f"New requirements: {result['new_requirements']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="complete-condition")
+def complete_condition(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to update"),
+    condition_match: str = typer.Argument(..., help="Text to match against condition text"),
+    evidence: str = typer.Argument(..., help="Evidence that requirements were met")
+):
+    """Add evidence to a condition to mark it as complete."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute complete-condition command
+        complete_condition_command = CompleteConditionCommand(github_client)
+        result = complete_condition_command.execute(repo, issue_number, condition_match, evidence)
+        
+        # Display success message
+        typer.echo("✅ Condition evidence added successfully!")
+        typer.echo(f"Issue: #{result['issue_number']}")
+        typer.echo(f"Condition: {result['condition_text']}")
+        if result['old_evidence']:
+            typer.echo(f"Previous evidence: {result['old_evidence']}")
+        typer.echo(f"New evidence: {result['new_evidence']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="verify-condition")
+def verify_condition(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to update"),
+    condition_match: str = typer.Argument(..., help="Text to match against condition text"),
+    signed_off_by: Optional[str] = typer.Option(None, "--signed-off-by", "-s", help="Username signing off (uses your GitHub username if not provided)")
+):
+    """Verify a condition and mark it as signed off."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute verify-condition command
+        verify_condition_command = VerifyConditionCommand(github_client)
+        result = verify_condition_command.execute(repo, issue_number, condition_match, signed_off_by)
+        
+        # Display success message
+        status = "re-verified" if result['was_verified'] else "verified"
+        typer.echo(f"✅ Condition {status} successfully!")
+        typer.echo(f"Issue: #{result['issue_number']}")
+        typer.echo(f"Condition: {result['condition_text']}")
+        typer.echo(f"Signed off by: {result['signed_off_by']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except (GraphQLError, FeatureUnavailableError) as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="get-conditions")
+def get_conditions(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to get conditions from"),
+    format: str = typer.Option("rich", "--format", "-f", help="Output format: 'rich' for formatted display or 'json' for raw JSON")
+):
+    """List all verification conditions in a GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize GitHub client
+        github_client = GitHubClient()
+        
+        # Execute get-conditions command
+        get_conditions_command = GetConditionsCommand(github_client)
+        result = get_conditions_command.execute(repo, issue_number)
+        
+        # Display results based on format
+        if format.lower() == 'json':
+            import json
+            typer.echo(json.dumps(result, indent=2))
+        else:
+            # Rich formatting
+            typer.echo(f"\n🔍 Issue #{result['issue_number']}: {result['issue_title']}")
+            typer.echo(f"URL: {result['issue_url']}")
+            typer.echo(f"Conditions: {result['verified_conditions']}/{result['total_conditions']} verified")
+            
+            if result['conditions']:
+                typer.echo("\n📋 Conditions:")
+                for i, condition in enumerate(result['conditions'], 1):
+                    status_emoji = "✅" if condition['verified'] else "⬜"
+                    typer.echo(f"\n{i}. {status_emoji} {condition['text']}")
+                    
+                    if condition['requirements']:
+                        typer.echo(f"   📝 Requirements: {condition['requirements']}")
+                    
+                    if condition['evidence']:
+                        typer.echo(f"   🔍 Evidence: {condition['evidence']}")
+                    
+                    if condition['verified'] and condition['signed_off_by']:
+                        typer.echo(f"   ✍️  Signed off by: {condition['signed_off_by']}")
+            else:
+                typer.echo("\n📋 No conditions found in this issue")
         
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)

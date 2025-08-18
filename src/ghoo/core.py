@@ -2549,7 +2549,8 @@ class IssueParser:
             return {
                 'pre_section_description': '',
                 'sections': [],
-                'log_entries': []
+                'log_entries': [],
+                'conditions': []
             }
         
         lines = body.split('\n')
@@ -2632,10 +2633,14 @@ class IssueParser:
             # No sections found, everything is pre-section description
             pre_section_description = '\n'.join(pre_section_lines).strip()
         
+        # Extract conditions from entire body
+        conditions = IssueParser._extract_conditions_from_body(body)
+        
         return {
             'pre_section_description': pre_section_description,
             'sections': sections,
-            'log_entries': log_entries
+            'log_entries': log_entries,
+            'conditions': conditions
         }
     
     @staticmethod
@@ -2846,8 +2851,114 @@ class IssueParser:
         
         # If all parsing fails, raise an error
         raise ValueError(f"Unable to parse timestamp: {timestamp_str}")
-
-
+    
+    @staticmethod
+    def _extract_conditions_from_body(body: str) -> List['Condition']:
+        """Extract conditions from issue body.
+        
+        Conditions are H3 headings starting with "CONDITION:" followed by 4 fields:
+        1. [ ] VERIFIED checkbox
+        2. **Signed-off by:** field
+        3. **Requirements:** field  
+        4. **Evidence:** field
+        
+        Args:
+            body: Raw markdown body of the issue
+            
+        Returns:
+            List of Condition objects
+        """
+        from .models import Condition
+        import re
+        
+        if not body or not body.strip():
+            return []
+        
+        conditions = []
+        lines = body.split('\n')
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Look for condition headers: ### CONDITION: text
+            condition_match = re.match(r'^### CONDITION: (.+)$', line, re.IGNORECASE)
+            if condition_match:
+                condition_text = condition_match.group(1).strip()
+                condition_line_number = i + 1
+                
+                # Parse the 4 fields that should follow
+                verified = False
+                signed_off_by = None
+                requirements = ""
+                evidence = None
+                
+                # Look ahead to parse the condition fields
+                j = i + 1
+                field_count = 0
+                
+                while j < len(lines) and field_count < 4:
+                    field_line = lines[j].strip()
+                    
+                    # Stop if we hit another heading or empty line
+                    if not field_line or field_line.startswith('#'):
+                        break
+                    
+                    # Parse VERIFIED checkbox
+                    verified_match = re.match(r'^- \[([x\s])\] VERIFIED$', field_line, re.IGNORECASE)
+                    if verified_match:
+                        verified = verified_match.group(1).lower() == 'x'
+                        field_count += 1
+                        j += 1
+                        continue
+                    
+                    # Parse Signed-off by field
+                    signed_off_match = re.match(r'^- \*\*Signed-off by:\*\* (.+)$', field_line, re.IGNORECASE)
+                    if signed_off_match:
+                        signed_off_text = signed_off_match.group(1).strip()
+                        if signed_off_text not in ['_Not yet verified_', '', 'None']:
+                            signed_off_by = signed_off_text
+                        field_count += 1
+                        j += 1
+                        continue
+                    
+                    # Parse Requirements field
+                    requirements_match = re.match(r'^- \*\*Requirements:\*\* (.+)$', field_line, re.IGNORECASE)
+                    if requirements_match:
+                        requirements = requirements_match.group(1).strip()
+                        field_count += 1
+                        j += 1
+                        continue
+                    
+                    # Parse Evidence field
+                    evidence_match = re.match(r'^- \*\*Evidence:\*\* (.+)$', field_line, re.IGNORECASE)
+                    if evidence_match:
+                        evidence_text = evidence_match.group(1).strip()
+                        if evidence_text not in ['_Not yet provided_', '', 'None']:
+                            evidence = evidence_text
+                        field_count += 1
+                        j += 1
+                        continue
+                    
+                    # If we reach here, the line didn't match any expected pattern
+                    j += 1
+                
+                # Create condition object even if some fields are missing
+                conditions.append(Condition(
+                    text=condition_text,
+                    verified=verified,
+                    signed_off_by=signed_off_by,
+                    requirements=requirements,
+                    evidence=evidence,
+                    line_number=condition_line_number
+                ))
+                
+                # Continue from where we left off
+                i = j
+            else:
+                i += 1
+        
+        return conditions
 
 
 class BaseCreateCommand(ABC):
@@ -4102,6 +4213,168 @@ class TodoCommand:
         return '\n'.join(lines)
 
 
+class ConditionCommand:
+    """Base command class for condition operations on GitHub issues.
+    
+    This class provides shared functionality for managing conditions
+    in GitHub issue bodies including creation, updating, completion, and verification.
+    """
+    
+    def __init__(self, github_client: GitHubClient):
+        """Initialize the command with GitHub client.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+        self.set_body_command = SetBodyCommand(github_client)
+    
+    def _get_issue_and_parsed_body(self, repo: str, issue_number: int) -> Dict[str, Any]:
+        """Get issue and parse its body content.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number
+            
+        Returns:
+            Dictionary with 'issue' and 'parsed_body' keys
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+        """
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+        
+        try:
+            issue = self.github.get_issue(repo, issue_number)
+            parser = IssueParser()
+            parsed_body = parser.parse_body(issue.body or "")
+            
+            return {
+                'issue': issue,
+                'parsed_body': parsed_body
+            }
+        except Exception as e:
+            if "404" in str(e):
+                raise ValueError(f"Issue #{issue_number} not found in repository {repo}")
+            raise
+    
+    def _find_condition(self, conditions: List[Any], condition_match: str) -> Any:
+        """Find a condition by matching text.
+        
+        Args:
+            conditions: List of Condition objects
+            condition_match: Text to match against condition text
+            
+        Returns:
+            Matching Condition object or None
+            
+        Raises:
+            ValueError: If no match found or multiple matches found
+        """
+        if not condition_match or not condition_match.strip():
+            raise ValueError("Condition match text cannot be empty")
+        
+        condition_match = condition_match.strip().lower()
+        
+        # Find matching conditions
+        matches = []
+        for condition in conditions:
+            if condition_match in condition.text.lower():
+                matches.append(condition)
+        
+        if not matches:
+            available_conditions = [condition.text for condition in conditions]
+            if available_conditions:
+                conditions_list = ', '.join(f'"{c}"' for c in available_conditions)
+                raise ValueError(f'No condition found matching "{condition_match}". Available conditions: {conditions_list}')
+            else:
+                raise ValueError('No conditions found in issue')
+        
+        if len(matches) > 1:
+            match_texts = [f'"{match.text}"' for match in matches]
+            raise ValueError(f'Multiple conditions match "{condition_match}": {", ".join(match_texts)}. Please be more specific.')
+        
+        return matches[0]
+    
+    def _reconstruct_body_with_conditions(self, parsed_body: Dict[str, Any], updated_conditions: List[Any]) -> str:
+        """Reconstruct issue body with updated conditions.
+        
+        Args:
+            parsed_body: Parsed body data from IssueParser
+            updated_conditions: List of updated Condition objects
+            
+        Returns:
+            Reconstructed markdown body
+        """
+        lines = []
+        
+        # Add pre-section description
+        pre_section = parsed_body.get('pre_section_description', '').strip()
+        if pre_section:
+            lines.append(pre_section)
+            lines.append('')
+        
+        # Add sections
+        sections = parsed_body.get('sections', [])
+        for section_idx, section in enumerate(sections):
+            lines.append(f'## {section.title}')
+            
+            if section.body.strip():
+                lines.append(section.body)
+            
+            # Add todos if any
+            if section.todos:
+                if section.body.strip():
+                    lines.append('')
+                for todo in section.todos:
+                    checkbox = '[x]' if todo.checked else '[ ]'
+                    lines.append(f'- {checkbox} {todo.text}')
+            
+            # Add blank line after section (except for the last one)
+            if section_idx < len(sections) - 1:
+                lines.append('')
+        
+        # Add conditions
+        if updated_conditions:
+            if lines:  # Add separator if there's content above
+                lines.append('')
+            
+            for condition_idx, condition in enumerate(updated_conditions):
+                lines.append(f'### CONDITION: {condition.text}')
+                
+                # Add the 4 required fields
+                verified_checkbox = '[x]' if condition.verified else '[ ]'
+                lines.append(f'- {verified_checkbox} VERIFIED')
+                
+                signed_off_text = condition.signed_off_by or '_Not yet verified_'
+                lines.append(f'- **Signed-off by:** {signed_off_text}')
+                
+                requirements_text = condition.requirements or '_No requirements specified_'
+                lines.append(f'- **Requirements:** {requirements_text}')
+                
+                evidence_text = condition.evidence or '_Not yet provided_'
+                lines.append(f'- **Evidence:** {evidence_text}')
+                
+                # Add blank line after condition (except for the last one)
+                if condition_idx < len(updated_conditions) - 1:
+                    lines.append('')
+        
+        # Add log section if present
+        log_entries = parsed_body.get('log_entries', [])
+        if log_entries:
+            if lines:  # Add separator if there's content above
+                lines.append('')
+            
+            lines.append('## Log')
+            for log_entry in log_entries:
+                lines.append('')
+                lines.append(log_entry.to_markdown())
+        
+        return '\n'.join(lines)
+
+
 class CreateTodoCommand(TodoCommand):
     """Command for adding new todo items to GitHub issue sections."""
     
@@ -4564,6 +4837,313 @@ class UpdateSectionCommand(TodoCommand):
             return original_content
 
 
+class CreateConditionCommand(ConditionCommand):
+    """Command for creating new conditions in GitHub issue bodies."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        condition_text: str,
+        requirements: str = "",
+        position: str = "end"
+    ) -> Dict[str, Any]:
+        """Execute the create-condition command to add a new condition.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to add condition to
+            condition_text: Text description of the condition
+            requirements: Requirements that must be met
+            position: Where to place the condition ('end' for now)
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails
+        """
+        # Validate condition text
+        if not condition_text or not condition_text.strip():
+            raise ValueError("Condition text cannot be empty")
+        
+        condition_text = condition_text.strip()
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Check if condition already exists
+        existing_conditions = parsed_body.get('conditions', [])
+        for condition in existing_conditions:
+            if condition.text.lower() == condition_text.lower():
+                raise ValueError(f'Condition "{condition_text}" already exists')
+        
+        # Create new condition
+        from .models import Condition
+        new_condition = Condition(
+            text=condition_text,
+            verified=False,
+            signed_off_by=None,
+            requirements=requirements or "_No requirements specified_",
+            evidence=None
+        )
+        
+        # Add to conditions list
+        updated_conditions = existing_conditions + [new_condition]
+        
+        # Reconstruct body with new condition
+        new_body = self._reconstruct_body_with_conditions(parsed_body, updated_conditions)
+        
+        # Update issue body
+        self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'condition_text': condition_text,
+            'requirements': requirements or "_No requirements specified_",
+            'position': position
+        }
+
+
+class UpdateConditionCommand(ConditionCommand):
+    """Command for updating requirements of existing conditions."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        condition_match: str,
+        new_requirements: str
+    ) -> Dict[str, Any]:
+        """Execute the update-condition command to modify condition requirements.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            condition_match: Text to match against condition text
+            new_requirements: New requirements text
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails or condition not found
+        """
+        # Validate new requirements
+        if not new_requirements or not new_requirements.strip():
+            raise ValueError("New requirements cannot be empty")
+        
+        new_requirements = new_requirements.strip()
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Find target condition
+        existing_conditions = parsed_body.get('conditions', [])
+        target_condition = self._find_condition(existing_conditions, condition_match)
+        
+        # Update requirements
+        old_requirements = target_condition.requirements
+        target_condition.requirements = new_requirements
+        
+        # Reconstruct body with updated condition
+        new_body = self._reconstruct_body_with_conditions(parsed_body, existing_conditions)
+        
+        # Update issue body
+        self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'condition_text': target_condition.text,
+            'old_requirements': old_requirements,
+            'new_requirements': new_requirements
+        }
+
+
+class CompleteConditionCommand(ConditionCommand):
+    """Command for adding evidence to conditions."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        condition_match: str,
+        evidence: str
+    ) -> Dict[str, Any]:
+        """Execute the complete-condition command to add evidence.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            condition_match: Text to match against condition text
+            evidence: Evidence that requirements were met
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails or condition not found
+        """
+        # Validate evidence
+        if not evidence or not evidence.strip():
+            raise ValueError("Evidence cannot be empty")
+        
+        evidence = evidence.strip()
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Find target condition
+        existing_conditions = parsed_body.get('conditions', [])
+        target_condition = self._find_condition(existing_conditions, condition_match)
+        
+        # Add evidence
+        old_evidence = target_condition.evidence
+        target_condition.evidence = evidence
+        
+        # Reconstruct body with updated condition
+        new_body = self._reconstruct_body_with_conditions(parsed_body, existing_conditions)
+        
+        # Update issue body
+        self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'condition_text': target_condition.text,
+            'old_evidence': old_evidence,
+            'new_evidence': evidence
+        }
+
+
+class VerifyConditionCommand(ConditionCommand):
+    """Command for verifying conditions and adding sign-off."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        condition_match: str,
+        signed_off_by: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute the verify-condition command to mark as verified.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            condition_match: Text to match against condition text
+            signed_off_by: Username signing off (uses GitHub user if not provided)
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails or condition not found
+        """
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Find target condition
+        existing_conditions = parsed_body.get('conditions', [])
+        target_condition = self._find_condition(existing_conditions, condition_match)
+        
+        # Check that evidence exists
+        if not target_condition.evidence:
+            raise ValueError(f'Cannot verify condition "{target_condition.text}": no evidence provided. Use complete-condition first.')
+        
+        # Determine sign-off user
+        if not signed_off_by:
+            try:
+                user = self.github.github.get_user()
+                signed_off_by = user.login
+            except Exception:
+                signed_off_by = "unknown-user"
+        
+        # Mark as verified
+        was_verified = target_condition.verified
+        target_condition.verified = True
+        target_condition.signed_off_by = signed_off_by
+        
+        # Reconstruct body with updated condition
+        new_body = self._reconstruct_body_with_conditions(parsed_body, existing_conditions)
+        
+        # Update issue body
+        self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'condition_text': target_condition.text,
+            'was_verified': was_verified,
+            'signed_off_by': signed_off_by
+        }
+
+
+class GetConditionsCommand(ConditionCommand):
+    """Command for listing all conditions in an issue."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int
+    ) -> Dict[str, Any]:
+        """Execute the get-conditions command to list conditions.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to get conditions from
+            
+        Returns:
+            Dictionary containing conditions and issue information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails
+        """
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Get conditions
+        conditions = parsed_body.get('conditions', [])
+        
+        # Format conditions for output
+        conditions_data = []
+        for condition in conditions:
+            conditions_data.append({
+                'text': condition.text,
+                'verified': condition.verified,
+                'signed_off_by': condition.signed_off_by,
+                'requirements': condition.requirements,
+                'evidence': condition.evidence
+            })
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'issue_url': issue.html_url,
+            'total_conditions': len(conditions),
+            'verified_conditions': sum(1 for c in conditions if c.verified),
+            'unverified_conditions': sum(1 for c in conditions if not c.verified),
+            'conditions': conditions_data
+        }
+
+
 class BaseWorkflowCommand(ABC):
     """Base class for all workflow state transition commands.
     
@@ -4875,6 +5455,7 @@ class SubmitPlanCommand(BaseWorkflowCommand):
                 parser = IssueParser()
                 parsed_data = parser.parse_body(issue.body)
                 sections = parsed_data.get('sections', [])
+                conditions = parsed_data.get('conditions', [])
                 
                 # Check for open todos  
                 has_open_todos = any(
@@ -4882,10 +5463,15 @@ class SubmitPlanCommand(BaseWorkflowCommand):
                     for section in sections
                 )
                 
+                # Check for unverified conditions (not required for plan submission, just for awareness)
+                has_open_conditions = any(not condition.verified for condition in conditions)
+                
                 # Create a simple object to hold parsed data
                 parsed = type('ParsedIssue', (), {
                     'sections': sections,
-                    'has_open_todos': has_open_todos
+                    'has_open_todos': has_open_todos,
+                    'conditions': conditions,
+                    'has_open_conditions': has_open_conditions
                 })()
                 
                 missing_sections = []
@@ -5140,10 +5726,11 @@ class ApproveWorkCommand(BaseWorkflowCommand):
             ValueError: If completion requirements are not met
         """
         
-        # Parse issue body to check for unchecked todos
+        # Parse issue body to check for unchecked todos and unverified conditions
         parser = IssueParser()
         parsed_data = parser.parse_body(issue.body)
         sections = parsed_data.get('sections', [])
+        conditions = parsed_data.get('conditions', [])
         
         # Check for open todos  
         has_open_todos = any(
@@ -5151,10 +5738,15 @@ class ApproveWorkCommand(BaseWorkflowCommand):
             for section in sections
         )
         
+        # Check for unverified conditions
+        has_open_conditions = any(not condition.verified for condition in conditions)
+        
         # Create a simple object to hold parsed data
         parsed = type('ParsedIssue', (), {
             'sections': sections,
-            'has_open_todos': has_open_todos
+            'has_open_todos': has_open_todos,
+            'conditions': conditions,
+            'has_open_conditions': has_open_conditions
         })()
         
         # Check for unchecked todos
@@ -5172,6 +5764,23 @@ class ApproveWorkCommand(BaseWorkflowCommand):
                 raise ValueError(
                     f"Cannot approve work: issue has unchecked todos that must be completed first:{todos_str}\n\n"
                     f"Use 'ghoo check-todo --issue-id {issue.number} --section <section> --match <text>' to mark todos as completed."
+                )
+        
+        # Check for unverified conditions
+        if parsed.has_open_conditions:
+            unverified_conditions = []
+            for condition in parsed.conditions:
+                if not condition.verified:
+                    unverified_conditions.append(f'"{condition.text}"')
+            
+            if unverified_conditions:
+                conditions_str = "\n  - " + "\n  - ".join(unverified_conditions[:5])  # Show first 5
+                if len(unverified_conditions) > 5:
+                    conditions_str += f"\n  - ... and {len(unverified_conditions) - 5} more"
+                raise ValueError(
+                    f"Cannot approve work: issue has unverified conditions that must be verified first:{conditions_str}\n\n"
+                    f"Use 'ghoo complete-condition {issue.number} <condition_match> <evidence>' to add evidence, then "
+                    f"'ghoo verify-condition {issue.number} <condition_match>' to verify."
                 )
         
         # Check for open sub-issues
