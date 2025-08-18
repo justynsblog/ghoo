@@ -179,14 +179,22 @@ class IssueService:
                 sub_issues_data = self.github.get_issue_with_sub_issues(repo, issue_number)
                 if 'node' in sub_issues_data and sub_issues_data['node']:
                     sub_issues = sub_issues_data['node']['subIssues']['nodes']
-                    additional_data['sub_issues'] = [
-                        {
+                    processed_sub_issues = []
+                    for sub in sub_issues:
+                        labels = [{'name': label['name'], 'color': label['color']} 
+                                 for label in sub.get('labels', {}).get('nodes', [])]
+                        workflow_status = self.extract_workflow_status(labels)
+                        
+                        processed_sub_issues.append({
                             'number': sub['number'],
                             'title': sub['title'],
                             'state': sub['state'].lower(),
-                            'author': sub['author']['login']
-                        } for sub in sub_issues
-                    ]
+                            'author': sub['author']['login'],
+                            'labels': labels,
+                            'workflow_status': workflow_status
+                        })
+                    
+                    additional_data['sub_issues'] = processed_sub_issues
                     
                     # Summary statistics
                     summary = self.github.get_sub_issues_summary(repo, issue_number)
@@ -224,7 +232,62 @@ class IssueService:
         except (GraphQLError, FeatureUnavailableError):
             pass
         
+        # Also try to get sub-issues for tasks (they can have subtasks)
+        try:
+            if self.github.check_sub_issues_available(repo):
+                sub_issues_data = self.github.get_issue_with_sub_issues(repo, issue_number)
+                if 'node' in sub_issues_data and sub_issues_data['node']:
+                    sub_issues = sub_issues_data['node']['subIssues']['nodes']
+                    processed_sub_issues = []
+                    for sub in sub_issues:
+                        labels = [{'name': label['name'], 'color': label['color']} 
+                                 for label in sub.get('labels', {}).get('nodes', [])]
+                        workflow_status = self.extract_workflow_status(labels)
+                        
+                        processed_sub_issues.append({
+                            'number': sub['number'],
+                            'title': sub['title'],
+                            'state': sub['state'].lower(),
+                            'author': sub['author']['login'],
+                            'labels': labels,
+                            'workflow_status': workflow_status
+                        })
+                    
+                    additional_data['sub_issues'] = processed_sub_issues
+                    
+                    # Summary statistics
+                    summary = self.github.get_sub_issues_summary(repo, issue_number)
+                    additional_data['sub_issues_summary'] = summary
+        except (GraphQLError, FeatureUnavailableError):
+            # Fall back to parsing issue body for subtask references
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            task_references = self.parse_task_references_from_body(issue.body or "", repo)
+            additional_data['sub_issues'] = task_references
+            additional_data['sub_issues_summary'] = self.calculate_summary_from_parsed_tasks(task_references)
+        
         return additional_data
+    
+    def extract_workflow_status(self, labels: List[Dict[str, Any]]) -> Optional[str]:
+        """Extract workflow status from issue labels.
+        
+        Args:
+            labels: List of label dictionaries with 'name' and 'color' keys
+            
+        Returns:
+            Workflow status string (e.g., 'in-progress', 'planning') or None if not found
+        """
+        if not labels:
+            return None
+            
+        for label in labels:
+            label_name = label.get('name', '')
+            if label_name.startswith('status:'):
+                # Extract status after 'status:' prefix
+                status = label_name[7:]  # Remove 'status:' prefix
+                return status
+                
+        return None
     
     def format_section(self, section) -> Dict[str, Any]:
         """Format a parsed section for display.

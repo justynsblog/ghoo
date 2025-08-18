@@ -470,7 +470,8 @@ def _display_epic_issue(issue_data):
         typer.echo(f"\n🔗 Tasks ({len(issue_data['sub_issues'])}):")
         for sub_issue in issue_data['sub_issues']:
             state_emoji = "✅" if sub_issue['state'] == 'closed' else "🔲"
-            typer.echo(f"  {state_emoji} #{sub_issue['number']}: {sub_issue['title']} (@{sub_issue['author']})")
+            status_text = f" [{sub_issue['workflow_status']}]" if sub_issue.get('workflow_status') else ""
+            typer.echo(f"  {state_emoji} #{sub_issue['number']}: {sub_issue['title']}{status_text} @{sub_issue['author']}")
         
         # Tasks summary
         if 'sub_issues_summary' in issue_data:
@@ -803,7 +804,8 @@ def _display_task_issue(issue_data):
         typer.echo(f"\n🔗 Subtasks ({len(issue_data['sub_issues'])}):")
         for sub_issue in issue_data['sub_issues']:
             state_emoji = "✅" if sub_issue['state'] == 'closed' else "🔲"
-            typer.echo(f"  {state_emoji} #{sub_issue['number']}: {sub_issue['title']} (@{sub_issue['author']})")
+            status_text = f" [{sub_issue['workflow_status']}]" if sub_issue.get('workflow_status') else ""
+            typer.echo(f"  {state_emoji} #{sub_issue['number']}: {sub_issue['title']}{status_text} @{sub_issue['author']}")
         
         # Subtasks summary
         if 'sub_issues_summary' in issue_data:
