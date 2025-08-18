@@ -19,7 +19,13 @@ class MissingTokenError(AuthenticationError):
         token_var = "TESTING_GITHUB_TOKEN" if is_testing else "GITHUB_TOKEN"
         super().__init__(
             f"GitHub authentication token not found.\n"
-            f"Please set the {token_var} environment variable with your Personal Access Token.\n"
+            f"Please set the {token_var} environment variable or add it to a .env file.\n"
+            f"\n"
+            f"Option 1 - Environment variable:\n"
+            f"   export {token_var}='your_token_here'\n"
+            f"\n"
+            f"Option 2 - .env file (in same directory as ghoo.yaml):\n"
+            f"   Create a .env file with: {token_var}=your_token_here\n"
             f"\n"
             f"To create a token:\n"
             f"1. Go to https://github.com/settings/tokens?type=beta\n"
@@ -27,8 +33,7 @@ class MissingTokenError(AuthenticationError):
             f"3. Set expiration and add repository permissions:\n"
             f"   - Issues: Read & Write\n"
             f"   - Metadata: Read\n"
-            f"4. Copy the token and set it:\n"
-            f"   export {token_var}='your_token_here'"
+            f"4. Copy the token and use it with either option above"
         )
 
 

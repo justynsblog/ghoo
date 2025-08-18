@@ -74,7 +74,7 @@ def init_gh(
         typer.echo(f"🔧 Initializing repository from {config.project_url}")
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute initialization
         init_command = InitCommand(github_client, config)
@@ -189,8 +189,11 @@ def set_body(
                 sys.exit(1)
             new_body = sys.stdin.read()
         
+        # Initialize config loader for token lookup
+        config_loader = ConfigLoader()
+        
         # Initialize GitHub client
-        github_client = GitHubClient()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute set-body command
         set_body_command = SetBodyCommand(github_client)
@@ -242,8 +245,11 @@ def create_todo(
             typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
             sys.exit(1)
         
+        # Initialize config loader for token lookup
+        config_loader = ConfigLoader()
+        
         # Initialize GitHub client
-        github_client = GitHubClient()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute create-todo command
         create_todo_command = CreateTodoCommand(github_client)
@@ -298,8 +304,11 @@ def check_todo(
             typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
             sys.exit(1)
         
+        # Initialize config loader for token lookup
+        config_loader = ConfigLoader()
+        
         # Initialize GitHub client
-        github_client = GitHubClient()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute check-todo command
         check_todo_command = CheckTodoCommand(github_client)
@@ -358,9 +367,9 @@ def create_epic(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
                 typer.echo(f"📋 Using configuration from {config_path}")
             except (ConfigNotFoundError, InvalidYAMLError) as e:
@@ -378,7 +387,7 @@ def create_epic(
             assignees_list = [assignee.strip() for assignee in assignees.split(',')]
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute create epic command
         create_command = CreateEpicCommand(github_client, config)
@@ -450,9 +459,9 @@ def create_task(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
                 typer.echo(f"📋 Using configuration from {config_path}")
             except (ConfigNotFoundError, InvalidYAMLError) as e:
@@ -470,7 +479,7 @@ def create_task(
             assignees_list = [assignee.strip() for assignee in assignees.split(',')]
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Create task command
         create_task_cmd = CreateTaskCommand(github_client, config)
@@ -544,9 +553,9 @@ def create_sub_task(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
                 typer.echo(f"📋 Using configuration from {config_path}")
             except (ConfigNotFoundError, InvalidYAMLError) as e:
@@ -564,7 +573,7 @@ def create_sub_task(
             assignees_list = [assignee.strip() for assignee in assignees.split(',')]
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Create sub-task command
         create_sub_task_cmd = CreateSubTaskCommand(github_client, config)
@@ -633,16 +642,16 @@ def start_plan(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
             except (ConfigNotFoundError, InvalidYAMLError) as e:
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute start-plan command
         start_plan_command = StartPlanCommand(github_client, config)
@@ -695,16 +704,16 @@ def submit_plan(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
             except (ConfigNotFoundError, InvalidYAMLError) as e:
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute submit-plan command
         submit_plan_command = SubmitPlanCommand(github_client, config)
@@ -757,16 +766,16 @@ def approve_plan(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
             except (ConfigNotFoundError, InvalidYAMLError) as e:
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute approve-plan command
         approve_plan_command = ApprovePlanCommand(github_client, config)
@@ -819,16 +828,16 @@ def start_work(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
             except (ConfigNotFoundError, InvalidYAMLError) as e:
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute start-work command
         start_work_command = StartWorkCommand(github_client, config)
@@ -881,16 +890,16 @@ def submit_work(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
             except (ConfigNotFoundError, InvalidYAMLError) as e:
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration", color=typer.colors.YELLOW)
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute submit-work command
         submit_work_command = SubmitWorkCommand(github_client, config)
@@ -943,16 +952,16 @@ def approve_work(
         
         # Load configuration if available
         config = None
+        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
-                config_loader = ConfigLoader(config_path)
                 config = config_loader.load()
             except (ConfigNotFoundError, InvalidYAMLError) as e:
                 typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
                 typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
         
         # Initialize GitHub client with config
-        github_client = GitHubClient(config=config)
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
         # Execute approve-work command
         approve_work_command = ApproveWorkCommand(github_client, config)

@@ -1132,14 +1132,15 @@ class GitHubClient:
     - Direct GraphQL calls for advanced features (sub-issues, issue types)
     """
     
-    def __init__(self, token: Optional[str] = None, use_testing_token: bool = False, config: Optional['Config'] = None):
+    def __init__(self, token: Optional[str] = None, use_testing_token: bool = False, config: Optional['Config'] = None, config_dir: Optional[Path] = None):
         """Initialize GitHub client with authentication token.
         
         Args:
             token: GitHub personal access token. If not provided, will look for 
-                   GITHUB_TOKEN or TESTING_GITHUB_TOKEN env var.
+                   GITHUB_TOKEN or TESTING_GITHUB_TOKEN env var, then .env file.
             use_testing_token: If True, use TESTING_GITHUB_TOKEN instead of GITHUB_TOKEN
             config: Configuration object containing issue_type_method setting
+            config_dir: Directory containing .env file to load if token not in environment
         """
         # Determine which token to use
         if token:
@@ -1147,9 +1148,13 @@ class GitHubClient:
         elif use_testing_token:
             self.token = os.getenv("TESTING_GITHUB_TOKEN")
             if not self.token:
+                self.token = self._load_token_from_env_file(config_dir, "TESTING_GITHUB_TOKEN")
+            if not self.token:
                 raise MissingTokenError(is_testing=True)
         else:
             self.token = os.getenv("GITHUB_TOKEN")
+            if not self.token:
+                self.token = self._load_token_from_env_file(config_dir, "GITHUB_TOKEN")
             if not self.token:
                 raise MissingTokenError(is_testing=False)
         
@@ -1167,6 +1172,68 @@ class GitHubClient:
         
         # Store configuration for issue type method
         self.config = config
+    
+    def _load_token_from_env_file(self, config_dir: Optional[Path], token_name: str) -> Optional[str]:
+        """Load token from .env file in the config directory.
+        
+        Args:
+            config_dir: Directory containing .env file
+            token_name: Name of token environment variable to load
+            
+        Returns:
+            Token value if found in .env file, None otherwise
+        """
+        if not config_dir:
+            return None
+            
+        env_file = config_dir / ".env"
+        if not env_file.exists():
+            return None
+            
+        try:
+            # Try to use python-dotenv if available
+            try:
+                from dotenv import dotenv_values
+                env_vars = dotenv_values(env_file)
+                return env_vars.get(token_name)
+            except ImportError:
+                # Fall back to manual parsing if python-dotenv not available
+                return self._parse_env_file_manually(env_file, token_name)
+        except Exception:
+            # If any error occurs, silently return None
+            return None
+    
+    def _parse_env_file_manually(self, env_file: Path, token_name: str) -> Optional[str]:
+        """Manually parse .env file as fallback when python-dotenv not available.
+        
+        Args:
+            env_file: Path to .env file
+            token_name: Name of token environment variable to find
+            
+        Returns:
+            Token value if found, None otherwise
+        """
+        try:
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        
+                        # Remove quotes if present
+                        if value.startswith('"') and value.endswith('"'):
+                            value = value[1:-1]
+                        elif value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                            
+                        if key == token_name:
+                            return value
+        except Exception:
+            pass
+        
+        return None
     
     def _validate_token(self):
         """Validate that the token works by making a simple API call.
@@ -1905,9 +1972,43 @@ class ConfigLoader:
         """Initialize config loader.
         
         Args:
-            config_path: Path to ghoo.yaml file. If not provided, looks in current directory.
+            config_path: Path to ghoo.yaml file. If not provided, searches up to 3 parent directories.
         """
-        self.config_path = config_path or Path.cwd() / "ghoo.yaml"
+        self.config_path = config_path or self._find_config_file()
+    
+    def _find_config_file(self) -> Path:
+        """Find ghoo.yaml file by searching current and up to 3 parent directories.
+        
+        Returns:
+            Path to ghoo.yaml file. Returns current directory path if not found.
+        """
+        current_dir = Path.cwd()
+        
+        # Check current directory first
+        config_file = current_dir / "ghoo.yaml"
+        if config_file.exists():
+            return config_file
+        
+        # Check up to 3 parent directories
+        for i in range(3):
+            parent_dir = current_dir.parents[i] if i < len(current_dir.parents) else None
+            if parent_dir is None:
+                break
+                
+            config_file = parent_dir / "ghoo.yaml"
+            if config_file.exists():
+                return config_file
+        
+        # If not found, return current directory default
+        return Path.cwd() / "ghoo.yaml"
+    
+    def get_config_dir(self) -> Path:
+        """Get the directory containing the configuration file.
+        
+        Returns:
+            Directory path containing ghoo.yaml (or would contain it).
+        """
+        return self.config_path.parent
     
     def load(self) -> Config:
         """Load and validate configuration from ghoo.yaml.
