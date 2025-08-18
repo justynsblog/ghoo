@@ -461,6 +461,13 @@ def _display_epic_issue(issue_data):
         for log_entry in log_entries:
             _display_log_entry(log_entry)
     
+    # Comments
+    comments = issue_data.get('comments', [])
+    if comments:
+        typer.echo(f"\n💬 Comments ({len(comments)}):")
+        for comment in comments:
+            _display_comment(comment)
+    
     # Epic-specific data - tasks
     if 'sub_issues' in issue_data and issue_data['sub_issues']:
         typer.echo(f"\n🔗 Tasks ({len(issue_data['sub_issues'])}):")
@@ -530,6 +537,33 @@ def _display_log_entry(log_entry):
                 if title or content:
                     display_text = f"{title}: {content}" if title and content else (title or content)
                     typer.echo(f"    • {display_text}", color=typer.colors.YELLOW)
+
+
+def _display_comment(comment):
+    """Display a single comment with formatting.
+    
+    Args:
+        comment: Comment dictionary from issue service
+    """
+    import datetime
+    
+    # Parse timestamps
+    created = datetime.datetime.fromisoformat(comment['created_at'].replace('Z', '+00:00'))
+    updated = datetime.datetime.fromisoformat(comment['updated_at'].replace('Z', '+00:00'))
+    
+    # Comment header
+    typer.echo(f"  💬 @{comment['author']} • {created.strftime('%Y-%m-%d %H:%M')}", color=typer.colors.BRIGHT_BLUE)
+    
+    # Show if edited
+    if created != updated:
+        typer.echo(f"     Edited: {updated.strftime('%Y-%m-%d %H:%M')}", color=typer.colors.BRIGHT_BLACK)
+    
+    # Comment body (indented)
+    body_lines = comment['body'].split('\n')
+    for line in body_lines:
+        typer.echo(f"     {line}")
+    
+    typer.echo("")  # Empty line after comment
 
 
 def _display_milestone(milestone_data):
@@ -779,6 +813,13 @@ def _display_task_issue(issue_data):
             summary = issue_data['sub_issues_summary']
             if summary['total'] > 0:
                 typer.echo(f"  Summary: {summary['closed']}/{summary['total']} completed ({summary['completion_rate']:.0f}%)")
+    
+    # Comments
+    comments = issue_data.get('comments', [])
+    if comments:
+        typer.echo(f"\n💬 Comments ({len(comments)}):")
+        for comment in comments:
+            _display_comment(comment)
 
 
 def _display_subtask_issue(issue_data):
@@ -856,3 +897,10 @@ def _display_subtask_issue(issue_data):
         typer.echo(f"\n📋 Log ({len(log_entries)} entries):")
         for log_entry in log_entries:
             _display_log_entry(log_entry)
+    
+    # Comments
+    comments = issue_data.get('comments', [])
+    if comments:
+        typer.echo(f"\n💬 Comments ({len(comments)}):")
+        for comment in comments:
+            _display_comment(comment)

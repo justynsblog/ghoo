@@ -274,6 +274,24 @@ class IssueService:
             ]
         }
     
+    def format_comment(self, comment) -> Dict[str, Any]:
+        """Format an issue comment for display.
+        
+        Args:
+            comment: GitHub Issue Comment object
+            
+        Returns:
+            Dictionary with formatted comment data
+        """
+        return {
+            'id': comment.id,
+            'author': comment.user.login,
+            'body': comment.body,
+            'created_at': comment.created_at.isoformat(),
+            'updated_at': comment.updated_at.isoformat(),
+            'html_url': comment.html_url
+        }
+    
     def parse_task_references_from_body(self, issue_body: str, repo: str) -> List[Dict[str, Any]]:
         """Parse task references from issue body as fallback.
         
@@ -415,6 +433,7 @@ class IssueService:
                 'pre_section_description': parsed_body['pre_section_description'],
                 'sections': [self.format_section(section) for section in parsed_body['sections']],
                 'log_entries': [self.format_log_entry(entry) for entry in parsed_body['log_entries']],
+                'comments': [self.format_comment(comment) for comment in issue.get_comments()],
                 **additional_data
             }
             
