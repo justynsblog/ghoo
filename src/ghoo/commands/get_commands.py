@@ -461,14 +461,14 @@ def _display_epic_issue(issue_data):
         for log_entry in log_entries:
             _display_log_entry(log_entry)
     
-    # Epic-specific data - sub-issues
+    # Epic-specific data - tasks
     if 'sub_issues' in issue_data and issue_data['sub_issues']:
-        typer.echo(f"\n🔗 Sub-issues ({len(issue_data['sub_issues'])}):")
+        typer.echo(f"\n🔗 Tasks ({len(issue_data['sub_issues'])}):")
         for sub_issue in issue_data['sub_issues']:
             state_emoji = "✅" if sub_issue['state'] == 'closed' else "🔲"
             typer.echo(f"  {state_emoji} #{sub_issue['number']}: {sub_issue['title']} (@{sub_issue['author']})")
         
-        # Sub-issues summary
+        # Tasks summary
         if 'sub_issues_summary' in issue_data:
             summary = issue_data['sub_issues_summary']
             if summary['total'] > 0:
@@ -767,14 +767,14 @@ def _display_task_issue(issue_data):
         for log_entry in log_entries:
             _display_log_entry(log_entry)
     
-    # Task-specific data - sub-issues (subtasks)
+    # Task-specific data - subtasks
     if 'sub_issues' in issue_data and issue_data['sub_issues']:
-        typer.echo(f"\n🔗 Sub-issues ({len(issue_data['sub_issues'])}):")
+        typer.echo(f"\n🔗 Subtasks ({len(issue_data['sub_issues'])}):")
         for sub_issue in issue_data['sub_issues']:
             state_emoji = "✅" if sub_issue['state'] == 'closed' else "🔲"
             typer.echo(f"  {state_emoji} #{sub_issue['number']}: {sub_issue['title']} (@{sub_issue['author']})")
         
-        # Sub-issues summary
+        # Subtasks summary
         if 'sub_issues_summary' in issue_data:
             summary = issue_data['sub_issues_summary']
             if summary['total'] > 0:
