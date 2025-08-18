@@ -5051,3 +5051,96 @@ class SetBodyCommand:
                 raise GithubException(f"Permission denied. You may not have write access to {repo} or your token may lack required scopes")
             else:
                 raise GithubException(f"Failed to update issue #{issue_number}: {str(e)}")
+
+
+class PostCommentCommand:
+    """Command for posting comments to GitHub issues.
+    
+    This class handles posting standalone comments to GitHub issues,
+    allowing for team communication and @mentions without requiring
+    workflow state transitions.
+    """
+    
+    def __init__(self, github_client: GitHubClient):
+        """Initialize the command with GitHub client.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+    
+    def execute(self, repo: str, issue_number: int, comment_body: str) -> Dict[str, Any]:
+        """Execute the post-comment command to add a comment to an issue.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to comment on
+            comment_body: Comment text to post
+            
+        Returns:
+            Dictionary containing comment information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If repository format is invalid
+        """
+        try:
+            # Validate repository format
+            if '/' not in repo or len(repo.split('/')) != 2:
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Check that both owner and repo parts are non-empty
+            parts = repo.split('/')
+            if not parts[0].strip() or not parts[1].strip():
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Validate comment body
+            if not comment_body or not comment_body.strip():
+                raise ValueError("Comment body cannot be empty")
+            
+            # Validate comment body size (GitHub's limit is 65536 characters)
+            if len(comment_body) > 65536:
+                raise ValueError("Comment body exceeds GitHub's 65536 character limit")
+            
+            # Get repository and issue
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            
+            # Post the comment
+            comment = issue.create_comment(comment_body.strip())
+            
+            # Get authenticated user for response
+            user = self._get_authenticated_user()
+            
+            # Return success information
+            return {
+                'issue_number': issue.number,
+                'issue_title': issue.title,
+                'issue_url': issue.html_url,
+                'comment_id': comment.id,
+                'comment_url': comment.html_url,
+                'comment_body': comment.body,
+                'author': user,
+                'created_at': comment.created_at.isoformat(),
+                'success': True
+            }
+            
+        except GithubException as e:
+            if e.status == 404:
+                raise GithubException(f"Issue #{issue_number} not found in repository {repo}")
+            elif e.status == 403:
+                raise GithubException(f"Permission denied. You may not have write access to {repo} or your token may lack required scopes")
+            else:
+                raise GithubException(f"Failed to post comment on issue #{issue_number}: {str(e)}")
+    
+    def _get_authenticated_user(self) -> str:
+        """Get the login of the authenticated GitHub user.
+        
+        Returns:
+            GitHub user login
+        """
+        try:
+            user = self.github.github.get_user()
+            return user.login
+        except Exception:
+            return "unknown-user"

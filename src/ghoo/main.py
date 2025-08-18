@@ -10,7 +10,7 @@ from .core import (
     CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    GitHubClient, ConfigLoader
+    PostCommentCommand, GitHubClient, ConfigLoader
 )
 from .commands import get_app
 from .exceptions import (
@@ -345,6 +345,73 @@ def check_todo(
             typer.echo("   Make sure you have write access to the repository", err=True)
         else:
             typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="post-comment")
+def post_comment(
+    repo: str = typer.Option(..., "--repo", help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to comment on"),
+    comment: str = typer.Argument(..., help="Comment text to post"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Post a comment to a GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        config_loader = ConfigLoader(config_path)
+        if config_path:
+            try:
+                config = config_loader.load()
+                typer.echo(f"📋 Using configuration from {config_path}")
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW)
+                typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW)
+        
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        
+        # Execute post-comment command
+        post_comment_cmd = PostCommentCommand(github_client)
+        
+        typer.echo(f"💬 Posting comment to issue #{issue_number} in {repo}...")
+        
+        result = post_comment_cmd.execute(repo, issue_number, comment)
+        
+        # Display success message
+        typer.echo(f"✅ Comment posted successfully!", color=typer.colors.GREEN)
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Comment ID: {result['comment_id']}")
+        typer.echo(f"   Posted by: @{result['author']}")
+        typer.echo(f"   Comment URL: {result['comment_url']}")
+        
+        # Show preview of comment if not too long
+        if len(result['comment_body']) <= 100:
+            typer.echo(f"   Preview: {result['comment_body']}")
+        else:
+            typer.echo(f"   Preview: {result['comment_body'][:97]}...")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
         sys.exit(1)
 
 

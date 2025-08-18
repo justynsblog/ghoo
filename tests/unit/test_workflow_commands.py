@@ -7,7 +7,7 @@ from github import GithubException
 from ghoo.core import (
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    GitHubClient
+    PostCommentCommand, GitHubClient
 )
 from ghoo.models import Config
 
@@ -823,3 +823,143 @@ class TestWorkflowCommandIntegration:
             command = commands[i](Mock())
             assert command.get_from_state() == from_state
             assert command.get_to_state() == to_state
+
+
+class TestPostCommentCommand:
+    """Unit tests for PostCommentCommand."""
+    
+    @pytest.fixture
+    def mock_github_client(self):
+        """Mock GitHub client for testing."""
+        mock_client = Mock(spec=GitHubClient)
+        mock_github = Mock()
+        mock_client.github = mock_github
+        return mock_client
+    
+    @pytest.fixture
+    def post_comment_command(self, mock_github_client):
+        """Create PostCommentCommand instance for testing."""
+        return PostCommentCommand(mock_github_client)
+    
+    @pytest.fixture
+    def mock_issue(self):
+        """Mock GitHub issue for testing."""
+        mock_issue = Mock()
+        mock_issue.number = 123
+        mock_issue.title = "Test Issue"
+        mock_issue.html_url = "https://github.com/owner/repo/issues/123"
+        return mock_issue
+    
+    @pytest.fixture
+    def mock_comment(self):
+        """Mock GitHub comment for testing."""
+        mock_comment = Mock()
+        mock_comment.id = 456
+        mock_comment.html_url = "https://github.com/owner/repo/issues/123#issuecomment-456"
+        mock_comment.body = "Test comment body"
+        mock_comment.created_at = Mock()
+        mock_comment.created_at.isoformat.return_value = "2024-01-01T12:00:00Z"
+        return mock_comment
+    
+    def test_execute_success(self, post_comment_command, mock_issue, mock_comment):
+        """Test successful comment posting."""
+        # Mock GitHub repo and issue
+        mock_repo = Mock()
+        mock_repo.get_issue.return_value = mock_issue
+        post_comment_command.github.github.get_repo.return_value = mock_repo
+        
+        # Mock comment creation
+        mock_issue.create_comment.return_value = mock_comment
+        
+        # Mock authenticated user
+        mock_user = Mock()
+        mock_user.login = "testuser"
+        post_comment_command.github.github.get_user.return_value = mock_user
+        
+        # Execute command
+        result = post_comment_command.execute("owner/repo", 123, "Test comment")
+        
+        # Verify result
+        assert result['success'] is True
+        assert result['issue_number'] == 123
+        assert result['issue_title'] == "Test Issue"
+        assert result['comment_id'] == 456
+        assert result['comment_body'] == "Test comment body"
+        assert result['author'] == "testuser"
+        
+        # Verify GitHub API calls
+        post_comment_command.github.github.get_repo.assert_called_once_with("owner/repo")
+        mock_repo.get_issue.assert_called_once_with(123)
+        mock_issue.create_comment.assert_called_once_with("Test comment")
+    
+    def test_execute_invalid_repo_format(self, post_comment_command):
+        """Test execution with invalid repository format."""
+        with pytest.raises(ValueError, match="Invalid repository format"):
+            post_comment_command.execute("invalid-repo", 123, "Test comment")
+    
+    def test_execute_empty_comment(self, post_comment_command):
+        """Test execution with empty comment."""
+        with pytest.raises(ValueError, match="Comment body cannot be empty"):
+            post_comment_command.execute("owner/repo", 123, "")
+        
+        with pytest.raises(ValueError, match="Comment body cannot be empty"):
+            post_comment_command.execute("owner/repo", 123, "   ")
+    
+    def test_execute_comment_too_long(self, post_comment_command):
+        """Test execution with comment exceeding GitHub's limit."""
+        long_comment = "x" * 65537  # Exceeds 65536 character limit
+        with pytest.raises(ValueError, match="Comment body exceeds GitHub's 65536 character limit"):
+            post_comment_command.execute("owner/repo", 123, long_comment)
+    
+    def test_execute_issue_not_found(self, post_comment_command):
+        """Test execution when issue is not found."""
+        # Mock GitHub repo
+        mock_repo = Mock()
+        post_comment_command.github.github.get_repo.return_value = mock_repo
+        
+        # Mock issue not found
+        mock_repo.get_issue.side_effect = GithubException(status=404, data={"message": "Not Found"})
+        
+        with pytest.raises(GithubException, match="Issue #123 not found in repository owner/repo"):
+            post_comment_command.execute("owner/repo", 123, "Test comment")
+    
+    def test_execute_permission_denied(self, post_comment_command):
+        """Test execution with permission denied."""
+        # Mock GitHub repo
+        mock_repo = Mock()
+        post_comment_command.github.github.get_repo.return_value = mock_repo
+        
+        # Mock permission denied
+        mock_repo.get_issue.side_effect = GithubException(status=403, data={"message": "Forbidden"})
+        
+        with pytest.raises(GithubException, match="Permission denied"):
+            post_comment_command.execute("owner/repo", 123, "Test comment")
+    
+    def test_execute_comment_creation_fails(self, post_comment_command, mock_issue):
+        """Test execution when comment creation fails."""
+        # Mock GitHub repo and issue
+        mock_repo = Mock()
+        mock_repo.get_issue.return_value = mock_issue
+        post_comment_command.github.github.get_repo.return_value = mock_repo
+        
+        # Mock comment creation failure
+        mock_issue.create_comment.side_effect = GithubException(status=500, data={"message": "Internal Server Error"})
+        
+        with pytest.raises(GithubException, match="Failed to post comment on issue #123"):
+            post_comment_command.execute("owner/repo", 123, "Test comment")
+    
+    def test_get_authenticated_user_success(self, post_comment_command):
+        """Test successful user authentication."""
+        mock_user = Mock()
+        mock_user.login = "testuser"
+        post_comment_command.github.github.get_user.return_value = mock_user
+        
+        result = post_comment_command._get_authenticated_user()
+        assert result == "testuser"
+    
+    def test_get_authenticated_user_failure(self, post_comment_command):
+        """Test user authentication failure."""
+        post_comment_command.github.github.get_user.side_effect = Exception("Auth failed")
+        
+        result = post_comment_command._get_authenticated_user()
+        assert result == "unknown-user"
