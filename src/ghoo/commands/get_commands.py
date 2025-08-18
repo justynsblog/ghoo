@@ -19,6 +19,7 @@ from .get_subtask import GetSubtaskCommand
 from .get_milestone import GetMilestoneCommand
 from .get_section import GetSectionCommand
 from .get_todo import GetTodoCommand
+from .get_condition import GetConditionCommand
 
 # Create the get subcommand group
 get_app = typer.Typer(
@@ -382,6 +383,63 @@ def todo(
         sys.exit(1)
 
 
+@get_app.command()
+def condition(
+    issue_id: int = typer.Option(..., "--issue-id", help="Issue number containing the condition"),
+    match: str = typer.Option(..., "--match", help="Text to match against condition titles"),
+    format: str = typer.Option(
+        "rich", 
+        "--format", 
+        "-f",
+        help="Output format: 'rich' for formatted display or 'json' for raw JSON"
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (overrides config)"
+    )
+):
+    """Get and display a specific condition from an issue by title match."""
+    try:
+        # Initialize GitHub client and config loader
+        github_client = GitHubClient()
+        config_loader = ConfigLoader()
+        
+        # Execute get condition command
+        get_condition_command = GetConditionCommand(github_client, config_loader)
+        condition_data = get_condition_command.execute(repo, issue_id, match, format)
+        
+        # Display results based on format
+        if format.lower() == 'json':
+            typer.echo(json.dumps(condition_data, indent=2))
+        else:
+            _display_condition(condition_data)
+        
+    except ValueError as e:
+        typer.echo(f"{str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except GraphQLError as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            sys.exit(1)
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
 def _display_epic_issue(issue_data):
     """Display epic issue data with rich formatting including available milestones.
     
@@ -717,6 +775,60 @@ def _display_todo(todo_data):
     
     # Match information
     match_type = todo_data.get('match_type', 'unknown')
+    if match_type != 'exact':
+        typer.echo(f"Match Type: {match_type}", color=typer.colors.YELLOW)
+    
+    typer.echo("")  # Add final spacing
+
+
+def _display_condition(condition_data):
+    """Display condition data with rich formatting including verification status and metadata.
+    
+    Args:
+        condition_data: Condition data dictionary from GetConditionCommand
+    """
+    # Verification status
+    verified_status = "✅ VERIFIED" if condition_data.get('verified', False) else "⬜ NOT VERIFIED"
+    status_color = typer.colors.GREEN if condition_data.get('verified', False) else typer.colors.YELLOW
+    
+    # Display condition header
+    typer.echo(f"\n### CONDITION: {condition_data.get('text', 'No text available')}", color=typer.colors.BRIGHT_WHITE)
+    typer.echo(f"{verified_status}", color=status_color)
+    
+    # Display the 4 required fields
+    signed_off_by = condition_data.get('signed_off_by') or "_Not yet verified_"
+    typer.echo(f"📝 Signed-off by: {signed_off_by}", color=typer.colors.BRIGHT_BLACK)
+    
+    requirements = condition_data.get('requirements', '_No requirements specified_')
+    typer.echo(f"📋 Requirements: {requirements}")
+    
+    evidence = condition_data.get('evidence') or "_Not yet provided_"
+    typer.echo(f"🔍 Evidence: {evidence}")
+    
+    # Issue context
+    issue_number = condition_data.get('issue_number', '?')
+    issue_title = condition_data.get('issue_title', 'Unknown')
+    issue_state = condition_data.get('issue_state', 'unknown')
+    issue_url = condition_data.get('issue_url', 'N/A')
+    line_number = condition_data.get('line_number', '?')
+    
+    state_color = typer.colors.GREEN if issue_state == 'open' else typer.colors.RED
+    typer.echo(f"\nIssue: 📄 #{issue_number}: {issue_title}", color=typer.colors.BRIGHT_BLACK)
+    typer.echo(f"Issue State: ", nl=False)
+    typer.echo(issue_state.upper(), color=state_color, nl=False)
+    typer.echo(f" | Line: {line_number} | URL: {issue_url}")
+    
+    # Verification progress context
+    total_conditions = condition_data.get('total_conditions', 0)
+    verified_conditions = condition_data.get('verified_conditions', 0)
+    verification_percentage = condition_data.get('verification_percentage', 0)
+    
+    if total_conditions > 0:
+        progress_bar = "█" * (verification_percentage // 10) + "░" * (10 - verification_percentage // 10)
+        typer.echo(f"Verification Progress: {progress_bar} {verification_percentage}% ({verified_conditions}/{total_conditions})")
+    
+    # Match information
+    match_type = condition_data.get('match_type', 'unknown')
     if match_type != 'exact':
         typer.echo(f"Match Type: {match_type}", color=typer.colors.YELLOW)
     
