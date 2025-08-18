@@ -20,6 +20,7 @@ from .get_milestone import GetMilestoneCommand
 from .get_section import GetSectionCommand
 from .get_todo import GetTodoCommand
 from .get_condition import GetConditionCommand
+from ..core import GetConditionsCommand
 
 # Create the get subcommand group
 get_app = typer.Typer(
