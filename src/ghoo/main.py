@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 from .core import (
-    InitCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, 
+    InitCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, CreateSectionCommand,
     CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
@@ -321,6 +321,70 @@ def check_todo(
         typer.echo(f"   Section: {result['section_name']}")
         typer.echo(f"   Todo: {result['todo_text']}")
         typer.echo(f"   State: {'☑' if result['old_state'] else '☐'} → {'☑' if result['new_state'] else '☐'}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+        elif "permission denied" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            typer.echo("   Make sure you have write access to the repository", err=True)
+        else:
+            typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="create-section")
+def create_section(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to add section to"),
+    section_name: str = typer.Argument(..., help="Name of the section to create"),
+    content: Optional[str] = typer.Option(None, "--content", "-c", help="Optional initial content for the section"),
+    position: str = typer.Option("end", "--position", "-p", help="Position strategy: 'end', 'before', or 'after' (default: end)"),
+    relative_to: Optional[str] = typer.Option(None, "--relative-to", "-r", help="Reference section name for 'before'/'after' positioning")
+):
+    """Create a new section in a GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Initialize config loader for token lookup
+        config_loader = ConfigLoader()
+        
+        # Initialize GitHub client
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        
+        # Execute create-section command
+        create_section_command = CreateSectionCommand(github_client)
+        result = create_section_command.execute(repo, issue_number, section_name, content, position, relative_to)
+        
+        # Display success message
+        typer.echo(f"✅ Section created successfully!")
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Section: {result['section_name']}")
+        if result['content']:
+            content_preview = result['content'][:50] + "..." if len(result['content']) > 50 else result['content']
+            typer.echo(f"   Content: {content_preview}")
+        typer.echo(f"   Position: {result['position']}")
+        if result['relative_to']:
+            typer.echo(f"   Relative to: {result['relative_to']}")
+        typer.echo(f"   Total sections: {result['total_sections']}")
         typer.echo(f"   URL: {result['url']}")
         
     except ValueError as e:

@@ -4287,6 +4287,135 @@ class CheckTodoCommand(TodoCommand):
         }
 
 
+class CreateSectionCommand(TodoCommand):
+    """Command for creating new sections in GitHub issue bodies."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        section_name: str, 
+        content: Optional[str] = None,
+        position: str = "end",
+        relative_to: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute the create-section command to add a new section.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to add section to
+            section_name: Name of the section to create
+            content: Optional initial content for the section
+            position: Where to place the section ('end', 'before', 'after')
+            relative_to: Reference section for 'before'/'after' positioning
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails or section already exists
+        """
+        # Validate section name
+        if not section_name or not section_name.strip():
+            raise ValueError("Section name cannot be empty")
+        
+        section_name = section_name.strip()
+        
+        # Validate position parameters
+        if position in ['before', 'after'] and not relative_to:
+            raise ValueError(f"Position '{position}' requires --relative-to parameter")
+        
+        if position not in ['end', 'before', 'after']:
+            raise ValueError(f"Position must be 'end', 'before', or 'after', got '{position}'")
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Check if section already exists (case-insensitive)
+        existing_sections = [s.title.lower() for s in parsed_body.get('sections', [])]
+        if section_name.lower() in existing_sections:
+            available_sections = [s.title for s in parsed_body.get('sections', [])]
+            sections_list = ', '.join(f'"{s}"' for s in available_sections)
+            raise ValueError(f'Section "{section_name}" already exists. Available sections: {sections_list}')
+        
+        # Create new section object
+        from .models import Section
+        new_section = Section(title=section_name, body=content or '', todos=[])
+        
+        # Add section to parsed body at appropriate position
+        sections = parsed_body.get('sections', [])
+        insert_position = self._calculate_insert_position(sections, position, relative_to)
+        sections.insert(insert_position, new_section)
+        parsed_body['sections'] = sections
+        
+        # Reconstruct and update body
+        new_body = self._reconstruct_body(parsed_body)
+        update_result = self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'section_name': section_name,
+            'content': content or '',
+            'position': position,
+            'relative_to': relative_to,
+            'insert_position': insert_position,
+            'total_sections': len(sections),
+            'url': issue.html_url
+        }
+    
+    def _calculate_insert_position(
+        self, 
+        sections: List[Any], 
+        position: str, 
+        relative_to: Optional[str]
+    ) -> int:
+        """Calculate where to insert the new section.
+        
+        Args:
+            sections: List of existing Section objects
+            position: Position strategy ('end', 'before', 'after')
+            relative_to: Reference section name for positioning
+            
+        Returns:
+            Index where the new section should be inserted
+            
+        Raises:
+            ValueError: If relative_to section not found
+        """
+        if position == 'end':
+            # Insert at end, but before Log section if it exists
+            for i, section in enumerate(sections):
+                if section.title.lower() == 'log':
+                    return i
+            return len(sections)
+        
+        if position in ['before', 'after']:
+            if not relative_to:
+                raise ValueError(f"Position '{position}' requires relative_to parameter")
+            
+            # Find the reference section (case-insensitive)
+            relative_to_lower = relative_to.lower()
+            for i, section in enumerate(sections):
+                if section.title.lower() == relative_to_lower:
+                    if position == 'before':
+                        return i
+                    else:  # after
+                        return i + 1
+            
+            # Reference section not found
+            available_sections = [s.title for s in sections]
+            sections_list = ', '.join(f'"{s}"' for s in available_sections)
+            raise ValueError(
+                f'Reference section "{relative_to}" not found. Available sections: {sections_list}'
+            )
+        
+        return len(sections)  # Default fallback
+
+
 class BaseWorkflowCommand(ABC):
     """Base class for all workflow state transition commands.
     

@@ -7,7 +7,8 @@ from github import GithubException
 from ghoo.core import (
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, GitHubClient
+    PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, 
+    CreateSectionCommand, GitHubClient
 )
 from ghoo.models import Config
 
@@ -1303,3 +1304,248 @@ class TestGetCommentsCommand:
         
         # Verify result preserves multiline body
         assert result["comments"][0]["body"] == "Line 1\nLine 2\nLine 3"
+
+
+class TestCreateSectionCommand:
+    """Unit tests for CreateSectionCommand."""
+    
+    @pytest.fixture
+    def mock_github_client(self):
+        """Mock GitHub client for testing."""
+        mock_client = Mock(spec=GitHubClient)
+        mock_github = Mock()
+        mock_client.github = mock_github
+        return mock_client
+    
+    @pytest.fixture
+    def section_command(self, mock_github_client):
+        """Create a CreateSectionCommand instance for testing."""
+        return CreateSectionCommand(mock_github_client)
+    
+    @pytest.fixture
+    def mock_issue(self):
+        """Mock GitHub issue for testing."""
+        mock_issue = Mock()
+        mock_issue.number = 123
+        mock_issue.title = "Test Issue"
+        mock_issue.html_url = "https://github.com/owner/repo/issues/123"
+        return mock_issue
+    
+    @pytest.fixture
+    def mock_parsed_body(self):
+        """Mock parsed issue body with sections."""
+        from ghoo.models import Section, Todo
+        
+        sections = [
+            Section(title="Summary", body="Test summary", todos=[]),
+            Section(title="Acceptance Criteria", body="- [ ] First item", todos=[
+                Todo(text="First item", checked=False, line_number=1)
+            ]),
+            Section(title="Log", body="", todos=[])
+        ]
+        
+        return {
+            'pre_section_description': '',
+            'sections': sections,
+            'log_entries': []
+        }
+    
+    def test_execute_success_default_position(self, section_command, mock_issue, mock_parsed_body):
+        """Test successful section creation at default position (end, before Log)."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        section_command._reconstruct_body = Mock(return_value="reconstructed body")
+        section_command.set_body_command = Mock()
+        section_command.set_body_command.execute = Mock(return_value={'success': True})
+        
+        # Execute command
+        result = section_command.execute("owner/repo", 123, "New Section")
+        
+        # Verify section was added
+        sections = mock_parsed_body['sections']
+        assert len(sections) == 4
+        assert sections[2].title == "New Section"  # Before Log section
+        assert sections[2].body == ""
+        assert sections[3].title == "Log"  # Log section moved to end
+        
+        # Verify result
+        assert result['issue_number'] == 123
+        assert result['section_name'] == "New Section"
+        assert result['position'] == "end"
+        assert result['total_sections'] == 4
+    
+    def test_execute_success_with_content(self, section_command, mock_issue, mock_parsed_body):
+        """Test successful section creation with content."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        section_command._reconstruct_body = Mock(return_value="reconstructed body")
+        section_command.set_body_command = Mock()
+        section_command.set_body_command.execute = Mock(return_value={'success': True})
+        
+        # Execute command with content
+        result = section_command.execute("owner/repo", 123, "Technical Details", "This is the content")
+        
+        # Verify section was added with content
+        sections = mock_parsed_body['sections']
+        new_section = next(s for s in sections if s.title == "Technical Details")
+        assert new_section.body == "This is the content"
+        
+        # Verify result
+        assert result['content'] == "This is the content"
+    
+    def test_execute_success_position_before(self, section_command, mock_issue, mock_parsed_body):
+        """Test successful section creation with 'before' positioning."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        section_command._reconstruct_body = Mock(return_value="reconstructed body")
+        section_command.set_body_command = Mock()
+        section_command.set_body_command.execute = Mock(return_value={'success': True})
+        
+        # Execute command with before positioning
+        result = section_command.execute("owner/repo", 123, "New Section", position="before", relative_to="Acceptance Criteria")
+        
+        # Verify section was inserted before Acceptance Criteria
+        sections = mock_parsed_body['sections']
+        assert len(sections) == 4
+        assert sections[1].title == "New Section"  # Inserted at index 1
+        assert sections[2].title == "Acceptance Criteria"  # Original moved to index 2
+        
+        # Verify result
+        assert result['position'] == "before"
+        assert result['relative_to'] == "Acceptance Criteria"
+        assert result['insert_position'] == 1
+    
+    def test_execute_success_position_after(self, section_command, mock_issue, mock_parsed_body):
+        """Test successful section creation with 'after' positioning."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        section_command._reconstruct_body = Mock(return_value="reconstructed body")
+        section_command.set_body_command = Mock()
+        section_command.set_body_command.execute = Mock(return_value={'success': True})
+        
+        # Execute command with after positioning
+        result = section_command.execute("owner/repo", 123, "New Section", position="after", relative_to="Summary")
+        
+        # Verify section was inserted after Summary
+        sections = mock_parsed_body['sections']
+        assert len(sections) == 4
+        assert sections[0].title == "Summary"
+        assert sections[1].title == "New Section"  # Inserted at index 1
+        assert sections[2].title == "Acceptance Criteria"
+    
+    def test_execute_section_already_exists(self, section_command, mock_issue, mock_parsed_body):
+        """Test error when section already exists."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        
+        # Execute command with existing section name
+        with pytest.raises(ValueError, match="Section \"Summary\" already exists"):
+            section_command.execute("owner/repo", 123, "Summary")
+    
+    def test_execute_section_already_exists_case_insensitive(self, section_command, mock_issue, mock_parsed_body):
+        """Test error when section already exists (case-insensitive)."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        
+        # Execute command with existing section name in different case
+        with pytest.raises(ValueError, match="Section \"SUMMARY\" already exists"):
+            section_command.execute("owner/repo", 123, "SUMMARY")
+    
+    def test_execute_empty_section_name(self, section_command):
+        """Test error with empty section name."""
+        with pytest.raises(ValueError, match="Section name cannot be empty"):
+            section_command.execute("owner/repo", 123, "")
+        
+        with pytest.raises(ValueError, match="Section name cannot be empty"):
+            section_command.execute("owner/repo", 123, "   ")
+    
+    def test_execute_invalid_position(self, section_command):
+        """Test error with invalid position parameter."""
+        with pytest.raises(ValueError, match="Position must be 'end', 'before', or 'after'"):
+            section_command.execute("owner/repo", 123, "New Section", position="invalid")
+    
+    def test_execute_position_requires_relative_to(self, section_command):
+        """Test error when before/after position lacks relative_to parameter."""
+        with pytest.raises(ValueError, match="Position 'before' requires --relative-to parameter"):
+            section_command.execute("owner/repo", 123, "New Section", position="before")
+        
+        with pytest.raises(ValueError, match="Position 'after' requires --relative-to parameter"):
+            section_command.execute("owner/repo", 123, "New Section", position="after")
+    
+    def test_execute_relative_to_section_not_found(self, section_command, mock_issue, mock_parsed_body):
+        """Test error when relative_to section doesn't exist."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        
+        # Execute command with non-existent relative section
+        with pytest.raises(ValueError, match="Reference section \"NonExistent\" not found"):
+            section_command.execute("owner/repo", 123, "New Section", position="before", relative_to="NonExistent")
+    
+    def test_calculate_insert_position_end_no_log(self, section_command):
+        """Test _calculate_insert_position with 'end' position and no Log section."""
+        from ghoo.models import Section
+        
+        sections = [
+            Section(title="Summary", body="", todos=[]),
+            Section(title="Details", body="", todos=[])
+        ]
+        
+        position = section_command._calculate_insert_position(sections, "end", None)
+        assert position == 2  # At the end
+    
+    def test_calculate_insert_position_end_with_log(self, section_command):
+        """Test _calculate_insert_position with 'end' position and Log section."""
+        from ghoo.models import Section
+        
+        sections = [
+            Section(title="Summary", body="", todos=[]),
+            Section(title="Log", body="", todos=[])
+        ]
+        
+        position = section_command._calculate_insert_position(sections, "end", None)
+        assert position == 1  # Before Log section
+    
+    def test_calculate_insert_position_before(self, section_command):
+        """Test _calculate_insert_position with 'before' position."""
+        from ghoo.models import Section
+        
+        sections = [
+            Section(title="Summary", body="", todos=[]),
+            Section(title="Details", body="", todos=[])
+        ]
+        
+        position = section_command._calculate_insert_position(sections, "before", "Details")
+        assert position == 1  # Before Details section
+    
+    def test_calculate_insert_position_after(self, section_command):
+        """Test _calculate_insert_position with 'after' position."""
+        from ghoo.models import Section
+        
+        sections = [
+            Section(title="Summary", body="", todos=[]),
+            Section(title="Details", body="", todos=[])
+        ]
+        
+        position = section_command._calculate_insert_position(sections, "after", "Summary")
+        assert position == 1  # After Summary section
