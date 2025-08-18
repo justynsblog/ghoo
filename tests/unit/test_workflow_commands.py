@@ -7,7 +7,7 @@ from github import GithubException
 from ghoo.core import (
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    PostCommentCommand, GitHubClient
+    PostCommentCommand, GetLatestCommentTimestampCommand, GitHubClient
 )
 from ghoo.models import Config
 
@@ -963,3 +963,153 @@ class TestPostCommentCommand:
         
         result = post_comment_command._get_authenticated_user()
         assert result == "unknown-user"
+
+
+class TestGetLatestCommentTimestampCommand:
+    """Unit tests for GetLatestCommentTimestampCommand."""
+    
+    @pytest.fixture
+    def mock_github_client(self):
+        """Mock GitHub client for testing."""
+        mock_client = Mock(spec=GitHubClient)
+        mock_github = Mock()
+        mock_client.github = mock_github
+        return mock_client
+    
+    @pytest.fixture  
+    def timestamp_command(self, mock_github_client):
+        """Create a GetLatestCommentTimestampCommand instance for testing."""
+        return GetLatestCommentTimestampCommand(mock_github_client)
+    
+    @pytest.fixture
+    def mock_issue(self):
+        """Mock GitHub issue for testing."""
+        mock_issue = Mock()
+        mock_issue.number = 123
+        mock_issue.title = "Test Issue"
+        return mock_issue
+    
+    @pytest.fixture
+    def mock_comment(self):
+        """Mock GitHub comment for testing."""
+        from datetime import datetime
+        mock_comment = Mock()
+        mock_comment.id = 12345
+        mock_comment.created_at = datetime(2024, 1, 15, 10, 30, 45)
+        mock_comment.body = "Test comment"
+        mock_comment.user.login = "testuser"
+        return mock_comment
+    
+    def test_execute_success_with_comments(self, timestamp_command, mock_issue, mock_comment):
+        """Test successful execution with existing comments."""
+        # Mock the repository and issue
+        mock_repo = Mock()
+        timestamp_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock comments with the mock_comment being the latest
+        mock_issue.get_comments.return_value = [mock_comment]
+        
+        # Execute command
+        result = timestamp_command.execute("owner/repo", 123)
+        
+        # Verify result
+        assert result == {"timestamp": "2024-01-15T10:30:45"}
+        
+        # Verify calls
+        timestamp_command.github.github.get_repo.assert_called_once_with("owner/repo")
+        mock_repo.get_issue.assert_called_once_with(123)
+        mock_issue.get_comments.assert_called_once()
+    
+    def test_execute_success_no_comments(self, timestamp_command, mock_issue):
+        """Test successful execution with no comments."""
+        # Mock the repository and issue
+        mock_repo = Mock()
+        timestamp_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock empty comments list
+        mock_issue.get_comments.return_value = []
+        
+        # Execute command
+        result = timestamp_command.execute("owner/repo", 123)
+        
+        # Verify result
+        assert result == {"timestamp": None}
+        
+        # Verify calls
+        timestamp_command.github.github.get_repo.assert_called_once_with("owner/repo")
+        mock_repo.get_issue.assert_called_once_with(123)
+        mock_issue.get_comments.assert_called_once()
+    
+    def test_execute_success_multiple_comments(self, timestamp_command, mock_issue):
+        """Test successful execution with multiple comments, returns latest."""
+        from datetime import datetime
+        
+        # Create multiple mock comments with different timestamps
+        comment1 = Mock()
+        comment1.created_at = datetime(2024, 1, 10, 9, 0, 0)
+        
+        comment2 = Mock()
+        comment2.created_at = datetime(2024, 1, 15, 14, 30, 0)  # Latest
+        
+        comment3 = Mock()
+        comment3.created_at = datetime(2024, 1, 12, 11, 15, 0)
+        
+        # Mock the repository and issue
+        mock_repo = Mock()
+        timestamp_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock comments in random order
+        mock_issue.get_comments.return_value = [comment1, comment3, comment2]
+        
+        # Execute command
+        result = timestamp_command.execute("owner/repo", 123)
+        
+        # Verify result (should be comment2's timestamp)
+        assert result == {"timestamp": "2024-01-15T14:30:00"}
+    
+    def test_execute_repository_not_found(self, timestamp_command):
+        """Test execution when repository is not found."""
+        # Mock repository not found for both calls
+        timestamp_command.github.github.get_repo.side_effect = GithubException(status=404, data={"message": "Not Found"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="Repository 'owner/repo' not found"):
+            timestamp_command.execute("owner/repo", 123)
+    
+    def test_execute_issue_not_found(self, timestamp_command):
+        """Test execution when issue is not found."""
+        # Mock the repository for successful first call, then issue not found
+        mock_repo = Mock()
+        timestamp_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.side_effect = GithubException(status=404, data={"message": "Not Found"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="Issue #123 not found in repository 'owner/repo'"):
+            timestamp_command.execute("owner/repo", 123)
+    
+    def test_execute_permission_denied(self, timestamp_command):
+        """Test execution when access is denied."""
+        # Mock permission denied
+        timestamp_command.github.github.get_repo.side_effect = GithubException(status=403, data={"message": "Forbidden"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="Access denied to repository 'owner/repo'"):
+            timestamp_command.execute("owner/repo", 123)
+    
+    def test_execute_invalid_repository_format(self, timestamp_command):
+        """Test execution with invalid repository format."""
+        # Execute command with invalid format and expect ValueError
+        with pytest.raises(ValueError, match="Invalid repository format"):
+            timestamp_command.execute("invalid-repo-format", 123)
+    
+    def test_execute_github_api_error(self, timestamp_command):
+        """Test execution with general GitHub API error."""
+        # Mock general API error
+        timestamp_command.github.github.get_repo.side_effect = GithubException(status=500, data={"message": "Server Error"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="GitHub API error"):
+            timestamp_command.execute("owner/repo", 123)

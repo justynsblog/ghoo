@@ -5144,3 +5144,79 @@ class PostCommentCommand:
             return user.login
         except Exception:
             return "unknown-user"
+
+
+class GetLatestCommentTimestampCommand:
+    """Command for getting the timestamp of the latest comment on a GitHub issue.
+    
+    This class retrieves the most recent comment timestamp from a GitHub issue,
+    returning a simple ISO timestamp string. Useful for tracking activity and
+    synchronization purposes.
+    """
+    
+    def __init__(self, github_client: GitHubClient):
+        """Initialize the command with GitHub client.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+    
+    def execute(self, repo: str, issue_number: int) -> str:
+        """Execute the command to get the latest comment timestamp.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to check for comments
+            
+        Returns:
+            ISO timestamp string of the latest comment, or None if no comments
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If repository format is invalid
+        """
+        try:
+            # Validate repository format
+            if '/' not in repo or len(repo.split('/')) != 2:
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Check that both owner and repo parts are non-empty
+            parts = repo.split('/')
+            if not parts[0].strip() or not parts[1].strip():
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Get repository and issue
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            
+            # Get all comments for the issue
+            comments = list(issue.get_comments())
+            
+            if not comments:
+                # No comments found, return None
+                return {"timestamp": None}
+            
+            # Find the comment with the latest timestamp
+            latest_comment = max(comments, key=lambda c: c.created_at)
+            
+            # Return ISO timestamp
+            return {"timestamp": latest_comment.created_at.isoformat()}
+            
+        except GithubException as e:
+            if e.status == 404:
+                # Distinguish between repo not found and issue not found
+                try:
+                    self.github.github.get_repo(repo)
+                    # Repo exists, so issue doesn't exist
+                    raise ValueError(f"Issue #{issue_number} not found in repository '{repo}'")
+                except GithubException:
+                    # Repo doesn't exist
+                    raise ValueError(f"Repository '{repo}' not found")
+            elif e.status == 403:
+                raise ValueError(f"Access denied to repository '{repo}'. Check your permissions and token scopes.")
+            else:
+                raise ValueError(f"GitHub API error: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error getting comments for issue #{issue_number}: {str(e)}")
+
