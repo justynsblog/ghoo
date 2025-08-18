@@ -440,6 +440,97 @@ def condition(
         sys.exit(1)
 
 
+@get_app.command()
+def conditions(
+    issue_id: int = typer.Option(..., "--issue-id", help="Issue number containing the conditions"),
+    format: str = typer.Option(
+        "rich", 
+        "--format", 
+        "-f",
+        help="Output format: 'rich' for formatted display or 'json' for raw JSON"
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (overrides config)"
+    )
+):
+    """List all verification conditions in a GitHub issue."""
+    try:
+        # Initialize GitHub client and config loader
+        github_client = GitHubClient()
+        config_loader = ConfigLoader()
+        
+        # Execute get conditions command (note: we'll need to update GetConditionsCommand to use config_loader)
+        get_conditions_command = GetConditionsCommand(github_client)
+        
+        # Resolve repository from parameter or config
+        from ..utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
+        
+        result = get_conditions_command.execute(resolved_repo, issue_id)
+        
+        # Display results based on format
+        if format.lower() == 'json':
+            typer.echo(json.dumps(result, indent=2))
+        else:
+            _display_conditions_list(result)
+        
+    except ValueError as e:
+        typer.echo(f"{str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except GraphQLError as e:
+        typer.echo(f"❌ GitHub API error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            sys.exit(1)
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+def _display_conditions_list(result):
+    """Display conditions list with rich formatting.
+    
+    Args:
+        result: Result dictionary from GetConditionsCommand
+    """
+    typer.echo(f"\n🔍 Issue #{result['issue_number']}: {result['issue_title']}")
+    typer.echo(f"URL: {result['issue_url']}")
+    typer.echo(f"Conditions: {result['verified_conditions']}/{result['total_conditions']} verified")
+    
+    if result['conditions']:
+        typer.echo("\n📋 Conditions:")
+        for i, condition in enumerate(result['conditions'], 1):
+            status_emoji = "✅" if condition['verified'] else "⬜"
+            typer.echo(f"\n{i}. {status_emoji} {condition['text']}")
+            
+            if condition['requirements']:
+                typer.echo(f"   📝 Requirements: {condition['requirements']}")
+            
+            if condition['evidence']:
+                typer.echo(f"   🔍 Evidence: {condition['evidence']}")
+            
+            if condition['verified'] and condition['signed_off_by']:
+                typer.echo(f"   ✍️  Signed off by: {condition['signed_off_by']}")
+    else:
+        typer.echo("\n📋 No conditions found in this issue")
+    
+    typer.echo("")  # Add final spacing
+
+
 def _display_epic_issue(issue_data):
     """Display epic issue data with rich formatting including available milestones.
     
