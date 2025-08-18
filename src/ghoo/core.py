@@ -5220,3 +5220,77 @@ class GetLatestCommentTimestampCommand:
         except Exception as e:
             raise ValueError(f"Unexpected error getting comments for issue #{issue_number}: {str(e)}")
 
+
+class GetCommentsCommand:
+    """Command to retrieve all comments for a GitHub issue."""
+    
+    def __init__(self, github_client: 'GitHubClient'):
+        """Initialize the GetCommentsCommand.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+    
+    def execute(self, repo: str, issue_number: int) -> dict:
+        """Execute the command to get all comments for an issue.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to get comments for
+            
+        Returns:
+            Dict with 'comments' key containing list of comment data, or empty list if no comments
+            
+        Raises:
+            ValueError: If repository format is invalid or API errors occur
+        """
+        try:
+            # Validate repository format
+            if '/' not in repo or len(repo.split('/')) != 2:
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Check that both owner and repo parts are non-empty
+            parts = repo.split('/')
+            if not parts[0].strip() or not parts[1].strip():
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Get repository and issue
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            
+            # Get all comments for the issue
+            comments = list(issue.get_comments())
+            
+            if not comments:
+                # No comments found, return empty list
+                return {"comments": []}
+            
+            # Format comments with timestamp and author
+            formatted_comments = []
+            for comment in comments:
+                formatted_comments.append({
+                    "author": comment.user.login,
+                    "timestamp": comment.created_at.isoformat(),
+                    "body": comment.body
+                })
+            
+            return {"comments": formatted_comments}
+            
+        except GithubException as e:
+            if e.status == 404:
+                # Distinguish between repo not found and issue not found
+                try:
+                    self.github.github.get_repo(repo)
+                    # Repo exists, so issue doesn't exist
+                    raise ValueError(f"Issue #{issue_number} not found in repository '{repo}'")
+                except GithubException:
+                    # Repo doesn't exist
+                    raise ValueError(f"Repository '{repo}' not found")
+            elif e.status == 403:
+                raise ValueError(f"Access denied to repository '{repo}'. Check your permissions and token scopes.")
+            else:
+                raise ValueError(f"GitHub API error: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error getting comments for issue #{issue_number}: {str(e)}")
+

@@ -7,7 +7,7 @@ from github import GithubException
 from ghoo.core import (
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    PostCommentCommand, GetLatestCommentTimestampCommand, GitHubClient
+    PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, GitHubClient
 )
 from ghoo.models import Config
 
@@ -1113,3 +1113,193 @@ class TestGetLatestCommentTimestampCommand:
         # Execute command and expect ValueError
         with pytest.raises(ValueError, match="GitHub API error"):
             timestamp_command.execute("owner/repo", 123)
+
+
+class TestGetCommentsCommand:
+    """Unit tests for GetCommentsCommand."""
+    
+    @pytest.fixture
+    def mock_github_client(self):
+        """Mock GitHub client for testing."""
+        mock_client = Mock(spec=GitHubClient)
+        mock_github = Mock()
+        mock_client.github = mock_github
+        return mock_client
+    
+    @pytest.fixture  
+    def comments_command(self, mock_github_client):
+        """Create a GetCommentsCommand instance for testing."""
+        return GetCommentsCommand(mock_github_client)
+    
+    @pytest.fixture
+    def mock_issue(self):
+        """Mock GitHub issue for testing."""
+        mock_issue = Mock()
+        mock_issue.number = 123
+        mock_issue.title = "Test Issue"
+        return mock_issue
+    
+    @pytest.fixture
+    def mock_comments(self):
+        """Mock GitHub comments for testing."""
+        from datetime import datetime
+        
+        comment1 = Mock()
+        comment1.user.login = "user1"
+        comment1.created_at = datetime(2024, 1, 15, 10, 30, 45)
+        comment1.body = "First comment"
+        
+        comment2 = Mock()
+        comment2.user.login = "user2"
+        comment2.created_at = datetime(2024, 1, 15, 14, 20, 0)
+        comment2.body = "Second comment"
+        
+        return [comment1, comment2]
+    
+    def test_execute_success_with_comments(self, comments_command, mock_issue, mock_comments):
+        """Test successful execution with existing comments."""
+        # Mock the repository and issue
+        mock_repo = Mock()
+        comments_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock comments
+        mock_issue.get_comments.return_value = mock_comments
+        
+        # Execute command
+        result = comments_command.execute("owner/repo", 123)
+        
+        # Verify result structure
+        assert "comments" in result
+        assert len(result["comments"]) == 2
+        
+        # Verify first comment
+        assert result["comments"][0]["author"] == "user1"
+        assert result["comments"][0]["timestamp"] == "2024-01-15T10:30:45"
+        assert result["comments"][0]["body"] == "First comment"
+        
+        # Verify second comment
+        assert result["comments"][1]["author"] == "user2"
+        assert result["comments"][1]["timestamp"] == "2024-01-15T14:20:00"
+        assert result["comments"][1]["body"] == "Second comment"
+        
+        # Verify calls
+        comments_command.github.github.get_repo.assert_called_once_with("owner/repo")
+        mock_repo.get_issue.assert_called_once_with(123)
+        mock_issue.get_comments.assert_called_once()
+    
+    def test_execute_success_no_comments(self, comments_command, mock_issue):
+        """Test successful execution with no comments."""
+        # Mock the repository and issue
+        mock_repo = Mock()
+        comments_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock empty comments list
+        mock_issue.get_comments.return_value = []
+        
+        # Execute command
+        result = comments_command.execute("owner/repo", 123)
+        
+        # Verify result
+        assert result == {"comments": []}
+        
+        # Verify calls
+        comments_command.github.github.get_repo.assert_called_once_with("owner/repo")
+        mock_repo.get_issue.assert_called_once_with(123)
+        mock_issue.get_comments.assert_called_once()
+    
+    def test_execute_success_single_comment(self, comments_command, mock_issue):
+        """Test successful execution with a single comment."""
+        from datetime import datetime
+        
+        # Create single mock comment
+        comment = Mock()
+        comment.user.login = "testuser"
+        comment.created_at = datetime(2024, 1, 15, 12, 0, 0)
+        comment.body = "Single comment"
+        
+        # Mock the repository and issue
+        mock_repo = Mock()
+        comments_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock single comment
+        mock_issue.get_comments.return_value = [comment]
+        
+        # Execute command
+        result = comments_command.execute("owner/repo", 123)
+        
+        # Verify result
+        assert len(result["comments"]) == 1
+        assert result["comments"][0]["author"] == "testuser"
+        assert result["comments"][0]["timestamp"] == "2024-01-15T12:00:00"
+        assert result["comments"][0]["body"] == "Single comment"
+    
+    def test_execute_repository_not_found(self, comments_command):
+        """Test execution when repository is not found."""
+        # Mock repository not found for both calls
+        comments_command.github.github.get_repo.side_effect = GithubException(status=404, data={"message": "Not Found"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="Repository 'owner/repo' not found"):
+            comments_command.execute("owner/repo", 123)
+    
+    def test_execute_issue_not_found(self, comments_command):
+        """Test execution when issue is not found."""
+        # Mock the repository for successful first call, then issue not found
+        mock_repo = Mock()
+        comments_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.side_effect = GithubException(status=404, data={"message": "Not Found"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="Issue #123 not found in repository 'owner/repo'"):
+            comments_command.execute("owner/repo", 123)
+    
+    def test_execute_permission_denied(self, comments_command):
+        """Test execution when access is denied."""
+        # Mock permission denied
+        comments_command.github.github.get_repo.side_effect = GithubException(status=403, data={"message": "Forbidden"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="Access denied to repository 'owner/repo'"):
+            comments_command.execute("owner/repo", 123)
+    
+    def test_execute_invalid_repository_format(self, comments_command):
+        """Test execution with invalid repository format."""
+        # Execute command with invalid format and expect ValueError
+        with pytest.raises(ValueError, match="Invalid repository format"):
+            comments_command.execute("invalid-repo-format", 123)
+    
+    def test_execute_github_api_error(self, comments_command):
+        """Test execution with general GitHub API error."""
+        # Mock general API error
+        comments_command.github.github.get_repo.side_effect = GithubException(status=500, data={"message": "Server Error"})
+        
+        # Execute command and expect ValueError
+        with pytest.raises(ValueError, match="GitHub API error"):
+            comments_command.execute("owner/repo", 123)
+    
+    def test_execute_multiline_comment_body(self, comments_command, mock_issue):
+        """Test execution with multiline comment body."""
+        from datetime import datetime
+        
+        # Create comment with multiline body
+        comment = Mock()
+        comment.user.login = "testuser"
+        comment.created_at = datetime(2024, 1, 15, 12, 0, 0)
+        comment.body = "Line 1\nLine 2\nLine 3"
+        
+        # Mock the repository and issue
+        mock_repo = Mock()
+        comments_command.github.github.get_repo.return_value = mock_repo
+        mock_repo.get_issue.return_value = mock_issue
+        
+        # Mock comment with multiline body
+        mock_issue.get_comments.return_value = [comment]
+        
+        # Execute command
+        result = comments_command.execute("owner/repo", 123)
+        
+        # Verify result preserves multiline body
+        assert result["comments"][0]["body"] == "Line 1\nLine 2\nLine 3"

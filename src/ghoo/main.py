@@ -10,7 +10,7 @@ from .core import (
     CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    PostCommentCommand, GetLatestCommentTimestampCommand, GitHubClient, ConfigLoader
+    PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, GitHubClient, ConfigLoader
 )
 from .commands import get_app
 from .exceptions import (
@@ -451,6 +451,64 @@ def get_latest_comment_timestamp(
             typer.echo("none")  # Return "none" for no comments
         else:
             typer.echo(result['timestamp'])
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="get-comments")
+def get_comments(
+    repo: str = typer.Option(..., "--repo", help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to get comments for"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
+):
+    """Get all comments for a GitHub issue with timestamps."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Load configuration if available
+        config = None
+        config_loader = ConfigLoader(config_path)
+        if config_path:
+            try:
+                config = config_loader.load()
+            except (ConfigNotFoundError, InvalidYAMLError) as e:
+                typer.echo(f"⚠️  Configuration error: {str(e)}", color=typer.colors.YELLOW, err=True)
+                typer.echo("   Proceeding without configuration validation", color=typer.colors.YELLOW, err=True)
+        
+        # Initialize GitHub client with config
+        github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        
+        # Execute get-comments command
+        comments_cmd = GetCommentsCommand(github_client)
+        
+        result = comments_cmd.execute(repo, issue_number)
+        
+        # Output comments in structured format
+        if not result['comments']:
+            typer.echo("none")
+        else:
+            for comment in result['comments']:
+                # Format: @username (timestamp): comment body
+                typer.echo(f"@{comment['author']} ({comment['timestamp']}): {comment['body']}")
         
     except ValueError as e:
         typer.echo(f"❌ {str(e)}", err=True)
