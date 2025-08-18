@@ -4416,6 +4416,154 @@ class CreateSectionCommand(TodoCommand):
         return len(sections)  # Default fallback
 
 
+class UpdateSectionCommand(TodoCommand):
+    """Command for updating existing sections in GitHub issue bodies."""
+    
+    def execute(
+        self, 
+        repo: str, 
+        issue_number: int, 
+        section_name: str, 
+        content: Optional[str] = None,
+        content_file: Optional[str] = None,
+        mode: str = "replace",
+        preserve_todos: bool = True,
+        clear: bool = False
+    ) -> Dict[str, Any]:
+        """Execute the update-section command to modify section content.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            section_name: Name of the section to update
+            content: New content for the section
+            content_file: Path to file containing new content
+            mode: Update mode ('replace', 'append', 'prepend')
+            preserve_todos: Whether to preserve existing todos
+            clear: Whether to clear section content
+            
+        Returns:
+            Dictionary containing operation result information
+            
+        Raises:
+            GithubException: If issue not found or permission denied
+            ValueError: If validation fails or section not found
+        """
+        # Validate section name
+        if not section_name or not section_name.strip():
+            raise ValueError("Section name cannot be empty")
+        
+        section_name = section_name.strip()
+        
+        # Validate content sources
+        content_sources = sum([
+            content is not None,
+            content_file is not None,
+            clear
+        ])
+        
+        if content_sources == 0:
+            raise ValueError("Must provide either --content, --content-file, or --clear")
+        
+        if content_sources > 1:
+            raise ValueError("Cannot use --content, --content-file, and --clear together")
+        
+        # Validate mode
+        if mode not in ['replace', 'append', 'prepend']:
+            raise ValueError(f"Mode must be 'replace', 'append', or 'prepend', got '{mode}'")
+        
+        # Read content from file if specified
+        if content_file:
+            try:
+                with open(content_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except FileNotFoundError:
+                raise ValueError(f"Content file not found: {content_file}")
+            except Exception as e:
+                raise ValueError(f"Error reading content file: {str(e)}")
+        
+        # Handle clear flag
+        if clear:
+            content = ""
+        
+        # Get issue and parsed body
+        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
+        issue = issue_data['issue']
+        parsed_body = issue_data['parsed_body']
+        
+        # Find target section
+        section = self._find_section(parsed_body, section_name)
+        if section is None:
+            available_sections = [s.title for s in parsed_body.get('sections', [])]
+            sections_list = ', '.join(f'"{s}"' for s in available_sections)
+            if available_sections:
+                raise ValueError(f'Section "{section_name}" not found. Available sections: {sections_list}')
+            else:
+                raise ValueError('No sections found in issue')
+        
+        # Store original todos if preserving
+        original_todos = section.todos.copy() if preserve_todos else []
+        
+        # Update section content based on mode
+        new_content = self._apply_content_update(section.body, content, mode)
+        
+        # Update section
+        section.body = new_content
+        if preserve_todos:
+            section.todos = original_todos
+        else:
+            section.todos = []
+        
+        # Reconstruct and update body
+        new_body = self._reconstruct_body(parsed_body)
+        update_result = self.set_body_command.execute(repo, issue_number, new_body)
+        
+        return {
+            'issue_number': issue.number,
+            'issue_title': issue.title,
+            'section_name': section_name,
+            'mode': mode,
+            'content_length': len(content or ''),
+            'content_file': content_file,
+            'todos_preserved': len(original_todos),
+            'todos_removed': len(section.todos) - len(original_todos) if not preserve_todos else 0,
+            'cleared': clear,
+            'url': issue.html_url
+        }
+    
+    def _apply_content_update(self, original_content: str, new_content: str, mode: str) -> str:
+        """Apply content update based on the specified mode.
+        
+        Args:
+            original_content: Current section content
+            new_content: New content to apply
+            mode: Update mode ('replace', 'append', 'prepend')
+            
+        Returns:
+            Updated section content
+        """
+        if mode == "replace":
+            return new_content or ""
+        elif mode == "append":
+            if not original_content.strip():
+                return new_content or ""
+            if not new_content:
+                return original_content
+            # Add spacing if needed
+            separator = "\n\n" if not original_content.endswith('\n') and not new_content.startswith('\n') else ""
+            return original_content + separator + new_content
+        elif mode == "prepend":
+            if not original_content.strip():
+                return new_content or ""
+            if not new_content:
+                return original_content
+            # Add spacing if needed
+            separator = "\n\n" if not new_content.endswith('\n') and not original_content.startswith('\n') else ""
+            return new_content + separator + original_content
+        else:
+            return original_content
+
+
 class BaseWorkflowCommand(ABC):
     """Base class for all workflow state transition commands.
     

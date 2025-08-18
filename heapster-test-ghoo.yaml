@@ -1,15 +1,15 @@
 project_url: "https://github.com/justynsblog/ghoo-test"
+
+# Optional: Force specific status tracking method
 status_method: "labels"
-issue_type_method: "native"
+
+# Optional: Define required sections per issue type
 required_sections:
-  epic:
-    - "Summary"
-    - "Acceptance Criteria"
-    - "Milestone Plan"
   task:
     - "Summary"
     - "Acceptance Criteria"
     - "Implementation Plan"
-  subtask:
+  sub-task:
     - "Summary"
     - "Acceptance Criteria"
+    - "Implementation Plan"

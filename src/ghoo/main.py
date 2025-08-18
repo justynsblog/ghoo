@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 from .core import (
-    InitCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, CreateSectionCommand,
+    InitCommand, SetBodyCommand, CreateTodoCommand, CheckTodoCommand, CreateSectionCommand, UpdateSectionCommand,
     CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
@@ -385,6 +385,101 @@ def create_section(
         if result['relative_to']:
             typer.echo(f"   Relative to: {result['relative_to']}")
         typer.echo(f"   Total sections: {result['total_sections']}")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+        elif "permission denied" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            typer.echo("   Make sure you have write access to the repository", err=True)
+        else:
+            typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="update-section")
+def update_section(
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    issue_number: int = typer.Argument(..., help="Issue number to update"),
+    section_name: str = typer.Argument(..., help="Name of the section to update"),
+    content: Optional[str] = typer.Option(None, "--content", "-c", help="New content for the section"),
+    content_file: Optional[Path] = typer.Option(None, "--content-file", "-f", help="Read content from file"),
+    append: bool = typer.Option(False, "--append", "-a", help="Append to existing content instead of replacing"),
+    prepend: bool = typer.Option(False, "--prepend", "-p", help="Prepend to existing content instead of replacing"),
+    preserve_todos: bool = typer.Option(True, "--preserve-todos/--no-preserve-todos", help="Whether to preserve existing todos (default: true)"),
+    clear: bool = typer.Option(False, "--clear", help="Clear section content while preserving structure")
+):
+    """Update the content of an existing section in a GitHub issue."""
+    try:
+        # Validate repository format
+        if '/' not in repo or len(repo.split('/')) != 2:
+            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
+            sys.exit(1)
+        
+        # Validate conflicting mode options
+        mode_count = sum([append, prepend])
+        if mode_count > 1:
+            typer.echo("❌ Cannot use --append and --prepend together", err=True)
+            sys.exit(1)
+        
+        # Determine update mode
+        if append:
+            mode = "append"
+        elif prepend:
+            mode = "prepend" 
+        else:
+            mode = "replace"
+        
+        # Convert Path to string for content_file
+        content_file_str = str(content_file) if content_file else None
+        
+        # Initialize config loader for token lookup
+        config_loader = ConfigLoader()
+        
+        # Initialize GitHub client
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        
+        # Execute update-section command
+        update_section_command = UpdateSectionCommand(github_client)
+        result = update_section_command.execute(
+            repo, issue_number, section_name, content, content_file_str, mode, preserve_todos, clear
+        )
+        
+        # Display success message
+        typer.echo(f"✅ Section updated successfully!")
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        typer.echo(f"   Section: {result['section_name']}")
+        typer.echo(f"   Mode: {result['mode']}")
+        
+        if result['cleared']:
+            typer.echo(f"   Content: Cleared")
+        elif result['content_file']:
+            typer.echo(f"   Source: {result['content_file']}")
+            typer.echo(f"   Content length: {result['content_length']} characters")
+        elif result['content_length'] > 0:
+            content_preview = (content[:50] + "...") if content and len(content) > 50 else (content or "")
+            typer.echo(f"   Content: {content_preview}")
+        
+        if preserve_todos:
+            typer.echo(f"   Todos preserved: {result['todos_preserved']}")
+        else:
+            typer.echo(f"   Todos removed: {result['todos_removed']}")
+        
         typer.echo(f"   URL: {result['url']}")
         
     except ValueError as e:
