@@ -1073,7 +1073,7 @@ def complete_condition(
     repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    evidence: str = typer.Argument(..., help="Evidence that requirements were met")
+    evidence: str = typer.Option(..., "--evidence", "-e", help="Evidence that requirements were met")
 ):
     """Add evidence to a condition to mark it as complete."""
     try:
