@@ -509,7 +509,7 @@ def update_section(
 
 @app.command(name="post-comment")
 def post_comment(
-    repo: str = typer.Option(..., "--repo", help="Repository in format 'owner/repo'"),
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to comment on"),
     comment: str = typer.Argument(..., help="Comment text to post"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
@@ -576,7 +576,7 @@ def post_comment(
 
 @app.command(name="get-latest-comment-timestamp")
 def get_latest_comment_timestamp(
-    repo: str = typer.Option(..., "--repo", help="Repository in format 'owner/repo'"),
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to get latest comment timestamp for"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
@@ -632,7 +632,7 @@ def get_latest_comment_timestamp(
 
 @app.command(name="get-comments")
 def get_comments(
-    repo: str = typer.Option(..., "--repo", help="Repository in format 'owner/repo'"),
+    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to get comments for"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):

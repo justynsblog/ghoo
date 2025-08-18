@@ -47,7 +47,7 @@ class TestGetCommentsE2E:
         """Test get-comments command on an issue that has comments."""
         # Use issue 275 which should have comments from previous tests
         result = self.run_cli_command_with_env([
-            "get-comments", "--repo", self.test_repo, "275"
+            "get-comments", self.test_repo, "275"
         ])
         
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -71,7 +71,7 @@ class TestGetCommentsE2E:
         """Test get-comments command on an issue with no comments."""
         # Use issue 268 which should have no comments
         result = self.run_cli_command_with_env([
-            "get-comments", "--repo", self.test_repo, "268"
+            "get-comments", self.test_repo, "268"
         ])
         
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -84,7 +84,7 @@ class TestGetCommentsE2E:
     def test_get_comments_nonexistent_issue(self):
         """Test get-comments command on a nonexistent issue."""
         result = self.run_cli_command_with_env([
-            "get-comments", "--repo", self.test_repo, "99999"
+            "get-comments", self.test_repo, "99999"
         ])
         
         assert result.returncode == 1, "Command should fail for nonexistent issue"
@@ -95,7 +95,7 @@ class TestGetCommentsE2E:
     def test_get_comments_invalid_repo_format(self):
         """Test get-comments command with invalid repository format."""
         result = self.run_cli_command_with_env([
-            "get-comments", "--repo", "invalid-repo", "123"
+            "get-comments", "invalid-repo", "123"
         ])
         
         assert result.returncode == 1, "Command should fail for invalid repo format"
@@ -107,12 +107,12 @@ class TestGetCommentsE2E:
         """Test that get-comments timestamps match get-latest-comment-timestamp format."""
         # Get comments for issue 275
         comments_result = self.run_cli_command_with_env([
-            "get-comments", "--repo", self.test_repo, "275"
+            "get-comments", self.test_repo, "275"
         ])
         
         # Get latest comment timestamp for same issue
         latest_result = self.run_cli_command_with_env([
-            "get-latest-comment-timestamp", "--repo", self.test_repo, "275"
+            "get-latest-comment-timestamp", self.test_repo, "275"
         ])
         
         assert comments_result.returncode == 0, f"get-comments failed: {comments_result.stderr}"
@@ -154,7 +154,7 @@ class TestGetCommentsE2E:
         """Test get-comments with multiline comment bodies."""
         # This test assumes there might be multiline comments in the test repo
         result = self.run_cli_command_with_env([
-            "get-comments", "--repo", self.test_repo, "275"
+            "get-comments", self.test_repo, "275"
         ])
         
         assert result.returncode == 0, f"Command failed: {result.stderr}"
