@@ -1477,6 +1477,75 @@ class TestCreateSectionCommand:
         with pytest.raises(ValueError, match="Section name cannot be empty"):
             section_command.execute("owner/repo", 123, "   ")
     
+    def test_execute_section_already_exists_with_whitespace(self, section_command, mock_issue, mock_parsed_body):
+        """Test error when section exists with different whitespace."""
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        
+        # Execute command with whitespace variations - should fail
+        with pytest.raises(ValueError, match="Section \"Summary\" already exists"):
+            section_command.execute("owner/repo", 123, "  Summary  ")
+            
+        with pytest.raises(ValueError, match="Section \"Summary\" already exists"):
+            section_command.execute("owner/repo", 123, " Summary")
+    
+    def test_execute_section_already_exists_special_characters(self, section_command, mock_issue, mock_parsed_body):
+        """Test duplicate detection works with sections containing special characters."""
+        from ghoo.models import Section, Todo
+        
+        # Mock parsed body with special character section
+        mock_parsed_body['sections'] = [
+            Section(title="Summary & Details", body="Test summary", todos=[]),
+            Section(title="Acceptance Criteria", body="- [ ] First item", todos=[
+                Todo(text="First item", checked=False, line_number=1)
+            ]),
+            Section(title="Log", body="", todos=[])
+        ]
+        
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        
+        # Execute command with existing special character section - should fail
+        with pytest.raises(ValueError, match="Section \"Summary & Details\" already exists"):
+            section_command.execute("owner/repo", 123, "Summary & Details")
+            
+        # Case insensitive should also fail
+        with pytest.raises(ValueError, match="Section \"summary & details\" already exists"):
+            section_command.execute("owner/repo", 123, "summary & details")
+    
+    def test_execute_section_already_exists_unicode(self, section_command, mock_issue, mock_parsed_body):
+        """Test duplicate detection works with Unicode characters."""
+        from ghoo.models import Section, Todo
+        
+        # Mock parsed body with Unicode section
+        mock_parsed_body['sections'] = [
+            Section(title="Résumé", body="Test summary", todos=[]),
+            Section(title="Acceptance Criteria", body="- [ ] First item", todos=[
+                Todo(text="First item", checked=False, line_number=1)
+            ]),
+            Section(title="Log", body="", todos=[])
+        ]
+        
+        # Mock the dependencies
+        section_command._get_issue_and_parsed_body = Mock(return_value={
+            'issue': mock_issue,
+            'parsed_body': mock_parsed_body
+        })
+        
+        # Execute command with existing Unicode section - should fail
+        with pytest.raises(ValueError, match="Section \"Résumé\" already exists"):
+            section_command.execute("owner/repo", 123, "Résumé")
+            
+        # Case insensitive should also fail
+        with pytest.raises(ValueError, match="Section \"résumé\" already exists"):
+            section_command.execute("owner/repo", 123, "résumé")
+    
     def test_execute_invalid_position(self, section_command):
         """Test error with invalid position parameter."""
         with pytest.raises(ValueError, match="Position must be 'end', 'before', or 'after'"):

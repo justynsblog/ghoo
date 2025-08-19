@@ -4736,9 +4736,10 @@ class CreateSectionCommand(TodoCommand):
         issue = issue_data['issue']
         parsed_body = issue_data['parsed_body']
         
-        # Check if section already exists (case-insensitive)
-        existing_sections = [s.title.lower() for s in parsed_body.get('sections', [])]
-        if section_name.lower() in existing_sections:
+        # Check if section already exists (case-insensitive with normalization)
+        normalized_section_name = section_name.lower().strip()
+        existing_sections = [s.title.lower().strip() for s in parsed_body.get('sections', [])]
+        if normalized_section_name in existing_sections:
             available_sections = [s.title for s in parsed_body.get('sections', [])]
             sections_list = ', '.join(f'"{s}"' for s in available_sections)
             raise ValueError(f'Section "{section_name}" already exists. Available sections: {sections_list}')

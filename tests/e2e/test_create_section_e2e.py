@@ -169,6 +169,75 @@ class TestCreateSectionE2E:
 
     @pytest.mark.e2e
     @pytest.mark.live_only
+    def test_create_section_whitespace_duplicate(self):
+        """Test error for duplicate section names with whitespace variations."""
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, "  Summary  "
+        ])
+        
+        assert result.returncode == 1, "Command should fail for whitespace duplicate"
+        assert "already exists" in result.stderr
+        
+        # Test with leading space only
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, " Summary"
+        ])
+        
+        assert result.returncode == 1, "Command should fail for leading space duplicate"
+        assert "already exists" in result.stderr
+
+    @pytest.mark.e2e
+    @pytest.mark.live_only 
+    def test_create_section_special_characters(self):
+        """Test creating and detecting duplicates with special characters."""
+        # First create a section with special characters
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, "Q&A Section"
+        ])
+        
+        assert result.returncode == 0, f"Command failed: {result.stderr}"
+        assert "✅ Section created successfully!" in result.stdout
+        assert "Section: Q&A Section" in result.stdout
+        
+        # Now try to create duplicate with same special characters
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, "Q&A Section"
+        ])
+        
+        assert result.returncode == 1, "Command should fail for special character duplicate"
+        assert "already exists" in result.stderr
+
+    @pytest.mark.e2e
+    @pytest.mark.live_only
+    def test_create_section_unicode_characters(self):
+        """Test creating and detecting duplicates with Unicode characters.""" 
+        # First create a section with Unicode characters
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, "Résumé & Übersicht"
+        ])
+        
+        assert result.returncode == 0, f"Command failed: {result.stderr}"
+        assert "✅ Section created successfully!" in result.stdout
+        assert "Résumé & Übersicht" in result.stdout
+        
+        # Now try to create duplicate with exact same Unicode
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, "Résumé & Übersicht"
+        ])
+        
+        assert result.returncode == 1, "Command should fail for Unicode duplicate"
+        assert "already exists" in result.stderr
+        
+        # Test case-insensitive Unicode duplicate
+        result = self.run_cli_command_with_env([
+            "create-section", self.test_repo, self.test_issue, "résumé & übersicht"
+        ])
+        
+        assert result.returncode == 1, "Command should fail for case-insensitive Unicode duplicate"
+        assert "already exists" in result.stderr
+
+    @pytest.mark.e2e
+    @pytest.mark.live_only
     def test_create_section_invalid_position_error(self):
         """Test error with invalid position parameter."""
         result = self.run_cli_command_with_env([
