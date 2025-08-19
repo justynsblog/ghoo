@@ -168,10 +168,9 @@ def set_body(
 ):
     """Replace the body of an existing GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
         
         # Determine body source
         new_body = ""
@@ -199,13 +198,9 @@ def set_body(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
-        # Resolve repository from parameter or config
-        from ghoo.utils.repository import resolve_repository
-        resolved_repo = resolve_repository(repo, config_loader)
-        
         # Execute set-body command
         set_body_command = SetBodyCommand(github_client)
-        result = set_body_command.execute(resolved_repo, issue_number, new_body)
+        result = set_body_command.execute(repo, issue_number, new_body)
         
         # Display success message
         typer.echo(f"✅ Issue body updated successfully!")
@@ -248,13 +243,11 @@ def create_todo(
 ):
     """Add a new todo item to a section in a GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize config loader and GitHub client with config
+        # Load configuration and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -314,13 +307,11 @@ def check_todo(
 ):
     """Check or uncheck a todo item in a GitHub issue section."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize config loader and GitHub client with config
+        # Load configuration and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -381,13 +372,11 @@ def create_section(
 ):
     """Create a new section in a GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize config loader and GitHub client with config
+        # Load configuration and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -455,10 +444,9 @@ def update_section(
 ):
     """Update the content of an existing section in a GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
         
         # Validate conflicting mode options
         mode_count = sum([append, prepend])
@@ -477,8 +465,7 @@ def update_section(
         # Convert Path to string for content_file
         content_file_str = str(content_file) if content_file else None
         
-        # Initialize config loader and GitHub client with config
-        config_loader = ConfigLoader()
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -486,14 +473,10 @@ def update_section(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
-        # Resolve repository from parameter or config
-        from ghoo.utils.repository import resolve_repository
-        resolved_repo = resolve_repository(repo, config_loader)
-        
         # Execute update-section command
         update_section_command = UpdateSectionCommand(github_client)
         result = update_section_command.execute(
-            resolved_repo, issue_number, section_name, content, content_file_str, mode, preserve_todos, clear
+            repo, issue_number, section_name, content, content_file_str, mode, preserve_todos, clear
         )
         
         # Display success message

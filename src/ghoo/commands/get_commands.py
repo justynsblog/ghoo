@@ -32,17 +32,17 @@ get_app = typer.Typer(
 
 @get_app.command()
 def epic(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     id: int = typer.Option(..., "--id", help="Epic issue number to retrieve"),
     format: str = typer.Option(
         "rich", 
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display an Epic issue with parsed body content."""
@@ -93,17 +93,17 @@ def epic(
 
 @get_app.command()
 def task(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     id: int = typer.Option(..., "--id", help="Task issue number to retrieve"),
     format: str = typer.Option(
         "rich", 
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a Task issue with parsed body content."""
@@ -154,17 +154,17 @@ def task(
 
 @get_app.command()
 def subtask(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     id: int = typer.Option(..., "--id", help="Subtask issue number to retrieve"),
     format: str = typer.Option(
         "rich", 
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a Subtask issue with parsed body content."""
@@ -215,17 +215,17 @@ def subtask(
 
 @get_app.command()
 def milestone(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     id: int = typer.Option(..., "--id", help="Milestone number to retrieve"),
     format: str = typer.Option(
         "rich", 
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a Milestone with associated issues."""
@@ -276,6 +276,11 @@ def milestone(
 
 @get_app.command()
 def section(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     issue_id: int = typer.Option(..., "--issue-id", help="Issue number containing the section"),
     title: str = typer.Option(..., "--title", help="Section title to retrieve"),
     format: str = typer.Option(
@@ -283,11 +288,6 @@ def section(
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a specific section from an issue."""
@@ -338,6 +338,11 @@ def section(
 
 @get_app.command()
 def todo(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     issue_id: int = typer.Option(..., "--issue-id", help="Issue number containing the todo"),
     section: str = typer.Option(..., "--section", help="Section name containing the todo"),
     match: str = typer.Option(..., "--match", help="Text to match against todo items"),
@@ -346,11 +351,6 @@ def todo(
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a specific todo item from an issue section."""
@@ -401,6 +401,11 @@ def todo(
 
 @get_app.command()
 def condition(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     issue_id: int = typer.Option(..., "--issue-id", help="Issue number containing the condition"),
     match: str = typer.Option(..., "--match", help="Text to match against condition titles"),
     format: str = typer.Option(
@@ -408,11 +413,6 @@ def condition(
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """Get and display a specific condition from an issue by title match."""
@@ -463,17 +463,17 @@ def condition(
 
 @get_app.command()
 def conditions(
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        help="Repository in format 'owner/repo' (uses config if not specified)"
+    ),
     issue_id: int = typer.Option(..., "--issue-id", help="Issue number containing the conditions"),
     format: str = typer.Option(
         "rich", 
         "--format", 
         "-f",
         help="Output format: 'rich' for formatted display or 'json' for raw JSON"
-    ),
-    repo: Optional[str] = typer.Option(
-        None,
-        "--repo",
-        help="Repository in format 'owner/repo' (overrides config)"
     )
 ):
     """List all verification conditions in a GitHub issue."""
