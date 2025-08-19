@@ -28,7 +28,7 @@ src/ghoo/
 - Hybrid PyGithub + GraphQL client with automatic fallback
 - IssueParser for body parsing (sections, todos, references)
 - BaseWorkflowCommand for state transitions with validation
-- Config via `ghoo.yaml`: project_url, status_method, required_sections
+- Config via `ghoo.yaml`: project_url, status_method, required_sections (enforced at submit-plan only)
 
 ## 🚨 E2E Testing - CRITICAL
 

@@ -167,7 +167,7 @@ Custom epic description here.
 **Features:**
 - **Hybrid API Support**: Uses GraphQL for custom issue types, falls back to REST API with labels
 - **Template Generation**: Creates body with required sections if no custom body provided
-- **Validation**: Validates required sections if configuration is available
+- **No Validation**: Creation commands no longer validate required sections (validation moved to submit-plan stage)
 - **Status Assignment**: Automatically assigns `status:backlog` label
 - **Error Handling**: Clear error messages for common issues (invalid repo, missing milestone, etc.)
 
@@ -230,7 +230,7 @@ Configure database connection with proper error handling.
 - **Template Generation**: Creates body with required sections (Summary, Acceptance Criteria, Implementation Plan) if no custom body provided
 - **Parent Reference**: Automatically includes parent epic reference in body
 - **Sub-issue Linking**: Attempts to create GraphQL sub-issue relationship when available
-- **Validation**: Validates required sections if configuration is available
+- **No Validation**: Creation commands no longer validate required sections (validation moved to submit-plan stage)
 - **Status Assignment**: Automatically assigns `status:backlog` label
 - **Error Handling**: Clear error messages for invalid parent epic, missing repository access, etc.
 
@@ -293,7 +293,7 @@ Handle edge case where empty strings bypass validation.
 - **Template Generation**: Creates body with required sections (Summary, Acceptance Criteria, Implementation Notes) if no custom body provided
 - **Parent Reference**: Automatically includes parent task reference in body, even for custom bodies
 - **Sub-issue Linking**: Attempts to create GraphQL sub-issue relationship when available
-- **Validation**: Validates required sections if configuration is available
+- **No Validation**: Creation commands no longer validate required sections (validation moved to submit-plan stage)
 - **Status Assignment**: Automatically assigns `status:backlog` label
 - **Error Handling**: Clear error messages for invalid parent task, closed tasks, permission issues, etc.
 
@@ -502,7 +502,7 @@ ghoo submit-plan <repository> <issue_number> [--message "<message>"]
 ```
 
 **Features:**
-- Validates required sections exist (from ghoo.yaml configuration)
+- **VALIDATION GATE**: Enforces required sections exist (from ghoo.yaml configuration) - this is the only place required sections are validated
 - Optional message explaining what needs approval
 - Creates audit trail comment with transition details
 

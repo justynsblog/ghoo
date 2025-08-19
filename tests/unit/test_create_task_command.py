@@ -347,7 +347,7 @@ class TestCreateTaskCommand:
         assert result['type'] == 'task'
     
     def test_validate_required_sections_with_config(self, create_command_with_config):
-        """Test that required sections validation works with config."""
+        """Test that required sections validation method works with config (used by submit-plan)."""
         valid_body = """**Parent Epic:** #123
 
 ## Summary
@@ -368,7 +368,7 @@ Implementation details here.
         create_command_with_config._validate_required_sections(valid_body)
     
     def test_validate_required_sections_fails_missing_section(self, create_command_with_config):
-        """Test that validation fails when required sections are missing."""
+        """Test that validation method fails when required sections are missing (used by submit-plan)."""
         invalid_body = """**Parent Epic:** #123
 
 ## Summary
@@ -384,7 +384,7 @@ This doesn't have Acceptance Criteria section.
             create_command_with_config._validate_required_sections(invalid_body)
     
     def test_validate_required_sections_passes_with_valid_body(self, create_command_with_config):
-        """Test that validation passes with all required sections."""
+        """Test that validation method passes with all required sections (used by submit-plan)."""
         valid_body = """**Parent Epic:** #123
 
 ## Summary

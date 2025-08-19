@@ -156,39 +156,8 @@ class TestCreateEpicCommand:
         assert 'type:epic' in call_args[1]['labels']
         assert 'status:backlog' in call_args[1]['labels']
     
-    def test_validate_required_sections_with_config(self, create_command_with_config, mock_github_client, mock_created_issue_data):
-        """Test validation of required sections when config is provided."""
-        # Body missing required section
-        invalid_body = "## Summary\n\nSome content\n\n## Wrong Section\n\nContent"
-        mock_github_client.create_issue_with_type.return_value = mock_created_issue_data
-        
-        with pytest.raises(ValueError) as exc_info:
-            create_command_with_config.execute("owner/repo", "Test Epic", body=invalid_body)
-        
-        assert "Missing required sections" in str(exc_info.value)
-        assert "Acceptance Criteria" in str(exc_info.value)
-        assert "Milestone Plan" in str(exc_info.value)
-    
-    def test_validate_required_sections_passes_with_valid_body(self, create_command_with_config, mock_github_client, mock_created_issue_data):
-        """Test validation passes with valid body containing all required sections."""
-        valid_body = """## Summary
-
-Epic description here.
-
-## Acceptance Criteria
-
-- [ ] Criterion 1
-- [ ] Criterion 2
-
-## Milestone Plan
-
-Milestone information here.
-"""
-        mock_github_client.create_issue_with_type.return_value = mock_created_issue_data
-        
-        # Should not raise an exception
-        result = create_command_with_config.execute("owner/repo", "Test Epic", body=valid_body)
-        assert result['number'] == 123
+    # Note: Required sections validation moved to submit-plan workflow stage
+    # Creation commands no longer validate required sections
     
     def test_generate_epic_body_default_sections(self, create_command):
         """Test body generation with default sections."""

@@ -3301,8 +3301,7 @@ class CreateEpicCommand(BaseCreateCommand):
             # Ensure Log section exists in custom body
             body = self._ensure_log_section(body)
         
-        # Validate required sections using base class method
-        self._validate_required_sections(body)
+        # Note: Required sections validation moved to submit-plan workflow stage
         
         # Prepare labels using base class method
         issue_labels = self._prepare_labels(labels)
@@ -3534,8 +3533,7 @@ class CreateTaskCommand(BaseCreateCommand):
             # Ensure Log section exists in custom body
             body = self._ensure_log_section(body)
         
-        # Validate required sections using base class method
-        self._validate_required_sections(body)
+        # Note: Required sections validation moved to submit-plan workflow stage
         
         # Prepare labels using base class method
         issue_labels = self._prepare_labels(labels)
@@ -3896,8 +3894,7 @@ class CreateSubTaskCommand(BaseCreateCommand):
             # Ensure Log section exists in custom body
             body = self._ensure_log_section(body)
         
-        # Validate required sections using base class method
-        self._validate_required_sections(body)
+        # Note: Required sections validation moved to submit-plan workflow stage
         
         # Prepare labels using base class method
         issue_labels = self._prepare_labels(labels)

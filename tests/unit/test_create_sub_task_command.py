@@ -335,48 +335,9 @@ class TestCreateSubTaskCommand:
         assert result['number'] == 125
         assert result['parent_task'] == 124
 
-    def test_validate_required_sections_with_config(self, create_command_with_config, mock_parent_task):
-        """Test validation of required sections with configuration."""
-        invalid_body = "**Parent Task:** #124\n\nMissing required sections"
-        
-        # Setup mocks
-        mock_repo = Mock()
-        mock_repo.get_issue.return_value = mock_parent_task
-        create_command_with_config.github.github.get_repo.return_value = mock_repo
-        create_command_with_config.github.supports_custom_issue_types.return_value = False
-        
-        mock_repo.create_issue.side_effect = Exception("Should not reach here")
-        
-        # Execute and expect validation error
-        with pytest.raises(ValueError, match="Missing required sections"):
-            create_command_with_config.execute("owner/repo", 124, "Test Sub-task", body=invalid_body)
+    # Note: Required sections validation moved to submit-plan workflow stage
+    # Creation commands no longer validate required sections during execute()
 
-    def test_validate_required_sections_passes_with_valid_body(self, create_command_with_config, mock_parent_task):
-        """Test that validation passes with valid required sections."""
-        valid_body = "**Parent Task:** #124\n\n## Summary\n\nValid summary\n\n## Acceptance Criteria\n\n- [ ] Test criteria"
-        
-        # Setup mocks
-        mock_repo = Mock()
-        mock_repo.get_issue.return_value = mock_parent_task
-        create_command_with_config.github.github.get_repo.return_value = mock_repo
-        create_command_with_config.github.supports_custom_issue_types.return_value = False
-        
-        mock_issue = Mock()
-        mock_issue.number = 125
-        mock_issue.title = "Test Sub-task"
-        mock_issue.html_url = "https://github.com/owner/repo/issues/125"
-        mock_issue.state = "open"
-        mock_issue.labels = [Mock(name='status:backlog'), Mock(name='type:subtask')]
-        mock_issue.labels[0].name = 'status:backlog'
-        mock_issue.labels[1].name = 'type:subtask'
-        mock_issue.assignees = []
-        mock_issue.milestone = None
-        
-        mock_repo.create_issue.return_value = mock_issue
-        
-        # Execute - should not raise validation error
-        result = create_command_with_config.execute("owner/repo", 124, "Test Sub-task", body=valid_body)
-        assert result['number'] == 125
 
     def test_generate_sub_task_body_default_sections(self, create_command):
         """Test generation of sub-task body with default sections."""
