@@ -5049,7 +5049,7 @@ class CreateConditionCommand(TodoCommand):
         }
 
 
-class UpdateConditionCommand(ConditionCommand):
+class UpdateConditionCommand(TodoCommand):
     """Command for updating requirements of existing conditions."""
     
     def execute(
@@ -5080,35 +5080,54 @@ class UpdateConditionCommand(ConditionCommand):
         
         new_requirements = new_requirements.strip()
         
-        # Get issue and parsed body
-        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
-        issue = issue_data['issue']
-        parsed_body = issue_data['parsed_body']
+        # Get issue and parse body
+        github_repo = self.github.github.get_repo(repo)
+        issue = github_repo.get_issue(issue_number)
+        parsed_body = IssueParser.parse_body(issue.body)
         
-        # Find target condition
-        existing_conditions = parsed_body.get('conditions', [])
-        target_condition = self._find_condition(existing_conditions, condition_match)
+        # Find the condition section
+        condition_title = f"CONDITION: {condition_match}"
+        target_section = None
+        old_requirements = None
         
-        # Update requirements
-        old_requirements = target_condition.requirements
-        target_condition.requirements = new_requirements
+        for section in parsed_body['sections']:
+            if (section.title.startswith("CONDITION: ") and 
+                condition_match.lower() in section.title.lower()):
+                target_section = section
+                break
         
-        # Reconstruct body with updated condition
-        new_body = self._reconstruct_body_with_conditions(parsed_body, existing_conditions)
+        if not target_section:
+            raise ValueError(f"No condition found matching '{condition_match}'")
+        
+        # Parse current requirements from section body
+        lines = target_section.body.split('\n')
+        updated_lines = []
+        for line in lines:
+            if line.strip().startswith('- **Requirements:**'):
+                old_requirements = line.split('- **Requirements:**')[1].strip()
+                updated_lines.append(f'- **Requirements:** {new_requirements}')
+            else:
+                updated_lines.append(line)
+        
+        # Update section body
+        target_section.body = '\n'.join(updated_lines)
+        
+        # Reconstruct full body using base class method
+        new_body = self._reconstruct_body(parsed_body)
         
         # Update issue body
-        self.set_body_command.execute(repo, issue_number, new_body)
+        issue.edit(body=new_body)
         
         return {
             'issue_number': issue.number,
             'issue_title': issue.title,
-            'condition_text': target_condition.text,
+            'condition_text': condition_match,
             'old_requirements': old_requirements,
             'new_requirements': new_requirements
         }
 
 
-class CompleteConditionCommand(ConditionCommand):
+class CompleteConditionCommand(TodoCommand):
     """Command for adding evidence to conditions."""
     
     def execute(
@@ -5139,35 +5158,56 @@ class CompleteConditionCommand(ConditionCommand):
         
         evidence = evidence.strip()
         
-        # Get issue and parsed body
-        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
-        issue = issue_data['issue']
-        parsed_body = issue_data['parsed_body']
+        # Get issue and parse body
+        github_repo = self.github.github.get_repo(repo)
+        issue = github_repo.get_issue(issue_number)
+        parsed_body = IssueParser.parse_body(issue.body)
         
-        # Find target condition
-        existing_conditions = parsed_body.get('conditions', [])
-        target_condition = self._find_condition(existing_conditions, condition_match)
+        # Find the condition section
+        target_section = None
+        old_evidence = None
         
-        # Add evidence
-        old_evidence = target_condition.evidence
-        target_condition.evidence = evidence
+        for section in parsed_body['sections']:
+            if (section.title.startswith("CONDITION: ") and 
+                condition_match.lower() in section.title.lower()):
+                target_section = section
+                break
         
-        # Reconstruct body with updated condition
-        new_body = self._reconstruct_body_with_conditions(parsed_body, existing_conditions)
+        if not target_section:
+            raise ValueError(f"No condition found matching '{condition_match}'")
+        
+        # Parse current evidence from section body
+        lines = target_section.body.split('\n')
+        updated_lines = []
+        for line in lines:
+            if line.strip().startswith('- **Evidence:**'):
+                evidence_text = line.split('- **Evidence:**')[1].strip()
+                # Only capture old evidence if it's not a placeholder
+                if evidence_text not in ['_Not yet provided_', '']:
+                    old_evidence = evidence_text
+                updated_lines.append(f'- **Evidence:** {evidence}')
+            else:
+                updated_lines.append(line)
+        
+        # Update section body
+        target_section.body = '\n'.join(updated_lines)
+        
+        # Reconstruct full body using base class method
+        new_body = self._reconstruct_body(parsed_body)
         
         # Update issue body
-        self.set_body_command.execute(repo, issue_number, new_body)
+        issue.edit(body=new_body)
         
         return {
             'issue_number': issue.number,
             'issue_title': issue.title,
-            'condition_text': target_condition.text,
+            'condition_text': condition_match,
             'old_evidence': old_evidence,
             'new_evidence': evidence
         }
 
 
-class VerifyConditionCommand(ConditionCommand):
+class VerifyConditionCommand(TodoCommand):
     """Command for verifying conditions and adding sign-off."""
     
     def execute(
@@ -5192,18 +5232,36 @@ class VerifyConditionCommand(ConditionCommand):
             GithubException: If issue not found or permission denied
             ValueError: If validation fails or condition not found
         """
-        # Get issue and parsed body
-        issue_data = self._get_issue_and_parsed_body(repo, issue_number)
-        issue = issue_data['issue']
-        parsed_body = issue_data['parsed_body']
+        # Get issue and parse body
+        github_repo = self.github.github.get_repo(repo)
+        issue = github_repo.get_issue(issue_number)
+        parsed_body = IssueParser.parse_body(issue.body)
         
-        # Find target condition
-        existing_conditions = parsed_body.get('conditions', [])
-        target_condition = self._find_condition(existing_conditions, condition_match)
+        # Find the condition section
+        target_section = None
+        current_evidence = None
+        
+        for section in parsed_body['sections']:
+            if (section.title.startswith("CONDITION: ") and 
+                condition_match.lower() in section.title.lower()):
+                target_section = section
+                break
+        
+        if not target_section:
+            raise ValueError(f"No condition found matching '{condition_match}'")
+        
+        # Parse current evidence and check it exists
+        lines = target_section.body.split('\n')
+        for line in lines:
+            if line.strip().startswith('- **Evidence:**'):
+                evidence_text = line.split('- **Evidence:**')[1].strip()
+                if evidence_text not in ['_Not yet provided_', '']:
+                    current_evidence = evidence_text
+                    break
         
         # Check that evidence exists
-        if not target_condition.evidence:
-            raise ValueError(f'Cannot verify condition "{target_condition.text}": no evidence provided. Use complete-condition first.')
+        if not current_evidence:
+            raise ValueError(f'Cannot verify condition "{condition_match}": no evidence provided. Use complete-condition first.')
         
         # Determine sign-off user
         if not signed_off_by:
@@ -5213,21 +5271,33 @@ class VerifyConditionCommand(ConditionCommand):
             except Exception:
                 signed_off_by = "unknown-user"
         
-        # Mark as verified
-        was_verified = target_condition.verified
-        target_condition.verified = True
-        target_condition.signed_off_by = signed_off_by
+        # Update section body to mark as verified
+        updated_lines = []
+        was_verified = False
+        for line in lines:
+            if line.strip().startswith('- [ ] VERIFIED'):
+                updated_lines.append('- [x] VERIFIED')
+            elif line.strip().startswith('- [x] VERIFIED'):
+                was_verified = True
+                updated_lines.append('- [x] VERIFIED')
+            elif line.strip().startswith('- **Signed-off by:**'):
+                updated_lines.append(f'- **Signed-off by:** {signed_off_by}')
+            else:
+                updated_lines.append(line)
         
-        # Reconstruct body with updated condition
-        new_body = self._reconstruct_body_with_conditions(parsed_body, existing_conditions)
+        # Update section body
+        target_section.body = '\n'.join(updated_lines)
+        
+        # Reconstruct full body using base class method
+        new_body = self._reconstruct_body(parsed_body)
         
         # Update issue body
-        self.set_body_command.execute(repo, issue_number, new_body)
+        issue.edit(body=new_body)
         
         return {
             'issue_number': issue.number,
             'issue_title': issue.title,
-            'condition_text': target_condition.text,
+            'condition_text': condition_match,
             'was_verified': was_verified,
             'signed_off_by': signed_off_by
         }
