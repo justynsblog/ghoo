@@ -1,7 +1,7 @@
 """Tests to ensure ALL state-changing commands have consistent signatures.
 
-This test module verifies that all state-changing commands use positional
-'repo' parameter as the first argument, ensuring complete consistency.
+This test module verifies that all state-changing commands use OPTIONAL
+--repo parameter, and can derive repository from config if not provided.
 """
 
 import pytest
@@ -25,10 +25,10 @@ from ghoo.main import (
 class TestCommandSignatureConsistency:
     """Test that all state-changing commands have consistent signatures."""
     
-    def test_all_state_changing_commands_have_positional_repo(self):
-        """Test that ALL state-changing commands use positional repo parameter."""
+    def test_all_state_changing_commands_have_optional_repo(self):
+        """Test that ALL state-changing commands use OPTIONAL --repo parameter."""
         
-        # All state-changing commands that should have repo as FIRST positional argument
+        # All state-changing commands that should have repo as OPTIONAL parameter
         state_changing_commands = [
             set_body, create_todo, check_todo, create_section, update_section,
             create_condition, update_condition, complete_condition, verify_condition,
@@ -42,18 +42,18 @@ class TestCommandSignatureConsistency:
             sig = inspect.signature(cmd)
             params = list(sig.parameters.items())
             
-            # First parameter should be 'repo'
+            # First parameter should be 'repo' and should be optional (has default)
             assert len(params) > 0, f"Command {cmd.__name__} has no parameters"
             
             first_param_name, first_param = params[0]
             assert first_param_name == 'repo', f"Command {cmd.__name__} first parameter is '{first_param_name}', should be 'repo'"
             
-            # repo parameter should be positional (Typer adds metadata so we check kind instead of default)
-            assert first_param.kind in [inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD], \
-                f"Command {cmd.__name__} repo parameter is not positional"
+            # repo parameter should be optional (should have a default value)
+            assert first_param.default is not inspect.Parameter.empty, \
+                f"Command {cmd.__name__} repo parameter should be optional with default value, but has no default"
     
-    def test_no_command_has_repo_as_option(self):
-        """Test that no state-changing command uses --repo as an option."""
+    def test_all_commands_have_repo_as_optional_parameter(self):
+        """Test that all state-changing commands use --repo as optional parameter."""
         
         state_changing_commands = [
             set_body, create_todo, check_todo, create_section, update_section,
@@ -68,12 +68,12 @@ class TestCommandSignatureConsistency:
             sig = inspect.signature(cmd)
             params = list(sig.parameters.items())
             
-            # Repo should be first parameter and positional
+            # Repo should be first parameter and optional
             if len(params) > 0 and params[0][0] == 'repo':
                 repo_param = params[0][1]
-                # Should be positional, not keyword-only
-                assert repo_param.kind != inspect.Parameter.KEYWORD_ONLY, \
-                    f"Command {cmd.__name__} has --repo as option, should be positional"
+                # Should be optional (has default)
+                assert repo_param.default is not inspect.Parameter.empty, \
+                    f"Command {cmd.__name__} has repo parameter without default, should be optional"
     
     def test_condition_commands_consistency_with_others(self):
         """Test that condition commands have the same signature pattern as other commands."""
@@ -113,7 +113,7 @@ class TestCommandSignatureConsistency:
         """Test that commands follow consistent signature patterns."""
         
         # Commands that modify issues should all follow the pattern:
-        # def command(repo: str, issue_number: int, ...)
+        # def command(repo: Optional[str] = typer.Option(None, "--repo", ...), issue_number: int, ...)
         issue_modifying_commands = [
             set_body, create_todo, check_todo, create_section, update_section,
             create_condition, update_condition, complete_condition, verify_condition,
@@ -129,16 +129,17 @@ class TestCommandSignatureConsistency:
             # Should have at least repo and issue_number
             assert len(params) >= 2, f"Command {cmd.__name__} should have at least repo and issue_number parameters"
             
-            # First two should be repo and issue_number (or similar)
+            # First parameter should be repo (optional)
             assert params[0][0] == 'repo'
+            assert params[0][1].default is not inspect.Parameter.empty, f"Command {cmd.__name__} repo should be optional"
             
             # Second parameter should be issue-related
             second_param_name = params[1][0]
             assert 'issue' in second_param_name or 'number' in second_param_name, \
                 f"Command {cmd.__name__} second parameter '{second_param_name}' should be issue-related"
     
-    def test_no_optional_repo_parameters_exist(self):
-        """Comprehensive test to ensure state-changing commands use positional repo."""
+    def test_all_optional_repo_parameters_exist(self):
+        """Comprehensive test to ensure state-changing commands use optional --repo."""
         
         # Focus on the specific commands we know should be consistent
         state_changing_commands = [
@@ -154,9 +155,10 @@ class TestCommandSignatureConsistency:
             sig = inspect.signature(cmd)
             params = list(sig.parameters.items())
             
-            # First parameter should be repo
+            # First parameter should be repo and optional
             if len(params) > 0:
                 assert params[0][0] == 'repo', f"Command {cmd.__name__} should have repo as first parameter"
+                assert params[0][1].default is not inspect.Parameter.empty, f"Command {cmd.__name__} repo parameter should be optional"
 
 
 class TestSpecificCommandPatterns:

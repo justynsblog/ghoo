@@ -329,6 +329,34 @@ All Markdown output must be generated using the Jinja2 templating engine. This s
 
 The CLI will follow a `ghoo <VERB> <NOUN> [OPTIONS]` structure. Each command is designed to be a self-contained, semantic action that can be cleanly mapped to a future MCP tool. All issue IDs refer to the standard `#123` number.
 
+### **🚨 CRITICAL: Repository Parameter Requirements**
+
+**ALL COMMANDS MUST SUPPORT OPTIONAL `--repo` PARAMETER**
+
+- **Repository Resolution**: Every command accepts `--repo <owner/repo>` as an OPTIONAL named parameter
+- **Config Fallback**: If `--repo` not provided, commands derive repository from `ghoo.yaml` configuration file
+- **Never Positional**: Repository is NEVER a positional argument (e.g., `ghoo create-epic <repo> <title>` is WRONG)
+- **Consistent Pattern**: ALL commands without exception follow this pattern
+
+**Correct Usage Examples:**
+```bash
+# ✅ CORRECT: Optional --repo parameter
+ghoo create-epic --repo owner/repo "My Epic Title"
+ghoo create-epic "My Epic Title"  # Uses ghoo.yaml project_url
+
+# ✅ CORRECT: All commands support both patterns
+ghoo start-plan --repo owner/repo 123
+ghoo start-plan 123  # Uses config file
+
+# ❌ WRONG: Never use positional repo
+ghoo create-epic owner/repo "My Epic Title"
+```
+
+**Implementation Requirements:**
+- Commands must call `resolve_repository(repo, config_loader)` to handle fallback logic
+- Must provide clear error messages when neither `--repo` nor config file available
+- Config loading failures must gracefully fallback to --repo requirement
+
 ### Global Flags
 
 - `--json`: If present, all output will be rendered as a JSON object instead of Markdown. This is for scripting and interoperability with other tools.

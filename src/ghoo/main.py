@@ -161,7 +161,7 @@ def _display_init_results(results: dict):
 
 @app.command(name="set-body")
 def set_body(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="New body content"),
     body_file: Optional[Path] = typer.Option(None, "--body-file", "-f", help="Read body content from file")
@@ -199,9 +199,13 @@ def set_body(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
+        
         # Execute set-body command
         set_body_command = SetBodyCommand(github_client)
-        result = set_body_command.execute(repo, issue_number, new_body)
+        result = set_body_command.execute(resolved_repo, issue_number, new_body)
         
         # Display success message
         typer.echo(f"✅ Issue body updated successfully!")
@@ -236,7 +240,7 @@ def set_body(
 
 @app.command(name="create-todo")
 def create_todo(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to add todo to"),
     section: str = typer.Argument(..., help="Section name to add todo to"),
     todo_text: str = typer.Argument(..., help="Text of the todo item"),
@@ -258,9 +262,13 @@ def create_todo(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
+        
         # Execute create-todo command
         create_todo_command = CreateTodoCommand(github_client)
-        result = create_todo_command.execute(repo, issue_number, section, todo_text, create_section)
+        result = create_todo_command.execute(resolved_repo, issue_number, section, todo_text, create_section)
         
         # Display success message
         typer.echo(f"✅ Todo added successfully!")
@@ -299,7 +307,7 @@ def create_todo(
 
 @app.command(name="check-todo")
 def check_todo(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number containing the todo"),
     section: str = typer.Argument(..., help="Section name containing the todo"),
     match: str = typer.Option(..., "--match", "-m", help="Text to match against todo items")
@@ -320,9 +328,13 @@ def check_todo(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
+        
         # Execute check-todo command
         check_todo_command = CheckTodoCommand(github_client)
-        result = check_todo_command.execute(repo, issue_number, section, match)
+        result = check_todo_command.execute(resolved_repo, issue_number, section, match)
         
         # Display success message
         action_emoji = "✅" if result['new_state'] else "⭕"
@@ -360,7 +372,7 @@ def check_todo(
 
 @app.command(name="create-section")
 def create_section(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to add section to"),
     section_name: str = typer.Argument(..., help="Name of the section to create"),
     content: Optional[str] = typer.Option(None, "--content", "-c", help="Optional initial content for the section"),
@@ -383,9 +395,13 @@ def create_section(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
+        
         # Execute create-section command
         create_section_command = CreateSectionCommand(github_client)
-        result = create_section_command.execute(repo, issue_number, section_name, content, position, relative_to)
+        result = create_section_command.execute(resolved_repo, issue_number, section_name, content, position, relative_to)
         
         # Display success message
         typer.echo(f"✅ Section created successfully!")
@@ -427,7 +443,7 @@ def create_section(
 
 @app.command(name="update-section")
 def update_section(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     section_name: str = typer.Argument(..., help="Name of the section to update"),
     content: Optional[str] = typer.Option(None, "--content", "-c", help="New content for the section"),
@@ -470,10 +486,14 @@ def update_section(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
+        
         # Execute update-section command
         update_section_command = UpdateSectionCommand(github_client)
         result = update_section_command.execute(
-            repo, issue_number, section_name, content, content_file_str, mode, preserve_todos, clear
+            resolved_repo, issue_number, section_name, content, content_file_str, mode, preserve_todos, clear
         )
         
         # Display success message
@@ -525,21 +545,19 @@ def update_section(
 
 @app.command(name="post-comment")
 def post_comment(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to comment on"),
     comment: str = typer.Argument(..., help="Comment text to post"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Post a comment to a GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -592,20 +610,18 @@ def post_comment(
 
 @app.command(name="get-latest-comment-timestamp")
 def get_latest_comment_timestamp(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to get latest comment timestamp for"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Get the ISO timestamp of the latest comment on a GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -648,20 +664,18 @@ def get_latest_comment_timestamp(
 
 @app.command(name="get-comments")
 def get_comments(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to get comments for"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Get all comments for a GitHub issue with timestamps."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -706,7 +720,7 @@ def get_comments(
 
 @app.command()
 def create_epic(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     title: str = typer.Argument(..., help="Epic title"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom epic body (uses template if not provided)"),
     labels: Optional[str] = typer.Option(None, "--labels", "-l", help="Comma-separated list of additional labels"),
@@ -716,14 +730,12 @@ def create_epic(
 ):
     """Create a new Epic issue with proper body template and validation."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -797,7 +809,7 @@ def create_epic(
 
 @app.command()
 def create_task(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     parent_epic: int = typer.Argument(..., help="Issue number of the parent epic"),
     title: str = typer.Argument(..., help="Task title"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom task body (uses template if not provided)"),
@@ -808,14 +820,12 @@ def create_task(
 ):
     """Create a new Task issue linked to a parent Epic."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -891,7 +901,7 @@ def create_task(
 
 @app.command(name="create-sub-task")
 def create_sub_task(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     parent_task: int = typer.Argument(..., help="Issue number of the parent task"),
     title: str = typer.Argument(..., help="Sub-task title"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom sub-task body (uses template if not provided)"),
@@ -902,14 +912,12 @@ def create_sub_task(
 ):
     """Create a new Sub-task issue linked to a parent Task."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -984,7 +992,7 @@ def create_sub_task(
 
 @app.command(name="create-condition")
 def create_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to add condition to"),
     condition_text: str = typer.Argument(..., help="Text description of the condition"),
     requirements: str = typer.Option(..., "--requirements", "-r", help="Requirements that must be met"),
@@ -992,8 +1000,11 @@ def create_condition(
 ):
     """Create a new verification condition in a GitHub issue."""
     try:
-        # Initialize config loader and GitHub client with config
+        # Initialize config loader and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -1036,15 +1047,18 @@ def create_condition(
 
 @app.command(name="update-condition")
 def update_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
     requirements: str = typer.Option(..., "--requirements", "-r", help="New requirements text")
 ):
     """Update the requirements of an existing condition."""
     try:
-        # Initialize config loader and GitHub client with config
+        # Initialize config loader and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -1087,15 +1101,18 @@ def update_condition(
 
 @app.command(name="complete-condition")
 def complete_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
     evidence: str = typer.Option(..., "--evidence", "-e", help="Evidence that requirements were met")
 ):
     """Add evidence to a condition to mark it as complete."""
     try:
-        # Initialize config loader and GitHub client with config
+        # Initialize config loader and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -1139,15 +1156,18 @@ def complete_condition(
 
 @app.command(name="verify-condition")
 def verify_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
     signed_off_by: Optional[str] = typer.Option(None, "--signed-off-by", "-s", help="Username signing off (uses your GitHub username if not provided)")
 ):
     """Verify a condition and mark it as signed off."""
     try:
-        # Initialize config loader and GitHub client with config
+        # Initialize config loader and resolve repository
         config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
         try:
             config = config_loader.load()
             github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
@@ -1191,21 +1211,19 @@ def verify_condition(
 
 @app.command(name="start-plan")
 def start_plan(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from backlog to planning state."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -1253,21 +1271,19 @@ def start_plan(
 
 @app.command(name="submit-plan")
 def submit_plan(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from planning to awaiting-plan-approval state."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -1315,21 +1331,19 @@ def submit_plan(
 
 @app.command(name="approve-plan")
 def approve_plan(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from awaiting-plan-approval to plan-approved state."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -1377,21 +1391,19 @@ def approve_plan(
 
 @app.command(name="start-work")
 def start_work(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from plan-approved to in-progress state."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -1439,7 +1451,7 @@ def start_work(
 
 @app.command(name="submit-work")
 def submit_work(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
     force_submit_with_unclean_git: bool = typer.Option(False, "--force-submit-with-unclean-git", help="Submit work even with uncommitted git changes"),
@@ -1447,14 +1459,12 @@ def submit_work(
 ):
     """Transition an issue from in-progress to awaiting-completion-approval state."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()
@@ -1502,21 +1512,19 @@ def submit_work(
 
 @app.command(name="approve-work")
 def approve_work(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from awaiting-completion-approval to closed state."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader(config_path)
+        repo = resolve_repository(repo, config_loader)
         
         # Load configuration if available
         config = None
-        config_loader = ConfigLoader(config_path)
         if config_path:
             try:
                 config = config_loader.load()

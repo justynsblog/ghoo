@@ -61,17 +61,31 @@ PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/e2e/ -v
 
 ## Command Reference
 
-### **Repository Arguments**
-- **Positional repo**: `<repo>` - Required first argument (workflow, creation, content commands)
-- **Optional repo**: `--repo <repo>` - Uses config file if omitted (get commands only)
+### **🚨 CRITICAL: REPOSITORY PARAMETER REQUIREMENTS**
+**ALL COMMANDS MUST SUPPORT `--repo` PARAMETER OR DERIVE FROM CONFIG FILE**
 
-### **Issue Creation** (Positional repo)
-- `init-gh [--config <file>]`: Initialize repo with issue types and status labels
-- `create-epic <repo> <title>`: Create Epic with required sections
-- `create-task <repo> <parent_epic> <title>`: Create Task linked to Epic
-- `create-sub-task <repo> <parent_task> <title>`: Create Sub-task linked to Task (parent must be in planning/in-progress)
+**EVERY SINGLE COMMAND WITHOUT EXCEPTION USES:**
+- **OPTIONAL `--repo <owner/repo>`**: Named parameter, NOT positional
+- **CONFIG FALLBACK**: Uses `ghoo.yaml` project_url if `--repo` not specified
+- **NO POSITIONAL REPO**: Never use `<repo>` as positional argument
 
-### **Issue Display** (Optional repo)
+### **Repository Resolution Pattern**
+```bash
+# ✅ CORRECT: Optional --repo parameter
+ghoo create-epic --repo owner/repo "Title"
+ghoo create-epic "Title"  # Uses ghoo.yaml config
+
+# ❌ WRONG: Positional repo (NEVER DO THIS)
+ghoo create-epic owner/repo "Title"
+```
+
+### **Issue Creation**
+- `init-gh [--config <file>]`: Initialize repo with issue types and status labels (uses config)
+- `create-epic [--repo <repo>] <title>`: Create Epic with required sections
+- `create-task [--repo <repo>] <parent_epic> <title>`: Create Task linked to Epic
+- `create-sub-task [--repo <repo>] <parent_task> <title>`: Create Sub-task linked to Task
+
+### **Issue Display**
 - `get epic --id <number> [--repo <repo>]`: Display epic issue
 - `get task --id <number> [--repo <repo>]`: Display task issue  
 - `get subtask --id <number> [--repo <repo>]`: Display subtask issue
@@ -79,22 +93,42 @@ PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/e2e/ -v
 - `get section --issue-id <number> --title <title> [--repo <repo>]`: Display section
 - `get todo --issue-id <number> --section <section> --match <text> [--repo <repo>]`: Display todo
 
-### **Content Management** (Positional repo)
-- `set-body <repo> <issue_number> [--body <text>]`: Replace issue body content
-- `create-todo <repo> <issue_number> <section> <todo_text> [--create-section]`: Add todo to section
-- `check-todo <repo> <issue_number> <section> --match <text>`: Toggle todo completion
+### **Content Management**
+- `set-body [--repo <repo>] <issue_number> [--body <text>]`: Replace issue body content
+- `create-todo [--repo <repo>] <issue_number> <section> <todo_text>`: Add todo to section
+- `check-todo [--repo <repo>] <issue_number> <section> --match <text>`: Toggle todo completion
+- `create-section [--repo <repo>] <issue_number> <title>`: Add section to issue
+- `update-section [--repo <repo>] <issue_number> <title> --content <text>`: Update section content
 
-### **Workflow Commands** (Positional repo)
-- `start-plan <repo> <issue_number>`: backlog → planning
-- `submit-plan <repo> <issue_number>`: planning → awaiting-plan-approval (validates required sections)
-- `approve-plan <repo> <issue_number>`: awaiting-plan-approval → plan-approved
-- `start-work <repo> <issue_number>`: plan-approved → in-progress
-- `submit-work <repo> <issue_number>`: in-progress → awaiting-completion-approval
-- `approve-work <repo> <issue_number>`: awaiting-completion-approval → closed (**requires all todos complete and all sub-issues closed**)
+### **Condition Management**
+- `create-condition [--repo <repo>] <issue_number> <condition_text> --requirements <text>`: Create condition
+- `update-condition [--repo <repo>] <issue_number> <condition_match> --requirements <text>`: Update condition
+- `complete-condition [--repo <repo>] <issue_number> <condition_match> --evidence <text>`: Add evidence
+- `verify-condition [--repo <repo>] <issue_number> <condition_match>`: Sign off condition
+
+### **Comments**
+- `post-comment [--repo <repo>] <issue_number> <comment>`: Post comment to issue
+- `get-comments [--repo <repo>] <issue_number>`: Get all comments with timestamps
+- `get-latest-comment-timestamp [--repo <repo>] <issue_number>`: Get latest comment timestamp
+
+### **Workflow Commands**
+- `start-plan [--repo <repo>] <issue_number>`: backlog → planning
+- `submit-plan [--repo <repo>] <issue_number>`: planning → awaiting-plan-approval
+- `approve-plan [--repo <repo>] <issue_number>`: awaiting-plan-approval → plan-approved
+- `start-work [--repo <repo>] <issue_number>`: plan-approved → in-progress
+- `submit-work [--repo <repo>] <issue_number>`: in-progress → awaiting-completion-approval
+- `approve-work [--repo <repo>] <issue_number>`: awaiting-completion-approval → closed
 
 ### **Completion Requirements**
 - **All commands**: Work in any state except approve-work
 - **approve-work only**: Requires ALL todos checked AND ALL sub-issues closed
+
+### **🚨 COMMAND CONSISTENCY REQUIREMENTS**
+**NO EXCEPTIONS - ALL COMMANDS MUST:**
+1. **Support `--repo` as OPTIONAL named parameter**
+2. **Derive repository from `ghoo.yaml` if `--repo` not provided**
+3. **NEVER use positional `<repo>` arguments**
+4. **Handle missing config gracefully with clear error messages**
 
 ## Key References
 - `SPEC.md`: Technical specification
