@@ -14,6 +14,7 @@ from .core import (
     PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, GitHubClient, ConfigLoader
 )
 from .commands import get_app
+from .utils.repository import resolve_repository
 from .exceptions import (
     ConfigNotFoundError,
     InvalidYAMLError,
@@ -255,13 +256,9 @@ def create_todo(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
-        # Resolve repository from parameter or config
-        from ghoo.utils.repository import resolve_repository
-        resolved_repo = resolve_repository(repo, config_loader)
-        
         # Execute create-todo command
         create_todo_command = CreateTodoCommand(github_client)
-        result = create_todo_command.execute(resolved_repo, issue_number, section, todo_text, create_section)
+        result = create_todo_command.execute(repo, issue_number, section, todo_text, create_section)
         
         # Display success message
         typer.echo(f"✅ Todo added successfully!")
@@ -319,13 +316,9 @@ def check_todo(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
-        # Resolve repository from parameter or config
-        from ghoo.utils.repository import resolve_repository
-        resolved_repo = resolve_repository(repo, config_loader)
-        
         # Execute check-todo command
         check_todo_command = CheckTodoCommand(github_client)
-        result = check_todo_command.execute(resolved_repo, issue_number, section, match)
+        result = check_todo_command.execute(repo, issue_number, section, match)
         
         # Display success message
         action_emoji = "✅" if result['new_state'] else "⭕"
@@ -384,13 +377,9 @@ def create_section(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
-        # Resolve repository from parameter or config
-        from ghoo.utils.repository import resolve_repository
-        resolved_repo = resolve_repository(repo, config_loader)
-        
         # Execute create-section command
         create_section_command = CreateSectionCommand(github_client)
-        result = create_section_command.execute(resolved_repo, issue_number, section_name, content, position, relative_to)
+        result = create_section_command.execute(repo, issue_number, section_name, content, position, relative_to)
         
         # Display success message
         typer.echo(f"✅ Section created successfully!")
