@@ -184,12 +184,14 @@ class IssueService:
                         labels = [{'name': label['name'], 'color': label['color']} 
                                  for label in sub.get('labels', {}).get('nodes', [])]
                         workflow_status = self.extract_workflow_status(labels)
+                        assignees = [assignee['login'] for assignee in sub.get('assignees', {}).get('nodes', [])]
                         
                         processed_sub_issues.append({
                             'number': sub['number'],
                             'title': sub['title'],
                             'state': sub['state'].lower(),
                             'author': sub['author']['login'],
+                            'assignees': assignees,
                             'labels': labels,
                             'workflow_status': workflow_status
                         })
@@ -243,12 +245,14 @@ class IssueService:
                         labels = [{'name': label['name'], 'color': label['color']} 
                                  for label in sub.get('labels', {}).get('nodes', [])]
                         workflow_status = self.extract_workflow_status(labels)
+                        assignees = [assignee['login'] for assignee in sub.get('assignees', {}).get('nodes', [])]
                         
                         processed_sub_issues.append({
                             'number': sub['number'],
                             'title': sub['title'],
                             'state': sub['state'].lower(),
                             'author': sub['author']['login'],
+                            'assignees': assignees,
                             'labels': labels,
                             'workflow_status': workflow_status
                         })

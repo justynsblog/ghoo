@@ -380,6 +380,11 @@ class GraphQLClient:
                                     color
                                 }
                             }
+                            assignees(first: 10) {
+                                nodes {
+                                    login
+                                }
+                            }
                         }
                         pageInfo {
                             hasNextPage

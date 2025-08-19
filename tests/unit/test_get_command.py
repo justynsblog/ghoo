@@ -144,13 +144,15 @@ class TestGetCommand:
                             'number': 124,
                             'title': 'Sub-task 1',
                             'state': 'OPEN',
-                            'author': {'login': 'user1'}
+                            'author': {'login': 'user1'},
+                            'assignees': {'nodes': [{'login': 'assignee1'}]}
                         },
                         {
                             'number': 125,
                             'title': 'Sub-task 2',
                             'state': 'CLOSED',
-                            'author': {'login': 'user2'}
+                            'author': {'login': 'user2'},
+                            'assignees': {'nodes': []}
                         }
                     ]
                 }
@@ -171,7 +173,9 @@ class TestGetCommand:
         assert len(result['sub_issues']) == 2
         assert result['sub_issues'][0]['number'] == 124
         assert result['sub_issues'][0]['state'] == 'open'
+        assert result['sub_issues'][0]['assignees'] == ['assignee1']
         assert result['sub_issues'][1]['state'] == 'closed'
+        assert result['sub_issues'][1]['assignees'] == []
         
         assert 'sub_issues_summary' in result
         assert result['sub_issues_summary']['total'] == 2
@@ -423,7 +427,8 @@ class TestGetCommand:
                             'number': 124,
                             'title': 'Sub-issue',
                             'state': 'OPEN',
-                            'author': {'login': 'user1'}
+                            'author': {'login': 'user1'},
+                            'assignees': {'nodes': [{'login': 'assignee1'}]}
                         }
                     ]
                 }
@@ -454,3 +459,61 @@ class TestGetCommand:
             
             assert 'sub_issues_summary' in result
             assert result['sub_issues_summary']['total'] == 1
+    
+    def test_sub_issues_assignee_processing(self, get_command, mock_github_client):
+        """Test that assignees are correctly processed from GraphQL sub-issues data."""
+        # Setup GraphQL data with various assignee scenarios
+        mock_github_client.check_sub_issues_available.return_value = True
+        mock_github_client.get_issue_with_sub_issues.return_value = {
+            'node': {
+                'subIssues': {
+                    'nodes': [
+                        {
+                            'number': 124,
+                            'title': 'Task with single assignee',
+                            'state': 'OPEN',
+                            'author': {'login': 'author1'},
+                            'assignees': {'nodes': [{'login': 'assignee1'}]},
+                            'labels': {'nodes': []}
+                        },
+                        {
+                            'number': 125,
+                            'title': 'Task with multiple assignees',
+                            'state': 'OPEN',
+                            'author': {'login': 'author2'},
+                            'assignees': {'nodes': [{'login': 'assignee1'}, {'login': 'assignee2'}]},
+                            'labels': {'nodes': []}
+                        },
+                        {
+                            'number': 126,
+                            'title': 'Task with no assignees',
+                            'state': 'OPEN',
+                            'author': {'login': 'author3'},
+                            'assignees': {'nodes': []},
+                            'labels': {'nodes': []}
+                        }
+                    ]
+                }
+            }
+        }
+        mock_github_client.get_sub_issues_summary.return_value = {
+            'total': 3,
+            'open': 3,
+            'closed': 0,
+            'completion_rate': 0
+        }
+        
+        # Execute
+        result = get_command._get_epic_data("owner/repo", 123)
+        
+        # Verify assignees are correctly processed
+        assert len(result['sub_issues']) == 3
+        
+        # Single assignee
+        assert result['sub_issues'][0]['assignees'] == ['assignee1']
+        
+        # Multiple assignees
+        assert result['sub_issues'][1]['assignees'] == ['assignee1', 'assignee2']
+        
+        # No assignees
+        assert result['sub_issues'][2]['assignees'] == []
