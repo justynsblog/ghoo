@@ -402,9 +402,14 @@ def condition(
 ):
     """Get and display a specific condition from an issue by title match."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute get condition command
         get_condition_command = GetConditionCommand(github_client, config_loader)
@@ -458,9 +463,14 @@ def conditions(
 ):
     """List all verification conditions in a GitHub issue."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute get conditions command (note: we'll need to update GetConditionsCommand to use config_loader)
         get_conditions_command = GetConditionsCommand(github_client)
