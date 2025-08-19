@@ -977,9 +977,9 @@ def create_condition(
 ):
     """Create a new verification condition in a GitHub issue."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client
         config_loader = ConfigLoader()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Resolve repository from parameter or config
         from ghoo.utils.repository import resolve_repository
@@ -1027,9 +1027,9 @@ def update_condition(
 ):
     """Update the requirements of an existing condition."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client
         config_loader = ConfigLoader()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Resolve repository from parameter or config
         from ghoo.utils.repository import resolve_repository
@@ -1077,9 +1077,9 @@ def complete_condition(
 ):
     """Add evidence to a condition to mark it as complete."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client
         config_loader = ConfigLoader()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Resolve repository from parameter or config
         from ghoo.utils.repository import resolve_repository
@@ -1128,9 +1128,9 @@ def verify_condition(
 ):
     """Verify a condition and mark it as signed off."""
     try:
-        # Initialize GitHub client and config loader
-        github_client = GitHubClient()
+        # Initialize config loader and GitHub client
         config_loader = ConfigLoader()
+        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Resolve repository from parameter or config
         from ghoo.utils.repository import resolve_repository
