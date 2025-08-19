@@ -969,25 +969,25 @@ def create_sub_task(
 
 @app.command(name="create-condition")
 def create_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to add condition to"),
     condition_text: str = typer.Argument(..., help="Text description of the condition"),
     requirements: str = typer.Option(..., "--requirements", "-r", help="Requirements that must be met"),
-    position: str = typer.Option("end", "--position", "-p", help="Position to place condition (default: end)")
+    position: str = typer.Option("end", "--position", "-p", help="Position to place condition (default: end)"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (overrides config)")
 ):
     """Create a new verification condition in a GitHub issue."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize GitHub client
+        # Initialize GitHub client and config loader
         github_client = GitHubClient()
+        config_loader = ConfigLoader()
+        
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
         
         # Execute create-condition command
         create_condition_command = CreateConditionCommand(github_client)
-        result = create_condition_command.execute(repo, issue_number, condition_text, requirements, position)
+        result = create_condition_command.execute(resolved_repo, issue_number, condition_text, requirements, position)
         
         # Display success message
         typer.echo("✅ Condition created successfully!")
@@ -1020,24 +1020,24 @@ def create_condition(
 
 @app.command(name="update-condition")
 def update_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    requirements: str = typer.Option(..., "--requirements", "-r", help="New requirements text")
+    requirements: str = typer.Option(..., "--requirements", "-r", help="New requirements text"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (overrides config)")
 ):
     """Update the requirements of an existing condition."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize GitHub client
+        # Initialize GitHub client and config loader
         github_client = GitHubClient()
+        config_loader = ConfigLoader()
+        
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
         
         # Execute update-condition command
         update_condition_command = UpdateConditionCommand(github_client)
-        result = update_condition_command.execute(repo, issue_number, condition_match, requirements)
+        result = update_condition_command.execute(resolved_repo, issue_number, condition_match, requirements)
         
         # Display success message
         typer.echo("✅ Condition updated successfully!")
@@ -1070,24 +1070,24 @@ def update_condition(
 
 @app.command(name="complete-condition")
 def complete_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    evidence: str = typer.Option(..., "--evidence", "-e", help="Evidence that requirements were met")
+    evidence: str = typer.Option(..., "--evidence", "-e", help="Evidence that requirements were met"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (overrides config)")
 ):
     """Add evidence to a condition to mark it as complete."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize GitHub client
+        # Initialize GitHub client and config loader
         github_client = GitHubClient()
+        config_loader = ConfigLoader()
+        
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
         
         # Execute complete-condition command
         complete_condition_command = CompleteConditionCommand(github_client)
-        result = complete_condition_command.execute(repo, issue_number, condition_match, evidence)
+        result = complete_condition_command.execute(resolved_repo, issue_number, condition_match, evidence)
         
         # Display success message
         typer.echo("✅ Condition evidence added successfully!")
@@ -1121,24 +1121,24 @@ def complete_condition(
 
 @app.command(name="verify-condition")
 def verify_condition(
-    repo: str = typer.Argument(..., help="Repository in format 'owner/repo'"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    signed_off_by: Optional[str] = typer.Option(None, "--signed-off-by", "-s", help="Username signing off (uses your GitHub username if not provided)")
+    signed_off_by: Optional[str] = typer.Option(None, "--signed-off-by", "-s", help="Username signing off (uses your GitHub username if not provided)"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (overrides config)")
 ):
     """Verify a condition and mark it as signed off."""
     try:
-        # Validate repository format
-        if '/' not in repo or len(repo.split('/')) != 2:
-            typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
-            sys.exit(1)
-        
-        # Initialize GitHub client
+        # Initialize GitHub client and config loader
         github_client = GitHubClient()
+        config_loader = ConfigLoader()
+        
+        # Resolve repository from parameter or config
+        from ghoo.utils.repository import resolve_repository
+        resolved_repo = resolve_repository(repo, config_loader)
         
         # Execute verify-condition command
         verify_condition_command = VerifyConditionCommand(github_client)
-        result = verify_condition_command.execute(repo, issue_number, condition_match, signed_off_by)
+        result = verify_condition_command.execute(resolved_repo, issue_number, condition_match, signed_off_by)
         
         # Display success message
         status = "re-verified" if result['was_verified'] else "verified"
