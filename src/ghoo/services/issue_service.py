@@ -198,9 +198,18 @@ class IssueService:
                     
                     additional_data['sub_issues'] = processed_sub_issues
                     
-                    # Summary statistics
-                    summary = self.github.get_sub_issues_summary(repo, issue_number)
-                    additional_data['sub_issues_summary'] = summary
+                    # Calculate summary statistics locally from existing data
+                    total = len(processed_sub_issues)
+                    closed = sum(1 for sub in processed_sub_issues if sub['state'] == 'closed')
+                    open_count = total - closed
+                    completion_rate = (closed / total * 100) if total > 0 else 0
+                    
+                    additional_data['sub_issues_summary'] = {
+                        'total': total,
+                        'open': open_count,
+                        'closed': closed,
+                        'completion_rate': round(completion_rate, 1)
+                    }
         except (GraphQLError, FeatureUnavailableError):
             # Fall back to parsing issue body for task references
             github_repo = self.github.github.get_repo(repo)
@@ -259,9 +268,18 @@ class IssueService:
                     
                     additional_data['sub_issues'] = processed_sub_issues
                     
-                    # Summary statistics
-                    summary = self.github.get_sub_issues_summary(repo, issue_number)
-                    additional_data['sub_issues_summary'] = summary
+                    # Calculate summary statistics locally from existing data
+                    total = len(processed_sub_issues)
+                    closed = sum(1 for sub in processed_sub_issues if sub['state'] == 'closed')
+                    open_count = total - closed
+                    completion_rate = (closed / total * 100) if total > 0 else 0
+                    
+                    additional_data['sub_issues_summary'] = {
+                        'total': total,
+                        'open': open_count,
+                        'closed': closed,
+                        'completion_rate': round(completion_rate, 1)
+                    }
         except (GraphQLError, FeatureUnavailableError):
             # Fall back to parsing issue body for subtask references
             github_repo = self.github.github.get_repo(repo)
