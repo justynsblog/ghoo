@@ -190,11 +190,14 @@ def set_body(
                 sys.exit(1)
             new_body = sys.stdin.read()
         
-        # Initialize config loader for token lookup
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        
-        # Initialize GitHub client
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute set-body command
         set_body_command = SetBodyCommand(github_client)
@@ -246,11 +249,14 @@ def create_todo(
             typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
             sys.exit(1)
         
-        # Initialize config loader for token lookup
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        
-        # Initialize GitHub client
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute create-todo command
         create_todo_command = CreateTodoCommand(github_client)
@@ -305,11 +311,14 @@ def check_todo(
             typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
             sys.exit(1)
         
-        # Initialize config loader for token lookup
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        
-        # Initialize GitHub client
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute check-todo command
         check_todo_command = CheckTodoCommand(github_client)
@@ -365,11 +374,14 @@ def create_section(
             typer.echo(f"❌ Invalid repository format '{repo}'. Expected 'owner/repo'", err=True)
             sys.exit(1)
         
-        # Initialize config loader for token lookup
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        
-        # Initialize GitHub client
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute create-section command
         create_section_command = CreateSectionCommand(github_client)
@@ -449,11 +461,14 @@ def update_section(
         # Convert Path to string for content_file
         content_file_str = str(content_file) if content_file else None
         
-        # Initialize config loader for token lookup
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        
-        # Initialize GitHub client
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute update-section command
         update_section_command = UpdateSectionCommand(github_client)

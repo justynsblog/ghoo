@@ -230,9 +230,14 @@ def milestone(
 ):
     """Get and display a Milestone with associated issues."""
     try:
-        # Initialize GitHub client and config loader
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute get milestone command
         get_milestone_command = GetMilestoneCommand(github_client, config_loader)
@@ -287,9 +292,14 @@ def section(
 ):
     """Get and display a specific section from an issue."""
     try:
-        # Initialize GitHub client and config loader
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute get section command
         get_section_command = GetSectionCommand(github_client, config_loader)
@@ -345,9 +355,14 @@ def todo(
 ):
     """Get and display a specific todo item from an issue section."""
     try:
-        # Initialize GitHub client and config loader
+        # Initialize config loader and GitHub client with config
         config_loader = ConfigLoader()
-        github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
         # Execute get todo command
         get_todo_command = GetTodoCommand(github_client, config_loader)
