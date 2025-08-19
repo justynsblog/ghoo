@@ -69,6 +69,34 @@ PYTHONPATH=/home/justyn/ghoo/src python3 -m pytest tests/e2e/ -v
 - **CONFIG FALLBACK**: Uses `ghoo.yaml` project_url if `--repo` not specified
 - **NO POSITIONAL REPO**: Never use `<repo>` as positional argument
 
+### **🚨 BREAKING CHANGES v0.2.0**
+**Two commands have breaking changes in v0.2.0:**
+
+1. **`create-todo`**: Now uses `--text` parameter instead of positional
+   ```bash
+   # OLD: ghoo create-todo --repo owner/repo 123 "section" "todo text"  
+   # NEW: ghoo create-todo --repo owner/repo 123 "section" --text "todo text"
+   ```
+
+2. **`post-comment`**: Now uses `--comment` parameter instead of positional  
+   ```bash
+   # OLD: ghoo post-comment --repo owner/repo 123 "comment text"
+   # NEW: ghoo post-comment --repo owner/repo 123 --comment "comment text"
+   ```
+
+### **📁 FILE INPUT SUPPORT v0.2.0**
+**All commands now support consistent file input patterns:**
+
+- **Inline**: `--text "content"`, `--body "content"`, `--requirements "content"`
+- **File**: `--text-file file.txt`, `--body-file file.md`, `--requirements-file reqs.md`  
+- **STDIN**: `echo "content" | ghoo command` or `cat file.txt | ghoo command`
+
+**Key Commands with File Support:**
+- Issue creation: `--body-file` + STDIN
+- Content: `--text-file`, `--comment-file`, `--content-file` + STDIN  
+- Conditions: `--requirements-file`, `--evidence-file` + STDIN
+- Workflow: `--message-file` + STDIN
+
 ### **Repository Resolution Pattern**
 ```bash
 # ✅ CORRECT: Optional --repo parameter
@@ -93,12 +121,13 @@ ghoo create-epic owner/repo "Title"
 - `get section --issue-id <number> --title <title> [--repo <repo>]`: Display section
 - `get todo --issue-id <number> --section <section> --match <text> [--repo <repo>]`: Display todo
 
-### **Content Management**
-- `set-body [--repo <repo>] <issue_number> [--body <text>]`: Replace issue body content
-- `create-todo [--repo <repo>] <issue_number> <section> <todo_text>`: Add todo to section
+### **Content Management** (🆕 File Input Support)
+- `set-body [--repo <repo>] <issue_number> [--body <text>|--body-file <file>]`: Replace issue body content
+- `create-todo [--repo <repo>] <issue_number> <section> [--text <text>|--text-file <file>]`: Add todo to section  
 - `check-todo [--repo <repo>] <issue_number> <section> --match <text>`: Toggle todo completion
-- `create-section [--repo <repo>] <issue_number> <title>`: Add section to issue
-- `update-section [--repo <repo>] <issue_number> <title> --content <text>`: Update section content
+- `create-section [--repo <repo>] <issue_number> <title> [--content <text>|--content-file <file>]`: Add section to issue
+- `update-section [--repo <repo>] <issue_number> <title> [--content <text>|--content-file <file>]`: Update section content
+- `post-comment [--repo <repo>] <issue_number> [--comment <text>|--comment-file <file>]`: Post issue comment
 
 ### **Condition Management**
 - `create-condition [--repo <repo>] <issue_number> <condition_text> --requirements <text>`: Create condition

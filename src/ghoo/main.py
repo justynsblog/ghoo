@@ -239,11 +239,24 @@ def create_todo(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to add todo to"),
     section: str = typer.Argument(..., help="Section name to add todo to"),
-    todo_text: str = typer.Argument(..., help="Text of the todo item"),
+    text: Optional[str] = typer.Option(None, "--text", "-t", help="Text of the todo item"),
+    text_file: Optional[Path] = typer.Option(None, "--text-file", "-f", help="Read todo text from file"),
     create_section: bool = typer.Option(False, "--create-section", "-c", help="Create section if it doesn't exist")
 ):
     """Add a new todo item to a section in a GitHub issue."""
     try:
+        # Resolve todo text from various sources
+        if text_file:
+            todo_text = text_file.read_text(encoding='utf-8')
+        elif text:
+            todo_text = text
+        else:
+            # Read from STDIN
+            if sys.stdin.isatty():
+                typer.echo("❌ No todo text provided. Use --text, --text-file, or pipe content to STDIN", err=True)
+                sys.exit(1)
+            todo_text = sys.stdin.read()
+        
         # Load configuration and resolve repository
         config_loader = ConfigLoader()
         repo = resolve_repository(repo, config_loader)
@@ -360,6 +373,7 @@ def create_section(
     issue_number: int = typer.Argument(..., help="Issue number to add section to"),
     section_name: str = typer.Argument(..., help="Name of the section to create"),
     content: Optional[str] = typer.Option(None, "--content", "-c", help="Optional initial content for the section"),
+    content_file: Optional[Path] = typer.Option(None, "--content-file", "-f", help="Read section content from file"),
     position: str = typer.Option("end", "--position", "-p", help="Position strategy: 'end', 'before', or 'after' (default: end)"),
     relative_to: Optional[str] = typer.Option(None, "--relative-to", "-r", help="Reference section name for 'before'/'after' positioning")
 ):
@@ -377,9 +391,21 @@ def create_section(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve content from various sources
+        if content_file:
+            content_text = content_file.read_text(encoding='utf-8')
+        elif content:
+            content_text = content
+        elif not sys.stdin.isatty():
+            # STDIN support for content
+            content_text = sys.stdin.read()
+        else:
+            # No content provided - section will be created empty
+            content_text = None
+        
         # Execute create-section command
         create_section_command = CreateSectionCommand(github_client)
-        result = create_section_command.execute(repo, issue_number, section_name, content, position, relative_to)
+        result = create_section_command.execute(repo, issue_number, section_name, content_text, position, relative_to)
         
         # Display success message
         typer.echo(f"✅ Section created successfully!")
@@ -462,6 +488,11 @@ def update_section(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Handle STDIN input if no other content sources provided
+        if not content and not content_file and not clear and not sys.stdin.isatty():
+            # Read from STDIN
+            content = sys.stdin.read()
+        
         # Execute update-section command
         update_section_command = UpdateSectionCommand(github_client)
         result = update_section_command.execute(
@@ -519,11 +550,24 @@ def update_section(
 def post_comment(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to comment on"),
-    comment: str = typer.Argument(..., help="Comment text to post"),
+    comment: Optional[str] = typer.Option(None, "--comment", help="Comment text to post"),
+    comment_file: Optional[Path] = typer.Option(None, "--comment-file", "-f", help="Read comment text from file"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Post a comment to a GitHub issue."""
     try:
+        # Resolve comment text from various sources
+        if comment_file:
+            comment_text = comment_file.read_text(encoding='utf-8')
+        elif comment:
+            comment_text = comment
+        else:
+            # Read from STDIN
+            if sys.stdin.isatty():
+                typer.echo("❌ No comment text provided. Use --comment, --comment-file, or pipe content to STDIN", err=True)
+                sys.exit(1)
+            comment_text = sys.stdin.read()
+        
         # Load configuration and resolve repository
         config_loader = ConfigLoader(config_path)
         repo = resolve_repository(repo, config_loader)
@@ -546,7 +590,7 @@ def post_comment(
         
         typer.echo(f"💬 Posting comment to issue #{issue_number} in {repo}...")
         
-        result = post_comment_cmd.execute(repo, issue_number, comment)
+        result = post_comment_cmd.execute(repo, issue_number, comment_text)
         
         # Display success message
         typer.echo(f"✅ Comment posted successfully!", color=typer.colors.GREEN)
@@ -695,6 +739,7 @@ def create_epic(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     title: str = typer.Argument(..., help="Epic title"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom epic body (uses template if not provided)"),
+    body_file: Optional[Path] = typer.Option(None, "--body-file", "-f", help="Read epic body from file"),
     labels: Optional[str] = typer.Option(None, "--labels", "-l", help="Comma-separated list of additional labels"),
     assignees: Optional[str] = typer.Option(None, "--assignees", "-a", help="Comma-separated list of GitHub usernames to assign"),
     milestone: Optional[str] = typer.Option(None, "--milestone", "-m", help="Milestone title to assign"),
@@ -729,12 +774,24 @@ def create_epic(
         # Initialize GitHub client with config
         github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
+        # Resolve body text from various sources
+        if body_file:
+            body_text = body_file.read_text(encoding='utf-8')
+        elif body:
+            body_text = body
+        elif not sys.stdin.isatty():
+            # STDIN support for body
+            body_text = sys.stdin.read()
+        else:
+            # No input provided - let the command use template
+            body_text = None
+        
         # Execute create epic command
         create_command = CreateEpicCommand(github_client, config)
         result = create_command.execute(
             repo=repo,
             title=title,
-            body=body,
+            body=body_text,
             labels=labels_list,
             assignees=assignees_list,
             milestone=milestone
@@ -785,6 +842,7 @@ def create_task(
     parent_epic: int = typer.Argument(..., help="Issue number of the parent epic"),
     title: str = typer.Argument(..., help="Task title"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom task body (uses template if not provided)"),
+    body_file: Optional[Path] = typer.Option(None, "--body-file", "-f", help="Read task body from file"),
     labels: Optional[str] = typer.Option(None, "--labels", "-l", help="Comma-separated list of additional labels"),
     assignees: Optional[str] = typer.Option(None, "--assignees", "-a", help="Comma-separated list of GitHub usernames to assign"),
     milestone: Optional[str] = typer.Option(None, "--milestone", "-m", help="Milestone title to assign"),
@@ -819,6 +877,18 @@ def create_task(
         # Initialize GitHub client with config
         github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
+        # Resolve body text from various sources
+        if body_file:
+            body_text = body_file.read_text(encoding='utf-8')
+        elif body:
+            body_text = body
+        elif not sys.stdin.isatty():
+            # STDIN support for body
+            body_text = sys.stdin.read()
+        else:
+            # No input provided - let the command use template
+            body_text = None
+        
         # Create task command
         create_task_cmd = CreateTaskCommand(github_client, config)
         
@@ -829,7 +899,7 @@ def create_task(
             repo=repo,
             parent_epic=parent_epic,
             title=title,
-            body=body,
+            body=body_text,
             labels=labels_list,
             assignees=assignees_list,
             milestone=milestone
@@ -877,6 +947,7 @@ def create_sub_task(
     parent_task: int = typer.Argument(..., help="Issue number of the parent task"),
     title: str = typer.Argument(..., help="Sub-task title"),
     body: Optional[str] = typer.Option(None, "--body", "-b", help="Custom sub-task body (uses template if not provided)"),
+    body_file: Optional[Path] = typer.Option(None, "--body-file", "-f", help="Read sub-task body from file"),
     labels: Optional[str] = typer.Option(None, "--labels", "-l", help="Comma-separated list of additional labels"),
     assignees: Optional[str] = typer.Option(None, "--assignees", "-a", help="Comma-separated list of GitHub usernames to assign"),
     milestone: Optional[str] = typer.Option(None, "--milestone", "-m", help="Milestone title to assign"),
@@ -911,6 +982,18 @@ def create_sub_task(
         # Initialize GitHub client with config
         github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
+        # Resolve body text from various sources
+        if body_file:
+            body_text = body_file.read_text(encoding='utf-8')
+        elif body:
+            body_text = body
+        elif not sys.stdin.isatty():
+            # STDIN support for body
+            body_text = sys.stdin.read()
+        else:
+            # No input provided - let the command use template
+            body_text = None
+        
         # Create sub-task command
         create_sub_task_cmd = CreateSubTaskCommand(github_client, config)
         
@@ -921,7 +1004,7 @@ def create_sub_task(
             repo=repo,
             parent_task=parent_task,
             title=title,
-            body=body,
+            body=body_text,
             labels=labels_list,
             assignees=assignees_list,
             milestone=milestone
@@ -967,7 +1050,8 @@ def create_condition(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to add condition to"),
     condition_text: str = typer.Argument(..., help="Text description of the condition"),
-    requirements: str = typer.Option(..., "--requirements", "-r", help="Requirements that must be met"),
+    requirements: Optional[str] = typer.Option(None, "--requirements", "-r", help="Requirements that must be met"),
+    requirements_file: Optional[Path] = typer.Option(None, "--requirements-file", "-f", help="Read requirements from file"),
     position: str = typer.Option("end", "--position", "-p", help="Position to place condition (default: end)")
 ):
     """Create a new verification condition in a GitHub issue."""
@@ -984,9 +1068,22 @@ def create_condition(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve requirements from various sources
+        if requirements_file:
+            requirements_text = requirements_file.read_text(encoding='utf-8')
+        elif requirements:
+            requirements_text = requirements
+        elif not sys.stdin.isatty():
+            # STDIN support for requirements
+            requirements_text = sys.stdin.read()
+        else:
+            # No requirements provided
+            typer.echo("❌ No requirements provided. Use --requirements, --requirements-file, or pipe to STDIN", err=True)
+            sys.exit(1)
+        
         # Execute create-condition command
         create_condition_command = CreateConditionCommand(github_client)
-        result = create_condition_command.execute(repo, issue_number, condition_text, requirements, position)
+        result = create_condition_command.execute(repo, issue_number, condition_text, requirements_text, position)
         
         # Display success message
         typer.echo("✅ Condition created successfully!")
@@ -1022,7 +1119,8 @@ def update_condition(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    requirements: str = typer.Option(..., "--requirements", "-r", help="New requirements text")
+    requirements: Optional[str] = typer.Option(None, "--requirements", "-r", help="New requirements text"),
+    requirements_file: Optional[Path] = typer.Option(None, "--requirements-file", "-f", help="Read requirements from file")
 ):
     """Update the requirements of an existing condition."""
     try:
@@ -1038,9 +1136,22 @@ def update_condition(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve requirements from various sources
+        if requirements_file:
+            requirements_text = requirements_file.read_text(encoding='utf-8')
+        elif requirements:
+            requirements_text = requirements
+        elif not sys.stdin.isatty():
+            # STDIN support for requirements
+            requirements_text = sys.stdin.read()
+        else:
+            # No requirements provided
+            typer.echo("❌ No requirements provided. Use --requirements, --requirements-file, or pipe to STDIN", err=True)
+            sys.exit(1)
+        
         # Execute update-condition command
         update_condition_command = UpdateConditionCommand(github_client)
-        result = update_condition_command.execute(repo, issue_number, condition_match, requirements)
+        result = update_condition_command.execute(repo, issue_number, condition_match, requirements_text)
         
         # Display success message
         typer.echo("✅ Condition updated successfully!")
@@ -1076,7 +1187,8 @@ def complete_condition(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to update"),
     condition_match: str = typer.Argument(..., help="Text to match against condition text"),
-    evidence: str = typer.Option(..., "--evidence", "-e", help="Evidence that requirements were met")
+    evidence: Optional[str] = typer.Option(None, "--evidence", "-e", help="Evidence that requirements were met"),
+    evidence_file: Optional[Path] = typer.Option(None, "--evidence-file", "-f", help="Read evidence from file")
 ):
     """Add evidence to a condition to mark it as complete."""
     try:
@@ -1092,9 +1204,22 @@ def complete_condition(
             # If config loading fails, use client without config
             github_client = GitHubClient(config_dir=config_loader.get_config_dir())
         
+        # Resolve evidence from various sources
+        if evidence_file:
+            evidence_text = evidence_file.read_text(encoding='utf-8')
+        elif evidence:
+            evidence_text = evidence
+        elif not sys.stdin.isatty():
+            # STDIN support for evidence
+            evidence_text = sys.stdin.read()
+        else:
+            # No evidence provided
+            typer.echo("❌ No evidence provided. Use --evidence, --evidence-file, or pipe to STDIN", err=True)
+            sys.exit(1)
+        
         # Execute complete-condition command
         complete_condition_command = CompleteConditionCommand(github_client)
-        result = complete_condition_command.execute(repo, issue_number, condition_match, evidence)
+        result = complete_condition_command.execute(repo, issue_number, condition_match, evidence_text)
         
         # Display success message
         typer.echo("✅ Condition evidence added successfully!")
@@ -1246,6 +1371,7 @@ def submit_plan(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    message_file: Optional[Path] = typer.Option(None, "--message-file", "-f", help="Read message from file"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
     """Transition an issue from planning to awaiting-plan-approval state."""
@@ -1266,9 +1392,21 @@ def submit_plan(
         # Initialize GitHub client with config
         github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
+        # Resolve message from various sources
+        if message_file:
+            message_text = message_file.read_text(encoding='utf-8')
+        elif message:
+            message_text = message
+        elif not sys.stdin.isatty():
+            # STDIN support for message
+            message_text = sys.stdin.read()
+        else:
+            # No message provided - this is optional for workflow commands
+            message_text = None
+        
         # Execute submit-plan command
         submit_plan_command = SubmitPlanCommand(github_client, config)
-        result = submit_plan_command.execute_transition(repo, issue_number, message)
+        result = submit_plan_command.execute_transition(repo, issue_number, message_text)
         
         # Display success message
         typer.echo(f"✅ Plan submitted for approval!", color=typer.colors.GREEN)
@@ -1426,6 +1564,7 @@ def submit_work(
     repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
     issue_number: int = typer.Argument(..., help="Issue number to transition"),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Optional message for the audit trail"),
+    message_file: Optional[Path] = typer.Option(None, "--message-file", "-f", help="Read message from file"),
     force_submit_with_unclean_git: bool = typer.Option(False, "--force-submit-with-unclean-git", help="Submit work even with uncommitted git changes"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to ghoo.yaml configuration file")
 ):
@@ -1447,9 +1586,21 @@ def submit_work(
         # Initialize GitHub client with config
         github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
         
+        # Resolve message from various sources
+        if message_file:
+            message_text = message_file.read_text(encoding='utf-8')
+        elif message:
+            message_text = message
+        elif not sys.stdin.isatty():
+            # STDIN support for message
+            message_text = sys.stdin.read()
+        else:
+            # No message provided - this is optional for workflow commands
+            message_text = None
+        
         # Execute submit-work command
         submit_work_command = SubmitWorkCommand(github_client, config)
-        result = submit_work_command.execute_transition(repo, issue_number, message, force_unclean_git=force_submit_with_unclean_git)
+        result = submit_work_command.execute_transition(repo, issue_number, message_text, force_unclean_git=force_submit_with_unclean_git)
         
         # Display success message
         typer.echo(f"✅ Work submitted for approval!", color=typer.colors.GREEN)

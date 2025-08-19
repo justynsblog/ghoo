@@ -59,7 +59,7 @@ Some notes for testing.
         
         result = subprocess.run([
             'uv', 'run', 'ghoo', 'create-epic',
-            github_env['repo'], unique_title,
+            '--repo', github_env['repo'], unique_title,
             '--body', initial_body
         ], capture_output=True, text=True, env=github_env['env'], timeout=30)
         
@@ -134,8 +134,8 @@ Some notes for testing.
         """Test creating a todo in an existing section."""
         # Add new todo to Tasks section
         result = self._run_ghoo_command([
-            'create-todo', github_env['repo'], str(test_issue_with_sections['number']),
-            'Tasks', 'New E2E test task'
+            'create-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
+            'Tasks', '--text', 'New E2E test task'
         ], github_env['env'])
         
         # Verify command succeeded
@@ -156,8 +156,8 @@ Some notes for testing.
         """Test creating a todo in a new section."""
         # Add todo to new section
         result = self._run_ghoo_command([
-            'create-todo', github_env['repo'], str(test_issue_with_sections['number']),
-            'New Section', 'Todo in new section', '--create-section'
+            'create-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
+            'New Section', '--text', 'Todo in new section', '--create-section'
         ], github_env['env'])
         
         # Verify command succeeded
@@ -176,7 +176,7 @@ Some notes for testing.
         """Test checking an unchecked todo."""
         # Check the first unchecked todo
         result = self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'Initial task 1'
         ], github_env['env'])
         
@@ -196,7 +196,7 @@ Some notes for testing.
         """Test unchecking a checked todo."""
         # Uncheck the already-checked todo
         result = self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'Initial task 2'
         ], github_env['env'])
         
@@ -214,7 +214,7 @@ Some notes for testing.
         """Test partial matching of todo text."""
         # Use partial match to find todo
         result = self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'task 3'
         ], github_env['env'])
         
@@ -233,8 +233,8 @@ Some notes for testing.
         
         # Create todo with special characters
         result = self._run_ghoo_command([
-            'create-todo', github_env['repo'], str(test_issue_with_sections['number']),
-            'Tasks', special_todo
+            'create-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
+            'Tasks', '--text', special_todo
         ], github_env['env'])
         
         assert result.returncode == 0, f"create-todo with special chars failed: {result.stderr}"
@@ -245,7 +245,7 @@ Some notes for testing.
         
         # Check the todo with special characters using partial match
         result = self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'émojis'
         ], github_env['env'])
         
@@ -259,8 +259,8 @@ Some notes for testing.
         """Test error when creating duplicate todo."""
         # Try to create duplicate todo
         result = self._run_ghoo_command([
-            'create-todo', github_env['repo'], str(test_issue_with_sections['number']),
-            'Tasks', 'Initial task 1'
+            'create-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
+            'Tasks', '--text', 'Initial task 1'
         ], github_env['env'])
         
         # Verify command failed with appropriate error
@@ -271,8 +271,8 @@ Some notes for testing.
         """Test error when section doesn't exist."""
         # Try to create todo in non-existent section without --create-section
         result = self._run_ghoo_command([
-            'create-todo', github_env['repo'], str(test_issue_with_sections['number']),
-            'Nonexistent Section', 'Some task'
+            'create-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
+            'Nonexistent Section', '--text', 'Some task'
         ], github_env['env'])
         
         # Verify command failed with helpful error
@@ -286,7 +286,7 @@ Some notes for testing.
         """Test error when todo doesn't exist."""
         # Try to check non-existent todo
         result = self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'nonexistent task'
         ], github_env['env'])
         
@@ -299,7 +299,7 @@ Some notes for testing.
         """Test error when match is ambiguous."""
         # Try to match multiple todos with generic term
         result = self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'Initial'
         ], github_env['env'])
         
@@ -314,7 +314,7 @@ Some notes for testing.
         
         for invalid_repo in invalid_repos:
             result = self._run_ghoo_command([
-                'create-todo', invalid_repo, '1', 'Tasks', 'Some task'
+                'create-todo', '--repo', invalid_repo, '1', 'Tasks', '--text', 'Some task'
             ], github_env['env'])
             
             assert result.returncode != 0
@@ -324,7 +324,7 @@ Some notes for testing.
         """Test error handling for non-existent issue number."""
         # Try to add todo to non-existent issue
         result = self._run_ghoo_command([
-            'create-todo', github_env['repo'], '999999', 'Tasks', 'Some task'
+            'create-todo', '--repo', github_env['repo'], '999999', 'Tasks', '--text', 'Some task'
         ], github_env['env'])
         
         # Verify appropriate error
@@ -338,12 +338,12 @@ Some notes for testing.
         
         # Perform multiple todo operations
         self._run_ghoo_command([
-            'create-todo', github_env['repo'], str(test_issue_with_sections['number']),
-            'Tasks', 'Test preservation'
+            'create-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
+            'Tasks', '--text', 'Test preservation'
         ], github_env['env'])
         
         self._run_ghoo_command([
-            'check-todo', github_env['repo'], str(test_issue_with_sections['number']),
+            'check-todo', '--repo', github_env['repo'], str(test_issue_with_sections['number']),
             'Tasks', '--match', 'Test preservation'
         ], github_env['env'])
         

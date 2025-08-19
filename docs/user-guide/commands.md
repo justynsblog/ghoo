@@ -4,6 +4,69 @@
 
 This document provides a complete reference for all `ghoo` commands, including those currently implemented and those planned for future phases.
 
+## File Input Support (v0.2.0+)
+
+**ghoo v0.2.0** introduces comprehensive file input support across all commands. Every command that accepts text content now supports:
+
+- **Inline text**: Direct command line parameter (e.g., `--text "content"`)
+- **File input**: Read content from file (e.g., `--text-file content.txt`)
+- **STDIN**: Pipe content from other commands (e.g., `cat content.txt | ghoo command`)
+
+### File Input Pattern Summary
+
+| Command Type | Inline Parameter | File Parameter | STDIN Support |
+|--------------|------------------|----------------|---------------|
+| **Issue Creation** | | | |
+| `create-epic` | `--body` | `--body-file` | ✅ |
+| `create-task` | `--body` | `--body-file` | ✅ |
+| `create-sub-task` | `--body` | `--body-file` | ✅ |
+| **Content Management** | | | |
+| `create-todo` | `--text` | `--text-file` | ✅ |
+| `post-comment` | `--comment` | `--comment-file` | ✅ |
+| `set-body` | `--body` | `--body-file` | ✅ |
+| `create-section` | `--content` | `--content-file` | ✅ |
+| `update-section` | `--content` | `--content-file` | ✅ |
+| **Condition Commands** | | | |
+| `create-condition` | `--requirements` | `--requirements-file` | ✅ |
+| `update-condition` | `--requirements` | `--requirements-file` | ✅ |
+| `complete-condition` | `--evidence` | `--evidence-file` | ✅ |
+| **Workflow Commands** | | | |
+| `submit-plan` | `--message` | `--message-file` | ✅ |
+| `submit-work` | `--message` | `--message-file` | ✅ |
+
+### Breaking Changes (v0.2.0)
+
+⚠️ **Two commands have breaking changes**:
+
+1. **`create-todo`**: Now requires `--text` parameter instead of positional argument
+   ```bash
+   # OLD (v0.1.x): ghoo create-todo repo 123 "section" "todo text"
+   # NEW (v0.2.0): ghoo create-todo --repo repo 123 "section" --text "todo text"
+   ```
+
+2. **`post-comment`**: Now requires `--comment` parameter instead of positional argument
+   ```bash
+   # OLD (v0.1.x): ghoo post-comment repo 123 "comment text"
+   # NEW (v0.2.0): ghoo post-comment --repo repo 123 --comment "comment text"
+   ```
+
+### File Input Examples
+
+```bash
+# Use file input for complex issue bodies
+ghoo create-epic --repo my-org/my-repo "Epic Title" --body-file epic-template.md
+
+# Pipe from template generators
+envsubst < issue-template.md | ghoo create-task --repo my-org/my-repo 123 "Task Title"
+
+# Use with external editors
+vim requirements.md
+ghoo create-condition --repo my-org/my-repo 456 "Condition" --requirements-file requirements.md
+
+# Combine with other tools
+curl https://example.com/changelog.md | ghoo post-comment --repo my-org/my-repo 789
+```
+
 ## Implemented Commands
 
 ### ghoo init-gh
@@ -299,31 +362,36 @@ System status: OK" | ghoo set-body my-org/my-repo 456
 Add a new todo item to a section in a GitHub issue.
 
 ```bash
-ghoo create-todo <repository> <issue_number> <section> <todo_text> [options]
+ghoo create-todo --repo <repository> <issue_number> <section> [options]
 ```
 
 **Arguments:**
-- `repository`: Repository in format "owner/name"
 - `issue_number`: Issue number to add todo to
 - `section`: Section name to add todo to (case-insensitive)
-- `todo_text`: Text of the todo item
 
-**Options:**
+**Options (one required):**
+- `--repo`: Repository in format "owner/name" (uses config if not specified)
+- `--text, -t`: Text of the todo item
+- `--text-file, -f`: Read todo text from file
+- STDIN: Pipe content via stdin (when no options provided)
 - `--create-section, -c`: Create the section if it doesn't exist
 
 **Examples:**
 ```bash
-# Add todo to existing section
-ghoo create-todo my-org/my-repo 123 "Acceptance Criteria" "Add user authentication"
+# Add todo with inline text
+ghoo create-todo --repo my-org/my-repo 123 "Acceptance Criteria" --text "Add user authentication"
 
-# Create section if needed and add todo
-ghoo create-todo my-org/my-repo 123 "Testing" "Write unit tests" --create-section
+# Add todo from file
+ghoo create-todo --repo my-org/my-repo 123 "Testing" --text-file todo.txt --create-section
 
-# Add todo with special characters
-ghoo create-todo my-org/my-repo 456 "Implementation Plan" "Setup OAuth 2.0 integration"
+# Pipe todo text from stdin
+echo "Setup OAuth 2.0 integration" | ghoo create-todo --repo my-org/my-repo 456 "Implementation Plan"
 
 # Add todo with Unicode/emoji
-ghoo create-todo my-org/my-repo 789 "Tasks" "✨ Add dark mode support"
+ghoo create-todo --repo my-org/my-repo 789 "Tasks" --text "✨ Add dark mode support"
+
+# Use with config file (no --repo needed)
+ghoo create-todo 123 "Acceptance Criteria" --text "Add user authentication"
 ```
 
 **Features:**
