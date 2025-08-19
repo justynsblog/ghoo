@@ -2564,22 +2564,31 @@ class IssueParser:
         
         # Regex patterns
         section_pattern = re.compile(r'^## (.+)$')
+        condition_pattern = re.compile(r'^### CONDITION: (.+)$', re.IGNORECASE)
         todo_pattern = re.compile(r'^- \[([x\s])\] (.+)$', re.IGNORECASE)
         
         for line_number, line in enumerate(lines, 1):
             line = line.rstrip()
             
-            # Check if this is a section header
+            # Check if this is a section header (H2) or condition header (H3)
             section_match = section_pattern.match(line)
+            condition_match = condition_pattern.match(line)
             
-            if section_match:
+            if section_match or condition_match:
                 # Save previous section if it exists
                 if current_section is not None:
                     current_section['body'] = '\n'.join(current_section_lines).strip()
                     
-                    # Handle Log section specially
+                    # Handle different section types
                     if current_section['title'] == 'Log':
                         log_entries = IssueParser._parse_log_section(current_section['body'])
+                    elif current_section.get('is_condition', False):
+                        # Condition section - store as-is, don't extract todos
+                        sections.append(Section(
+                            title=current_section['title'],
+                            body=current_section['body'],
+                            todos=[]  # Conditions don't have todos in the traditional sense
+                        ))
                     else:
                         # Regular section
                         current_section['todos'] = IssueParser._extract_todos_from_lines(
@@ -2598,11 +2607,22 @@ class IssueParser:
                     found_first_section = True
                 
                 # Start new section
-                current_section = {
-                    'title': section_match.group(1).strip(),
-                    'body': '',
-                    'todos': []
-                }
+                if section_match:
+                    # Regular H2 section
+                    current_section = {
+                        'title': section_match.group(1).strip(),
+                        'body': '',
+                        'todos': [],
+                        'is_condition': False
+                    }
+                else:
+                    # H3 condition section
+                    current_section = {
+                        'title': f"CONDITION: {condition_match.group(1).strip()}",
+                        'body': '',
+                        'todos': [],
+                        'is_condition': True
+                    }
                 current_section_lines = []
             else:
                 # Add line to appropriate container
@@ -2615,9 +2635,16 @@ class IssueParser:
         if current_section is not None:
             current_section['body'] = '\n'.join(current_section_lines).strip()
             
-            # Handle Log section specially
+            # Handle different section types
             if current_section['title'] == 'Log':
                 log_entries = IssueParser._parse_log_section(current_section['body'])
+            elif current_section.get('is_condition', False):
+                # Condition section - store as-is, don't extract todos
+                sections.append(Section(
+                    title=current_section['title'],
+                    body=current_section['body'],
+                    todos=[]  # Conditions don't have todos in the traditional sense
+                ))
             else:
                 # Regular section
                 current_section['todos'] = IssueParser._extract_todos_from_lines(
@@ -2633,8 +2660,17 @@ class IssueParser:
             # No sections found, everything is pre-section description
             pre_section_description = '\n'.join(pre_section_lines).strip()
         
-        # Extract conditions from entire body
-        conditions = IssueParser._extract_conditions_from_body(body)
+        # Extract conditions from condition sections
+        conditions = []
+        for section in sections:
+            if section.title.startswith("CONDITION: "):
+                # Parse condition from section body
+                condition = IssueParser._parse_condition_from_section_body(
+                    section.title[11:],  # Remove "CONDITION: " prefix
+                    section.body
+                )
+                if condition:
+                    conditions.append(condition)
         
         return {
             'pre_section_description': pre_section_description,
@@ -2642,6 +2678,71 @@ class IssueParser:
             'log_entries': log_entries,
             'conditions': conditions
         }
+    
+    @staticmethod
+    def _parse_condition_from_section_body(condition_text: str, section_body: str) -> Optional['Condition']:
+        """Parse a condition from section body content.
+        
+        Args:
+            condition_text: The condition text (title after "CONDITION: ")
+            section_body: The body content of the condition section
+            
+        Returns:
+            Condition object if parsed successfully, None otherwise
+        """
+        from .models import Condition
+        import re
+        
+        if not section_body or not section_body.strip():
+            return None
+        
+        lines = section_body.split('\n')
+        
+        # Initialize condition fields
+        verified = False
+        signed_off_by = None
+        requirements = ""
+        evidence = None
+        
+        # Parse the condition fields from section body
+        for line in lines:
+            line = line.strip()
+            
+            # Parse VERIFIED checkbox
+            verified_match = re.match(r'^- \[([x\s])\] VERIFIED$', line, re.IGNORECASE)
+            if verified_match:
+                verified = verified_match.group(1).lower() == 'x'
+                continue
+            
+            # Parse Signed-off by field
+            signed_off_match = re.match(r'^- \*\*Signed-off by:\*\* (.+)$', line, re.IGNORECASE)
+            if signed_off_match:
+                signed_off_text = signed_off_match.group(1).strip()
+                if signed_off_text not in ['_Not yet verified_', '', 'None']:
+                    signed_off_by = signed_off_text
+                continue
+            
+            # Parse Requirements field
+            requirements_match = re.match(r'^- \*\*Requirements:\*\* (.+)$', line, re.IGNORECASE)
+            if requirements_match:
+                requirements = requirements_match.group(1).strip()
+                continue
+            
+            # Parse Evidence field
+            evidence_match = re.match(r'^- \*\*Evidence:\*\* (.+)$', line, re.IGNORECASE)
+            if evidence_match:
+                evidence_text = evidence_match.group(1).strip()
+                if evidence_text not in ['_Not yet provided_', '', 'None']:
+                    evidence = evidence_text
+                continue
+        
+        return Condition(
+            text=condition_text,
+            verified=verified,
+            signed_off_by=signed_off_by,
+            requirements=requirements,
+            evidence=evidence
+        )
     
     @staticmethod
     def _extract_todos_from_lines(lines: List[str], start_line_number: int) -> List['Todo']:
@@ -4174,7 +4275,11 @@ class TodoCommand:
         
         # Add each section
         for section_idx, section in enumerate(parsed_body.get('sections', [])):
-            lines.append(f'## {section.title}')
+            # Handle condition sections with H3, regular sections with H2
+            if section.title.startswith("CONDITION: "):
+                lines.append(f'### {section.title}')
+            else:
+                lines.append(f'## {section.title}')
             
             if section.body.strip():
                 # Process section body line by line, updating todos in place
@@ -4864,7 +4969,7 @@ class UpdateSectionCommand(TodoCommand):
             return original_content
 
 
-class CreateConditionCommand(ConditionCommand):
+class CreateConditionCommand(TodoCommand):
     """Command for creating new conditions in GitHub issue bodies."""
     
     def execute(
@@ -4902,27 +5007,35 @@ class CreateConditionCommand(ConditionCommand):
         issue = issue_data['issue']
         parsed_body = issue_data['parsed_body']
         
-        # Check if condition already exists
-        existing_conditions = parsed_body.get('conditions', [])
-        for condition in existing_conditions:
-            if condition.text.lower() == condition_text.lower():
+        # Check if condition already exists (check condition sections)
+        existing_sections = parsed_body.get('sections', [])
+        condition_title = f"CONDITION: {condition_text}"
+        for section in existing_sections:
+            if section.title.lower() == condition_title.lower():
                 raise ValueError(f'Condition "{condition_text}" already exists')
         
-        # Create new condition
-        from .models import Condition
-        new_condition = Condition(
-            text=condition_text,
-            verified=False,
-            signed_off_by=None,
-            requirements=requirements or "_No requirements specified_",
-            evidence=None
+        # Create new condition section
+        from .models import Section
+        condition_body_lines = [
+            "- [ ] VERIFIED",
+            "- **Signed-off by:** _Not yet verified_",
+            f"- **Requirements:** {requirements or '_No requirements specified_'}",
+            "- **Evidence:** _Not yet provided_"
+        ]
+        condition_body = '\n'.join(condition_body_lines)
+        
+        new_condition_section = Section(
+            title=condition_title,
+            body=condition_body,
+            todos=[]  # Conditions don't use todos
         )
         
-        # Add to conditions list
-        updated_conditions = existing_conditions + [new_condition]
+        # Add condition section to sections list
+        updated_sections = existing_sections + [new_condition_section]
+        parsed_body['sections'] = updated_sections
         
-        # Reconstruct body with new condition
-        new_body = self._reconstruct_body_with_conditions(parsed_body, updated_conditions)
+        # Reconstruct body using the standard method
+        new_body = self._reconstruct_body(parsed_body)
         
         # Update issue body
         self.set_body_command.execute(repo, issue_number, new_body)
