@@ -4310,8 +4310,8 @@ class ConditionCommand:
         import re
         
         # Pattern to match condition blocks:
-        # ### CONDITION: ... followed by the 4 required fields
-        condition_pattern = r'### CONDITION:[^\n]*\n(?:- \[.\] VERIFIED\n|- \*\*Signed-off by:\*\*[^\n]*\n|- \*\*Requirements:\*\*[^\n]*\n|- \*\*Evidence:\*\*[^\n]*\n)*'
+        # ### CONDITION: ... followed by the 4 required fields in exact order
+        condition_pattern = r'### CONDITION:[^\n]*\n- \[.\] VERIFIED\n- \*\*Signed-off by:\*\*[^\n]*\n- \*\*Requirements:\*\*[^\n]*\n- \*\*Evidence:\*\*[^\n]*\n'
         
         # Remove condition blocks and clean up extra whitespace
         cleaned_text = re.sub(condition_pattern, '', text, flags=re.MULTILINE | re.IGNORECASE)
