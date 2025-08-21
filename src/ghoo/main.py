@@ -11,7 +11,7 @@ from .core import (
     CreateEpicCommand, CreateTaskCommand, CreateSubTaskCommand,
     StartPlanCommand, SubmitPlanCommand, ApprovePlanCommand,
     StartWorkCommand, SubmitWorkCommand, ApproveWorkCommand,
-    PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, GitHubClient, ConfigLoader
+    PostCommentCommand, GetLatestCommentTimestampCommand, GetCommentsCommand, SetMilestoneCommand, GitHubClient, ConfigLoader
 )
 from .commands import get_app
 from .utils.repository import resolve_repository
@@ -207,6 +207,65 @@ def set_body(
         typer.echo(f"✅ Issue body updated successfully!")
         typer.echo(f"   Issue: #{result['number']}: {result['title']}")
         typer.echo(f"   Body length: {result['body_length']} characters")
+        typer.echo(f"   URL: {result['url']}")
+        
+    except ValueError as e:
+        typer.echo(f"❌ {str(e)}", err=True)
+        sys.exit(1)
+    except MissingTokenError as e:
+        typer.echo("❌ GitHub token not found", err=True)
+        if e.is_testing:
+            typer.echo("   Set TESTING_GITHUB_TOKEN environment variable", err=True)
+        else:
+            typer.echo("   Set GITHUB_TOKEN environment variable", err=True)
+        sys.exit(1)
+    except InvalidTokenError as e:
+        typer.echo(f"❌ GitHub authentication failed: {str(e)}", err=True)
+        typer.echo("   Check your GitHub token permissions", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if "not found" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+        elif "permission denied" in str(e).lower():
+            typer.echo(f"❌ {str(e)}", err=True)
+            typer.echo("   Make sure you have write access to the repository", err=True)
+        else:
+            typer.echo(f"❌ Unexpected error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@app.command(name="set-milestone")
+def set_milestone(
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository in format 'owner/repo' (uses config if not specified)"),
+    issue_number: int = typer.Argument(..., help="Issue number to update"),
+    milestone: str = typer.Argument(..., help="Milestone title to assign (or 'none' to clear)")
+):
+    """Set or change the milestone for a GitHub issue."""
+    try:
+        # Load configuration and resolve repository
+        config_loader = ConfigLoader()
+        repo = resolve_repository(repo, config_loader)
+        
+        # Initialize GitHub client with config
+        config_loader = ConfigLoader()
+        try:
+            config = config_loader.load()
+            github_client = GitHubClient(config=config, config_dir=config_loader.get_config_dir())
+        except (ConfigNotFoundError, InvalidYAMLError):
+            # If config loading fails, use client without config
+            github_client = GitHubClient(config_dir=config_loader.get_config_dir())
+        
+        # Execute set-milestone command
+        set_milestone_command = SetMilestoneCommand(github_client)
+        result = set_milestone_command.execute(repo, issue_number, milestone)
+        
+        # Display success message
+        typer.echo(f"✅ {result['message']}")
+        typer.echo(f"   Issue: #{result['issue_number']}: {result['issue_title']}")
+        if result['milestone']:
+            typer.echo(f"   Milestone: {result['milestone']['title']} (#{result['milestone']['number']}, {result['milestone']['state']})")
+        else:
+            typer.echo(f"   Milestone: None")
         typer.echo(f"   URL: {result['url']}")
         
     except ValueError as e:

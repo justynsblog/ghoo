@@ -6393,3 +6393,112 @@ class GetCommentsCommand:
         except Exception as e:
             raise ValueError(f"Unexpected error getting comments for issue #{issue_number}: {str(e)}")
 
+
+
+
+class SetMilestoneCommand:
+    """Command to set or update the milestone for a GitHub issue."""
+    
+    def __init__(self, github_client: 'GitHubClient'):
+        """Initialize the SetMilestoneCommand.
+        
+        Args:
+            github_client: Authenticated GitHubClient instance
+        """
+        self.github = github_client
+    
+    def execute(self, repo: str, issue_number: int, milestone_title: str) -> dict:
+        """Execute the command to set an issue's milestone.
+        
+        Args:
+            repo: Repository in format 'owner/repo'
+            issue_number: Issue number to update
+            milestone_title: Title of the milestone to assign (use None or "none" to clear)
+            
+        Returns:
+            Dict with success message and updated issue information
+            
+        Raises:
+            ValueError: If repository format is invalid, issue not found, or milestone not found
+        """
+        try:
+            # Validate repository format
+            if '/' not in repo or len(repo.split('/')) != 2:
+                raise ValueError(f"Invalid repository format '{repo}'. Expected 'owner/repo'")
+            
+            # Get repository and issue
+            github_repo = self.github.github.get_repo(repo)
+            issue = github_repo.get_issue(issue_number)
+            
+            # Handle milestone clearing
+            if milestone_title is None or milestone_title.lower() == "none":
+                issue.edit(milestone=None)
+                return {
+                    'success': True,
+                    'message': f"Milestone cleared from issue #{issue_number}",
+                    'issue_number': issue_number,
+                    'issue_title': issue.title,
+                    'milestone': None,
+                    'url': issue.html_url
+                }
+            
+            # Find the milestone
+            milestone = self._find_milestone(github_repo, milestone_title)
+            
+            # Update the issue milestone
+            issue.edit(milestone=milestone)
+            
+            return {
+                'success': True,
+                'message': f"Milestone '{milestone_title}' assigned to issue #{issue_number}",
+                'issue_number': issue_number,
+                'issue_title': issue.title,
+                'milestone': {
+                    'title': milestone.title,
+                    'number': milestone.number,
+                    'state': milestone.state
+                },
+                'url': issue.html_url
+            }
+            
+        except GithubException as e:
+            if e.status == 404:
+                # Distinguish between repo not found and issue not found
+                try:
+                    self.github.github.get_repo(repo)
+                    # Repo exists, so issue doesn't exist
+                    raise ValueError(f"Issue #{issue_number} not found in repository '{repo}'")
+                except GithubException:
+                    # Repo doesn't exist
+                    raise ValueError(f"Repository '{repo}' not found")
+            elif e.status == 403:
+                raise ValueError(f"Access denied to repository '{repo}'. Check your permissions and token scopes.")
+            else:
+                raise ValueError(f"GitHub API error: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error setting milestone for issue #{issue_number}: {str(e)}")
+    
+    def _find_milestone(self, github_repo, milestone_title: str):
+        """Find milestone by title in the repository.
+        
+        Args:
+            github_repo: PyGithub repository object
+            milestone_title: Title of the milestone to find
+            
+        Returns:
+            Milestone object if found
+            
+        Raises:
+            ValueError: If milestone is not found
+        """
+        milestones = github_repo.get_milestones(state='all')
+        for milestone in milestones:
+            if milestone.title == milestone_title:
+                return milestone
+        
+        available_milestones = [m.title for m in github_repo.get_milestones(state='all')]
+        raise ValueError(
+            f"Milestone '{milestone_title}' not found. "
+            f"Available milestones: {', '.join(available_milestones) if available_milestones else 'None'}"
+        )
+
