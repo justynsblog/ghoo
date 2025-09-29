@@ -581,10 +581,17 @@ class TestWorkflowValidationIntegration:
         assert mock_github_validation_api['repo'].get_issue.call_count >= 1
     
     def test_create_task_parent_state_validation(self, mock_github_validation_api, mock_config_validation):
-        """Test that task creation validates parent epic state."""
+        """Test that task creation validates parent epic state (with restrictive config)."""
         from ghoo.core import CreateTaskCommand
-        
-        # Mock parent epic in backlog state (invalid for task creation)
+        from ghoo.models import Config
+
+        # Create restrictive config
+        restrictive_config = Config(
+            project_url="https://github.com/test/repo",
+            restrict_subissue_creation_states=True
+        )
+
+        # Mock parent epic in backlog state (invalid for task creation with restrictive config)
         mock_parent_epic = Mock()
         mock_parent_epic.state = "open"
         mock_parent_epic.title = "Parent Epic"
@@ -592,14 +599,14 @@ class TestWorkflowValidationIntegration:
         mock_backlog_label.name = "status:backlog"
         labels_list = [mock_backlog_label]
         mock_parent_epic.labels = labels_list
-        
+
         mock_github_validation_api['repo'].get_issue.return_value = mock_parent_epic
-        
+
         with patch.dict('os.environ', {'GITHUB_TOKEN': 'test_token'}):
             github_client = GitHubClient()
-        
-        command = CreateTaskCommand(github_client)
-        
+
+        command = CreateTaskCommand(github_client, config=restrictive_config)
+
         with pytest.raises(ValueError, match="Cannot create task under epic #456: epic is in 'backlog' state"):
             command._validate_parent_epic(mock_github_validation_api['repo'], 456)
     
@@ -628,26 +635,33 @@ class TestWorkflowValidationIntegration:
         assert result == mock_parent_epic
     
     def test_create_sub_task_parent_state_validation(self, mock_github_validation_api, mock_config_validation):
-        """Test that sub-task creation validates parent task state."""
+        """Test that sub-task creation validates parent task state (with restrictive config)."""
         from ghoo.core import CreateSubTaskCommand
-        
-        # Mock parent task in closed state (invalid for sub-task creation)
+        from ghoo.models import Config
+
+        # Create restrictive config
+        restrictive_config = Config(
+            project_url="https://github.com/test/repo",
+            restrict_subissue_creation_states=True
+        )
+
+        # Mock parent task in backlog state (invalid for sub-task creation with restrictive config)
         mock_parent_task = Mock()
         mock_parent_task.state = "open"
         mock_parent_task.title = "Parent Task"
-        mock_closed_label = Mock()
-        mock_closed_label.name = "status:closed"
-        labels_list = [mock_closed_label]
+        mock_backlog_label = Mock()
+        mock_backlog_label.name = "status:backlog"
+        labels_list = [mock_backlog_label]
         mock_parent_task.labels = labels_list
-        
+
         mock_github_validation_api['repo'].get_issue.return_value = mock_parent_task
-        
+
         with patch.dict('os.environ', {'GITHUB_TOKEN': 'test_token'}):
             github_client = GitHubClient()
-        
-        command = CreateSubTaskCommand(github_client)
-        
-        with pytest.raises(ValueError, match="Cannot create sub-task under task #789: task is in 'closed' state"):
+
+        command = CreateSubTaskCommand(github_client, config=restrictive_config)
+
+        with pytest.raises(ValueError, match="Cannot create sub-task under task #789: task is in 'backlog' state"):
             command._validate_parent_task(mock_github_validation_api['repo'], 789)
     
     def test_create_sub_task_parent_state_validation_success(self, mock_github_validation_api, mock_config_validation):
@@ -672,4 +686,52 @@ class TestWorkflowValidationIntegration:
         result = command._validate_parent_task(mock_github_validation_api['repo'], 789)
         
         # Should return the parent task without raising exception
+        assert result == mock_parent_task
+
+    def test_create_task_plan_approved_allowed_by_default(self, mock_github_validation_api, mock_config_validation):
+        """Test that task creation is allowed under plan-approved epics by default."""
+        from ghoo.core import CreateTaskCommand
+
+        # Mock parent epic in plan-approved state (allowed by default)
+        mock_parent_epic = Mock()
+        mock_parent_epic.state = "open"
+        mock_parent_epic.title = "Parent Epic"
+        mock_plan_approved_label = Mock()
+        mock_plan_approved_label.name = "status:plan-approved"
+        labels_list = [mock_plan_approved_label]
+        mock_parent_epic.labels = labels_list
+
+        mock_github_validation_api['repo'].get_issue.return_value = mock_parent_epic
+
+        with patch.dict('os.environ', {'GITHUB_TOKEN': 'test_token'}):
+            github_client = GitHubClient()
+
+        command = CreateTaskCommand(github_client)  # No config = default permissive
+
+        # Should succeed without raising exception
+        result = command._validate_parent_epic(mock_github_validation_api['repo'], 456)
+        assert result == mock_parent_epic
+
+    def test_create_sub_task_plan_approved_allowed_by_default(self, mock_github_validation_api, mock_config_validation):
+        """Test that sub-task creation is allowed under plan-approved tasks by default."""
+        from ghoo.core import CreateSubTaskCommand
+
+        # Mock parent task in plan-approved state (allowed by default)
+        mock_parent_task = Mock()
+        mock_parent_task.state = "open"
+        mock_parent_task.title = "Parent Task"
+        mock_plan_approved_label = Mock()
+        mock_plan_approved_label.name = "status:plan-approved"
+        labels_list = [mock_plan_approved_label]
+        mock_parent_task.labels = labels_list
+
+        mock_github_validation_api['repo'].get_issue.return_value = mock_parent_task
+
+        with patch.dict('os.environ', {'GITHUB_TOKEN': 'test_token'}):
+            github_client = GitHubClient()
+
+        command = CreateSubTaskCommand(github_client)  # No config = default permissive
+
+        # Should succeed without raising exception
+        result = command._validate_parent_task(mock_github_validation_api['repo'], 789)
         assert result == mock_parent_task

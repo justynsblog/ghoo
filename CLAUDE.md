@@ -28,7 +28,7 @@ src/ghoo/
 - Hybrid PyGithub + GraphQL client with automatic fallback
 - IssueParser for body parsing (sections, todos, references)
 - BaseWorkflowCommand for state transitions with validation
-- Config via `ghoo.yaml`: project_url, status_method, required_sections (enforced at submit-plan only)
+- Config via `ghoo.yaml`: project_url, status_method, required_sections (enforced at submit-plan only), restrict_subissue_creation_states (defaults to false)
 
 ## 🚨 E2E Testing - CRITICAL
 
@@ -158,6 +158,24 @@ ghoo create-epic owner/repo "Title"
 2. **Derive repository from `ghoo.yaml` if `--repo` not provided**
 3. **NEVER use positional `<repo>` arguments**
 4. **Handle missing config gracefully with clear error messages**
+
+## Configuration Options
+
+### Sub-Issue Creation Behavior (ghoo.yaml)
+Control when sub-issues (tasks under epics, sub-tasks under tasks) can be created:
+
+```yaml
+# Default: Allow sub-issue creation in any parent state (except closed)
+restrict_subissue_creation_states: false
+
+# Restrictive: Only allow sub-issue creation when parent is in planning or in-progress
+restrict_subissue_creation_states: true
+```
+
+**Default behavior (false)**: Sub-issues can be created when parent is in any state except `closed`
+**Restrictive behavior (true)**: Sub-issues can only be created when parent is in `planning` or `in-progress` state
+
+This is useful when you need to create tasks under `plan-approved` epics or sub-tasks under `plan-approved` tasks.
 
 ## Key References
 - `SPEC.md`: Technical specification

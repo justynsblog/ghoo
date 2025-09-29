@@ -3626,15 +3626,18 @@ class CreateTaskCommand(BaseCreateCommand):
             if parent_issue.state.lower() == 'closed':
                 raise ValueError(f"Cannot create task under closed epic #{parent_epic}")
             
-            # Check workflow state - tasks can only be created under epics in planning or in-progress state
-            current_status = self._get_parent_workflow_state(parent_issue)
-            allowed_states = ['planning', 'in-progress']
-            if current_status not in allowed_states:
-                raise ValueError(
-                    f"Cannot create task under epic #{parent_epic}: epic is in '{current_status}' state.\n"
-                    f"Tasks can only be created under epics that are in {' or '.join(allowed_states)} state.\n"
-                    f"Use 'ghoo start-plan epic --id {parent_epic}' to begin planning the epic first."
-                )
+            # Check workflow state - if restrict_subissue_creation_states is enabled,
+            # tasks can only be created under epics in planning or in-progress state
+            if self.config and self.config.restrict_subissue_creation_states:
+                current_status = self._get_parent_workflow_state(parent_issue)
+                allowed_states = ['planning', 'in-progress']
+                if current_status not in allowed_states:
+                    raise ValueError(
+                        f"Cannot create task under epic #{parent_epic}: epic is in '{current_status}' state.\n"
+                        f"Tasks can only be created under epics that are in {' or '.join(allowed_states)} state.\n"
+                        f"Use 'ghoo start-plan epic --id {parent_epic}' to begin planning the epic first.\n"
+                        f"Or set 'restrict_subissue_creation_states: false' in ghoo.yaml to allow task creation in any state."
+                    )
             
             # Check if it's actually an epic (has type:epic label or epic issue type)
             epic_labels = [label.name.lower() for label in parent_issue.labels]
@@ -3984,15 +3987,18 @@ class CreateSubTaskCommand(BaseCreateCommand):
         if parent_issue.state == 'closed':
             raise ValueError(f"Cannot create sub-task for closed parent task #{parent_task}")
         
-        # Check workflow state - sub-tasks can only be created under tasks in planning or in-progress state
-        current_status = self._get_parent_workflow_state(parent_issue)
-        allowed_states = ['planning', 'in-progress']
-        if current_status not in allowed_states:
-            raise ValueError(
-                f"Cannot create sub-task under task #{parent_task}: task is in '{current_status}' state.\n"
-                f"Sub-tasks can only be created under tasks that are in {' or '.join(allowed_states)} state.\n"
-                f"Use 'ghoo start-plan task --id {parent_task}' to begin planning the task first."
-            )
+        # Check workflow state - if restrict_subissue_creation_states is enabled,
+        # sub-tasks can only be created under tasks in planning or in-progress state
+        if self.config and self.config.restrict_subissue_creation_states:
+            current_status = self._get_parent_workflow_state(parent_issue)
+            allowed_states = ['planning', 'in-progress']
+            if current_status not in allowed_states:
+                raise ValueError(
+                    f"Cannot create sub-task under task #{parent_task}: task is in '{current_status}' state.\n"
+                    f"Sub-tasks can only be created under tasks that are in {' or '.join(allowed_states)} state.\n"
+                    f"Use 'ghoo start-plan task --id {parent_task}' to begin planning the task first.\n"
+                    f"Or set 'restrict_subissue_creation_states: false' in ghoo.yaml to allow sub-task creation in any state."
+                )
         
         # Validate parent is actually a task (has type:task label or is GraphQL task type)
         task_labels = [label.name for label in parent_issue.labels]

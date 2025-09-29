@@ -282,6 +282,7 @@ class Config:
     audit_method: str = "log_entries"  # or "comments"
     issue_type_method: Literal["native", "labels"] = "native"
     required_sections: Dict[str, List[str]] = field(default_factory=dict)
+    restrict_subissue_creation_states: bool = False  # If True, only allow sub-issue creation in planning/in-progress states
     
     def __post_init__(self):
         """Set default required sections if not provided and validate configuration."""

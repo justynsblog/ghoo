@@ -681,7 +681,7 @@ class TestApproveWorkCommand(TestBaseWorkflowCommand):
 
 class TestCreateCommandValidation:
     """Unit tests for parent state validation in create commands."""
-    
+
     @pytest.fixture
     def mock_github_client(self):
         """Mock GitHub client for testing."""
@@ -689,18 +689,42 @@ class TestCreateCommandValidation:
         mock_github = Mock()
         mock_client.github = mock_github
         return mock_client
+
+    @pytest.fixture
+    def mock_config(self):
+        """Mock configuration for testing."""
+        from ghoo.models import Config
+        config = Config(
+            project_url="https://github.com/test/repo",
+            restrict_subissue_creation_states=False  # Default value
+        )
+        return config
     
     @pytest.fixture
     def create_task_command(self, mock_github_client):
         """Create CreateTaskCommand instance for testing."""
         from ghoo.core import CreateTaskCommand
         return CreateTaskCommand(mock_github_client)
-    
+
+    @pytest.fixture
+    def create_task_command_restrictive(self, mock_github_client, mock_config):
+        """Create CreateTaskCommand instance with restrictive configuration for testing."""
+        from ghoo.core import CreateTaskCommand
+        mock_config.restrict_subissue_creation_states = True
+        return CreateTaskCommand(mock_github_client, config=mock_config)
+
     @pytest.fixture
     def create_sub_task_command(self, mock_github_client):
         """Create CreateSubTaskCommand instance for testing."""
         from ghoo.core import CreateSubTaskCommand
         return CreateSubTaskCommand(mock_github_client)
+
+    @pytest.fixture
+    def create_sub_task_command_restrictive(self, mock_github_client, mock_config):
+        """Create CreateSubTaskCommand instance with restrictive configuration for testing."""
+        from ghoo.core import CreateSubTaskCommand
+        mock_config.restrict_subissue_creation_states = True
+        return CreateSubTaskCommand(mock_github_client, config=mock_config)
     
     def test_get_parent_workflow_state_with_label(self, create_task_command):
         """Test getting workflow state from status label."""
@@ -733,8 +757,8 @@ class TestCreateCommandValidation:
         result = create_task_command._validate_parent_epic(mock_repo, 123)
         assert result == mock_epic
     
-    def test_validate_parent_epic_invalid_state(self, create_task_command):
-        """Test validation failure when parent epic in invalid state."""
+    def test_validate_parent_epic_invalid_state(self, create_task_command_restrictive):
+        """Test validation failure when parent epic in invalid state (with restrictive config)."""
         mock_repo = Mock()
         mock_epic = Mock()
         mock_epic.state = "open"
@@ -742,9 +766,9 @@ class TestCreateCommandValidation:
         mock_label.name = "status:backlog"  # Invalid state for task creation
         mock_epic.labels = [mock_label]
         mock_repo.get_issue.return_value = mock_epic
-        
+
         with pytest.raises(ValueError, match="Cannot create task under epic #123: epic is in 'backlog' state"):
-            create_task_command._validate_parent_epic(mock_repo, 123)
+            create_task_command_restrictive._validate_parent_epic(mock_repo, 123)
     
     def test_validate_parent_task_valid_state(self, create_sub_task_command):
         """Test successful validation of parent task in valid state."""
@@ -759,18 +783,72 @@ class TestCreateCommandValidation:
         result = create_sub_task_command._validate_parent_task(mock_repo, 456)
         assert result == mock_task
     
-    def test_validate_parent_task_invalid_state(self, create_sub_task_command):
-        """Test validation failure when parent task in invalid state."""
+    def test_validate_parent_task_invalid_state(self, create_sub_task_command_restrictive):
+        """Test validation failure when parent task in invalid state (with restrictive config)."""
         mock_repo = Mock()
         mock_task = Mock()
         mock_task.state = "open"
         mock_label = Mock()
-        mock_label.name = "status:closed"  # Invalid state for sub-task creation
+        mock_label.name = "status:backlog"  # Invalid state for sub-task creation
         mock_task.labels = [mock_label]
         mock_repo.get_issue.return_value = mock_task
-        
-        with pytest.raises(ValueError, match="Cannot create sub-task under task #456: task is in 'closed' state"):
-            create_sub_task_command._validate_parent_task(mock_repo, 456)
+
+        with pytest.raises(ValueError, match="Cannot create sub-task under task #456: task is in 'backlog' state"):
+            create_sub_task_command_restrictive._validate_parent_task(mock_repo, 456)
+
+    def test_validate_parent_epic_plan_approved_allowed_by_default(self, create_task_command):
+        """Test that task creation is allowed under plan-approved epics by default."""
+        mock_repo = Mock()
+        mock_epic = Mock()
+        mock_epic.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:plan-approved"
+        mock_epic.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_epic
+
+        # Should succeed without raising exception
+        result = create_task_command._validate_parent_epic(mock_repo, 123)
+        assert result == mock_epic
+
+    def test_validate_parent_task_plan_approved_allowed_by_default(self, create_sub_task_command):
+        """Test that sub-task creation is allowed under plan-approved tasks by default."""
+        mock_repo = Mock()
+        mock_task = Mock()
+        mock_task.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:plan-approved"
+        mock_task.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_task
+
+        # Should succeed without raising exception
+        result = create_sub_task_command._validate_parent_task(mock_repo, 456)
+        assert result == mock_task
+
+    def test_validate_parent_epic_plan_approved_blocked_when_restrictive(self, create_task_command_restrictive):
+        """Test that task creation is blocked under plan-approved epics when restrictive config is enabled."""
+        mock_repo = Mock()
+        mock_epic = Mock()
+        mock_epic.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:plan-approved"
+        mock_epic.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_epic
+
+        with pytest.raises(ValueError, match="Cannot create task under epic #123: epic is in 'plan-approved' state"):
+            create_task_command_restrictive._validate_parent_epic(mock_repo, 123)
+
+    def test_validate_parent_task_plan_approved_blocked_when_restrictive(self, create_sub_task_command_restrictive):
+        """Test that sub-task creation is blocked under plan-approved tasks when restrictive config is enabled."""
+        mock_repo = Mock()
+        mock_task = Mock()
+        mock_task.state = "open"
+        mock_label = Mock()
+        mock_label.name = "status:plan-approved"
+        mock_task.labels = [mock_label]
+        mock_repo.get_issue.return_value = mock_task
+
+        with pytest.raises(ValueError, match="Cannot create sub-task under task #456: task is in 'plan-approved' state"):
+            create_sub_task_command_restrictive._validate_parent_task(mock_repo, 456)
 
 
 class TestWorkflowCommandIntegration:
